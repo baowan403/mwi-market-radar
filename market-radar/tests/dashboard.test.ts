@@ -333,14 +333,31 @@ describe('mountDashboard', () => {
     await mountDashboard({ root, client: createClient(), catalogLoader: vi.fn().mockResolvedValue(catalog) });
     const enhancement = root.querySelector<HTMLSelectElement>('select[data-filter="enhancement"]') as HTMLSelectElement;
     const level7 = [...enhancement.options].find((option) => option.value === '7');
-    const all = [...enhancement.options].find((option) => option.value === '');
-    if (!level7 || !all) throw new Error('Missing enhancement options');
+    if (!level7) throw new Error('Missing enhancement level 7 option');
 
-    all.selected = true;
     level7.selected = true;
     enhancement.dispatchEvent(new Event('change', { bubbles: true }));
 
     expect(rows(root).map((row) => row.dataset.marketKey)).toEqual(['/items/gloves::7']);
+  });
+
+  it('represents all enhancements with an empty concrete selection and an explicit clear button', async () => {
+    const root = createRoot();
+    await mountDashboard({ root, client: createClient(), catalogLoader: vi.fn().mockResolvedValue(catalog) });
+    const enhancement = root.querySelector<HTMLSelectElement>('select[data-filter="enhancement"]') as HTMLSelectElement;
+    const level7 = [...enhancement.options].find((option) => option.value === '7');
+    if (!level7) throw new Error('Missing enhancement level 7 option');
+
+    expect([...enhancement.options].some((option) => option.value === '')).toBe(false);
+    level7.selected = true;
+    enhancement.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(rows(root).map((row) => row.dataset.marketKey)).toEqual(['/items/gloves::7']);
+
+    const clear = root.querySelector<HTMLButtonElement>('[data-enhancement-reset]');
+    expect(clear).not.toBeNull();
+    clear?.click();
+    expect(enhancement.selectedOptions).toHaveLength(0);
+    expect(rows(root)).toHaveLength(6);
   });
 
   it('serializes rapid pin writes and computes each operation from the latest committed state', async () => {

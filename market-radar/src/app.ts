@@ -258,15 +258,13 @@ function renderToolbar(
   const enhancementText = createElement('span', 'control-label');
   enhancementText.textContent = '強化等級';
   enhancementLabel.append(enhancementText);
+  const enhancementHint = createElement('span', 'control-hint');
+  enhancementHint.textContent = '未選＝全部';
+  enhancementLabel.append(enhancementHint);
   const enhancement = createElement('select');
   enhancement.multiple = true;
   enhancement.dataset.filter = 'enhancement';
-  enhancement.size = Math.min(4, Math.max(2, new Set(rows.map((row) => row.enhancementLevel)).size + 1));
-  const allOption = createElement('option');
-  allOption.value = '';
-  allOption.textContent = '全部';
-  allOption.selected = state.enhancementLevels === null;
-  enhancement.append(allOption);
+  enhancement.size = Math.min(4, Math.max(1, new Set(rows.map((row) => row.enhancementLevel)).size));
   const levels = [...new Set(rows.map((row) => row.enhancementLevel))].sort((left, right) => left - right);
   for (const level of levels) {
     const option = createElement('option');
@@ -285,6 +283,17 @@ function renderToolbar(
   });
   enhancementLabel.append(enhancement);
   target.append(enhancementLabel);
+
+  const clearEnhancement = createElement('button', 'toolbar-button enhancement-reset');
+  clearEnhancement.type = 'button';
+  clearEnhancement.dataset.enhancementReset = 'true';
+  clearEnhancement.setAttribute('aria-label', '清除等級篩選');
+  clearEnhancement.textContent = '全部等級';
+  clearEnhancement.addEventListener('click', () => {
+    for (const option of enhancement.options) option.selected = false;
+    onEnhancements(null);
+  });
+  target.append(clearEnhancement);
 
   const minimumLabel = createElement('label', 'filter-control numeric-filter');
   const minimumText = createElement('span', 'control-label');

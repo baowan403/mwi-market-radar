@@ -278,6 +278,11 @@ h2 {
   letter-spacing: 0.04em;
 }
 
+.control-hint {
+  color: var(--color-muted);
+  font-size: 0.68rem;
+}
+
 .filter-control input,
 .filter-control select {
   min-height: 38px;
