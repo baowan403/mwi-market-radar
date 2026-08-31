@@ -91,6 +91,31 @@ class DelayedFirstWriteStore extends MemoryKeyValueStore {
   }
 }
 
+class NullGetRaceStore extends MemoryKeyValueStore {
+  raceKey: string | null = null;
+  deleteOnRace = true;
+  private raceArmed = false;
+  private raceConsumed = false;
+
+  armRace(): void {
+    this.raceArmed = true;
+    this.raceConsumed = false;
+  }
+
+  override async get<T>(storageKey: string, fallback: T): Promise<T> {
+    if (this.raceArmed && !this.raceConsumed && storageKey === this.raceKey) {
+      this.raceConsumed = true;
+      if (this.deleteOnRace) {
+        this.values.delete(storageKey);
+      } else {
+        this.values.set(storageKey, null);
+      }
+      return null as T;
+    }
+    return super.get(storageKey, fallback);
+  }
+}
+
 function snapshot(timestamp: number, price = 100): Snapshot {
   return {
     timestamp,
@@ -389,6 +414,81 @@ describe('MarketStore snapshot history', () => {
     await store.saveSnapshot(old);
     adapter.afterSet = (storageKey) => {
       if (storageKey === currentKey) adapter.values.set(oldKey, null);
+    };
+
+    const result = await store.saveSnapshot(latest);
+
+    expect(result.inserted).toBe(true);
+    expect(result.cleanupErrors).toContain(`get:${oldKey}`);
+    adapter.afterSet = null;
+    const encodedCurrent = await adapter.get<string | null>(currentKey, null);
+    await expect(decodeDayChunk(encodedCurrent as string)).resolves.toEqual([latest]);
+  });
+
+  it('self-heals a list read when a listed chunk is deleted before get', async () => {
+    const adapter = new NullGetRaceStore();
+    const store = createStore(adapter);
+    const deleted = snapshot(Date.parse('2026-08-30T12:08:00Z'), 50);
+    const remaining = snapshot(Date.parse('2026-08-31T12:08:00Z'), 200);
+    const deletedKey = hourlyDayKey(deleted.timestamp);
+
+    adapter.values.set(deletedKey, await encodeDayChunk([deleted]));
+    adapter.values.set(hourlyDayKey(remaining.timestamp), await encodeDayChunk([remaining]));
+    adapter.raceKey = deletedKey;
+    adapter.armRace();
+
+    await expect(store.listSnapshots()).resolves.toEqual([remaining]);
+  });
+
+  it('still throws for a null listed chunk when the key survives the recheck', async () => {
+    const adapter = new NullGetRaceStore();
+    const store = createStore(adapter);
+    const key = `${STORAGE_PREFIX}hourly:2026-08-31`;
+
+    adapter.values.set(key, null);
+    adapter.raceKey = key;
+    adapter.deleteOnRace = false;
+    adapter.armRace();
+
+    await expect(store.listSnapshots()).rejects.toThrow(/corrupt.*hourly|missing.*hourly/i);
+  });
+
+  it('does not report a cleanup error when a listed chunk is deleted before get', async () => {
+    const adapter = new NullGetRaceStore();
+    const store = createStore(adapter);
+    const old = snapshot(Date.parse('2026-08-30T12:08:00Z'), 50);
+    const latest = snapshot(Date.parse('2026-08-31T12:08:00Z'), 200);
+    const oldKey = hourlyDayKey(old.timestamp);
+    const currentKey = hourlyDayKey(latest.timestamp);
+
+    await store.saveSnapshot(old);
+    adapter.raceKey = oldKey;
+    adapter.afterSet = (storageKey) => {
+      if (storageKey === currentKey) adapter.armRace();
+    };
+
+    const result = await store.saveSnapshot(latest);
+
+    expect(result).toEqual({ inserted: true, cleanupErrors: [] });
+    adapter.afterSet = null;
+    expect(await adapter.keys()).not.toContain(oldKey);
+    const encodedCurrent = await adapter.get<string | null>(currentKey, null);
+    await expect(decodeDayChunk(encodedCurrent as string)).resolves.toEqual([latest]);
+  });
+
+  it('reports a cleanup get error when a null listed chunk survives the recheck', async () => {
+    const adapter = new NullGetRaceStore();
+    const store = createStore(adapter);
+    const old = snapshot(Date.parse('2026-08-30T12:08:00Z'), 50);
+    const latest = snapshot(Date.parse('2026-08-31T12:08:00Z'), 200);
+    const oldKey = hourlyDayKey(old.timestamp);
+    const currentKey = hourlyDayKey(latest.timestamp);
+
+    await store.saveSnapshot(old);
+    adapter.raceKey = oldKey;
+    adapter.deleteOnRace = false;
+    adapter.afterSet = (storageKey) => {
+      if (storageKey === currentKey) adapter.armRace();
     };
 
     const result = await store.saveSnapshot(latest);

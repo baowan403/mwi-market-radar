@@ -80,6 +80,10 @@ function isHourlyKey(key: string): boolean {
   return Number.isFinite(timestamp) && new Date(timestamp).toISOString().slice(0, 10) === calendarDate;
 }
 
+async function isKeyStillPresent(storage: KeyValueStore, key: string): Promise<boolean> {
+  return (await storage.keys()).includes(key);
+}
+
 function sortUniqueSnapshots(snapshots: Iterable<Snapshot>): Snapshot[] {
   const byTimestamp = new Map<number, Snapshot>();
   for (const snapshot of snapshots) {
@@ -170,6 +174,8 @@ export class MarketStore {
   /**
    * All snapshot saves share this fulfilled promise tail so each read-modify-write
    * runs exclusively within this store; a rejected save cannot poison later work.
+   * Cross-instance writers remain protected by Task 6's global lock, while readers
+   * recheck keys to self-heal a legitimate concurrent retention delete race.
    */
   private saveQueue: Promise<void> = Promise.resolve();
 
@@ -265,6 +271,13 @@ export class MarketStore {
     for (const key of keys) {
       const encoded = await this.storage.get<string | null>(key, null);
       if (encoded === null || encoded === undefined) {
+        let stillPresent: boolean;
+        try {
+          stillPresent = await isKeyStillPresent(this.storage, key);
+        } catch {
+          throw new Error(`Unable to verify hourly snapshot chunk at key: ${key}`);
+        }
+        if (!stillPresent) continue;
         throw new Error(`Corrupt hourly snapshot chunk at key: ${key}`);
       }
       chunks.set(key, await decodeDayChunk(encoded));
@@ -293,6 +306,14 @@ export class MarketStore {
         continue;
       }
       if (encoded === null || encoded === undefined) {
+        let stillPresent: boolean;
+        try {
+          stillPresent = await isKeyStillPresent(this.storage, key);
+        } catch {
+          cleanupErrors.push(`get:${key}`);
+          continue;
+        }
+        if (!stillPresent) continue;
         cleanupErrors.push(`get:${key}`);
         continue;
       }
