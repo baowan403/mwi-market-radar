@@ -1,10 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  OFFICIAL_REQUEST_CANCELLED_MESSAGE,
   OFFICIAL_MARKETPLACE_URL,
   fetchOfficialSnapshot,
 } from '../src/collector/official-client';
 
 const NOW = 1_787_645_160_000;
+
+async function flushAsyncWork(): Promise<void> {
+  await vi.advanceTimersByTimeAsync(0);
+}
 
 function okResponse(body: unknown): Response {
   return {
@@ -179,6 +184,76 @@ describe('fetchOfficialSnapshot', () => {
       );
       expect(timer.clearTimeout).toHaveBeenCalledTimes(1);
       expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('does not fetch when the external signal is already aborted', async () => {
+      const externalController = new AbortController();
+      externalController.abort();
+      const fetcher = vi.fn();
+      const timer = {
+        setTimeout: vi.fn(),
+        clearTimeout: vi.fn(),
+      };
+
+      await expect(fetchOfficialSnapshot({
+        fetcher,
+        signal: externalController.signal,
+        timer,
+      })).rejects.toThrow(OFFICIAL_REQUEST_CANCELLED_MESSAGE);
+
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(timer.setTimeout).not.toHaveBeenCalled();
+    });
+
+    it('aborts the internal fetch and cleans timer/listener on external cancellation', async () => {
+      const externalController = new AbortController();
+      const internalController = new AbortController();
+      const createAbortController = vi.fn(() => internalController);
+      const removeEventListener = vi.spyOn(externalController.signal, 'removeEventListener');
+      const timer = {
+        setTimeout: vi.fn((callback: () => void, delayMs: number) => setTimeout(callback, delayMs)),
+        clearTimeout: vi.fn((handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>)),
+      };
+      const fetcher = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>(() => {
+        expect(init?.signal).toBe(internalController.signal);
+      }));
+      const request = fetchOfficialSnapshot({
+        fetcher,
+        signal: externalController.signal,
+        now: () => NOW,
+        timeoutMs: 15_000,
+        timer,
+        createAbortController,
+      });
+      const rejected = expect(request).rejects.toThrow(OFFICIAL_REQUEST_CANCELLED_MESSAGE);
+      await flushAsyncWork();
+
+      externalController.abort();
+      await rejected;
+
+      expect(internalController.signal.aborted).toBe(true);
+      expect(timer.clearTimeout).toHaveBeenCalledTimes(1);
+      expect(removeEventListener).toHaveBeenCalledTimes(1);
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('removes the external abort listener after a successful request', async () => {
+      const externalController = new AbortController();
+      const removeEventListener = vi.spyOn(externalController.signal, 'removeEventListener');
+      const fetcher = vi.fn().mockResolvedValue(
+        okResponse({
+          timestamp: 1_787_645_160,
+          marketData: { '/items/test': { '0': { p: 100 } } },
+        }),
+      );
+
+      await fetchOfficialSnapshot({
+        fetcher,
+        signal: externalController.signal,
+        now: () => NOW,
+      });
+
+      expect(removeEventListener).toHaveBeenCalledTimes(1);
     });
   });
 });

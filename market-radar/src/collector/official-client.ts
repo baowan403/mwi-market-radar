@@ -4,6 +4,7 @@ import type { Snapshot } from '../core/types';
 export const OFFICIAL_MARKETPLACE_URL = 'https://www.milkywayidle.com/game_data/marketplace.json';
 export const DEFAULT_OFFICIAL_REQUEST_TIMEOUT_MS = 15_000;
 export const OFFICIAL_REQUEST_TIMEOUT_MESSAGE = 'Official marketplace request timed out';
+export const OFFICIAL_REQUEST_CANCELLED_MESSAGE = 'Official marketplace request cancelled';
 
 export interface OfficialSnapshotTimer {
   setTimeout(callback: () => void, delayMs: number): unknown;
@@ -19,6 +20,7 @@ export interface OfficialSnapshotClientOptions {
   timeoutMs?: number;
   timer?: OfficialSnapshotTimer;
   createAbortController?: () => AbortController;
+  signal?: AbortSignal;
 }
 
 function isFetcher(value: OfficialFetcher | OfficialSnapshotClientOptions): value is OfficialFetcher {
@@ -41,6 +43,10 @@ function timeoutError(): Error {
   return new Error(OFFICIAL_REQUEST_TIMEOUT_MESSAGE);
 }
 
+function cancellationError(): Error {
+  return new Error(OFFICIAL_REQUEST_CANCELLED_MESSAGE);
+}
+
 /** Fetch and validate one public marketplace snapshot without sending credentials. */
 export async function fetchOfficialSnapshot(
   optionsOrFetcher: OfficialSnapshotClientOptions | OfficialFetcher = {},
@@ -51,6 +57,11 @@ export async function fetchOfficialSnapshot(
     : optionsOrFetcher.fetcher ?? globalThis.fetch;
   const clock = now ?? (isFetcher(optionsOrFetcher) ? undefined : optionsOrFetcher.now) ?? (() => Date.now());
   const options = isFetcher(optionsOrFetcher) ? {} : optionsOrFetcher;
+  const externalSignal = options.signal;
+  if (externalSignal?.aborted) {
+    throw cancellationError();
+  }
+
   const timer = options.timer ?? defaultTimer();
   const timeoutMs = Math.max(0, options.timeoutMs ?? DEFAULT_OFFICIAL_REQUEST_TIMEOUT_MS);
   const controller = (options.createAbortController ?? (() => new AbortController()))();
@@ -64,11 +75,45 @@ export async function fetchOfficialSnapshot(
   };
 
   let timerHandle: unknown;
+  let timerActive = false;
+  let cleanedUp = false;
+  let cancelled = false;
+  let externalAbortListener: (() => void) | undefined;
+
+  const cleanup = (): void => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    if (timerActive) {
+      timerActive = false;
+      timer.clearTimeout(timerHandle);
+    }
+    if (externalSignal !== undefined && externalAbortListener !== undefined) {
+      externalSignal.removeEventListener('abort', externalAbortListener);
+      externalAbortListener = undefined;
+    }
+  };
+
+  let rejectCancellation: ((reason?: unknown) => void) | undefined;
+  const cancellationPromise = externalSignal === undefined
+    ? undefined
+    : new Promise<never>((_resolve, reject) => {
+      rejectCancellation = reject;
+      externalAbortListener = (): void => {
+        cancelled = true;
+        controller.abort();
+        cleanup();
+        rejectCancellation?.(cancellationError());
+      };
+      externalSignal.addEventListener('abort', externalAbortListener);
+    });
+
   const timeoutPromise = new Promise<never>((_resolve, reject) => {
     timerHandle = timer.setTimeout(() => {
       controller.abort();
+      cleanup();
       reject(timeoutError());
     }, timeoutMs);
+    timerActive = true;
   });
 
   const responsePromise = (async (): Promise<Snapshot> => {
@@ -89,14 +134,17 @@ export async function fetchOfficialSnapshot(
 
       return parseOfficialSnapshot(raw);
     } catch (cause) {
+      if (cancelled || externalSignal?.aborted) throw cancellationError();
       if (isAbortError(cause)) throw timeoutError();
       throw cause;
     }
   })();
 
   try {
-    return await Promise.race([responsePromise, timeoutPromise]);
+    const promises: Array<Promise<Snapshot> | Promise<never>> = [responsePromise, timeoutPromise];
+    if (cancellationPromise !== undefined) promises.push(cancellationPromise);
+    return await Promise.race(promises);
   } finally {
-    timer.clearTimeout(timerHandle);
+    cleanup();
   }
 }

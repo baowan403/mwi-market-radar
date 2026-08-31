@@ -2,6 +2,8 @@ export type CheckResult = 'updated' | 'unchanged' | 'skipped';
 
 export interface SchedulerCheckContext {
   isRetry: boolean;
+  /** Present for scheduler-driven checks; optional for existing manual callers. */
+  signal?: AbortSignal;
 }
 
 export type SchedulerCheck =
@@ -56,6 +58,7 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
   let started = false;
   let generation = 0;
   let inFlightGeneration: number | null = null;
+  let activeController: AbortController | null = null;
   let timer: unknown;
   let hasTimer = false;
 
@@ -71,7 +74,12 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
     return started && lifecycleGeneration === generation;
   }
 
-  function schedule(delayMs: number, isRetry: boolean, lifecycleGeneration: number): void {
+  function schedule(
+    delayMs: number,
+    isRetry: boolean,
+    lifecycleGeneration: number,
+    signal: AbortSignal,
+  ): void {
     if (!isActive(lifecycleGeneration)) return;
     clearScheduledTimer();
     let scheduledHandle: unknown;
@@ -79,42 +87,46 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
       if (!isActive(lifecycleGeneration) || timer !== scheduledHandle) return;
       timer = undefined;
       hasTimer = false;
-      void runCheck(isRetry, lifecycleGeneration);
+      void runCheck(isRetry, lifecycleGeneration, signal);
     };
     scheduledHandle = timerApi.setTimeout(callback, Math.max(0, delayMs));
     timer = scheduledHandle;
     hasTimer = true;
   }
 
-  function scheduleRegular(lifecycleGeneration: number): void {
+  function scheduleRegular(lifecycleGeneration: number, signal: AbortSignal): void {
     if (!isActive(lifecycleGeneration)) return;
     const currentTime = clock();
-    schedule(nextHourlyRun(currentTime) - currentTime, false, lifecycleGeneration);
+    schedule(nextHourlyRun(currentTime) - currentTime, false, lifecycleGeneration, signal);
   }
 
-  function scheduleRetry(lifecycleGeneration: number): void {
-    schedule(RETRY_DELAY_MS, true, lifecycleGeneration);
+  function scheduleRetry(lifecycleGeneration: number, signal: AbortSignal): void {
+    schedule(RETRY_DELAY_MS, true, lifecycleGeneration, signal);
   }
 
-  async function runCheck(isRetry: boolean, lifecycleGeneration: number): Promise<void> {
+  async function runCheck(
+    isRetry: boolean,
+    lifecycleGeneration: number,
+    signal: AbortSignal,
+  ): Promise<void> {
     if (!isActive(lifecycleGeneration) || inFlightGeneration === lifecycleGeneration) return;
     inFlightGeneration = lifecycleGeneration;
 
     try {
-      const result = await options.check({ isRetry });
+      const result = await options.check({ isRetry, signal });
       if (!isActive(lifecycleGeneration)) return;
 
       if (isRetry || result !== 'unchanged') {
-        scheduleRegular(lifecycleGeneration);
+        scheduleRegular(lifecycleGeneration, signal);
       } else {
-        scheduleRetry(lifecycleGeneration);
+        scheduleRetry(lifecycleGeneration, signal);
       }
     } catch {
       if (!isActive(lifecycleGeneration)) return;
       if (isRetry) {
-        scheduleRegular(lifecycleGeneration);
+        scheduleRegular(lifecycleGeneration, signal);
       } else {
-        scheduleRetry(lifecycleGeneration);
+        scheduleRetry(lifecycleGeneration, signal);
       }
     } finally {
       if (inFlightGeneration === lifecycleGeneration) {
@@ -128,12 +140,17 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
       if (started) return;
       started = true;
       const lifecycleGeneration = ++generation;
-      void runCheck(false, lifecycleGeneration);
+      const controller = new AbortController();
+      activeController = controller;
+      void runCheck(false, lifecycleGeneration, controller.signal);
     },
 
     stop(): void {
       started = false;
       generation += 1;
+      const controller = activeController;
+      activeController = null;
+      controller?.abort();
       clearScheduledTimer();
     },
   };

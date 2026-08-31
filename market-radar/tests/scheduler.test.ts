@@ -56,7 +56,7 @@ describe('createScheduler', () => {
     await flushAsyncWork();
 
     expect(check).toHaveBeenCalledTimes(1);
-    expect(check).toHaveBeenCalledWith({ isRetry: false });
+    expect(check).toHaveBeenCalledWith(expect.objectContaining({ isRetry: false }));
   });
 
   it('schedules an updated result at the next regular slot', async () => {
@@ -69,7 +69,7 @@ describe('createScheduler', () => {
     await vi.advanceTimersByTimeAsync(30_000);
 
     expect(check).toHaveBeenCalledTimes(2);
-    expect(check.mock.calls[1]?.[0]).toEqual({ isRetry: false });
+    expect(check.mock.calls[1]?.[0]).toMatchObject({ isRetry: false });
   });
 
   it('retries an unchanged non-retry result exactly once', async () => {
@@ -85,10 +85,10 @@ describe('createScheduler', () => {
     await vi.advanceTimersByTimeAsync(TEN_MINUTES);
 
     expect(check).toHaveBeenCalledTimes(2);
-    expect(check.mock.calls[1]?.[0]).toEqual({ isRetry: true });
+    expect(check.mock.calls[1]?.[0]).toMatchObject({ isRetry: true });
     await vi.advanceTimersByTimeAsync(50 * MINUTE + 30_000);
     expect(check).toHaveBeenCalledTimes(3);
-    expect(check.mock.calls[2]?.[0]).toEqual({ isRetry: false });
+    expect(check.mock.calls[2]?.[0]).toMatchObject({ isRetry: false });
   });
 
   it('retries one thrown error and returns to the regular schedule after retry error', async () => {
@@ -104,10 +104,10 @@ describe('createScheduler', () => {
     await vi.advanceTimersByTimeAsync(TEN_MINUTES);
 
     expect(check).toHaveBeenCalledTimes(2);
-    expect(check.mock.calls[1]?.[0]).toEqual({ isRetry: true });
+    expect(check.mock.calls[1]?.[0]).toMatchObject({ isRetry: true });
     await vi.advanceTimersByTimeAsync(50 * MINUTE + 30_000);
     expect(check).toHaveBeenCalledTimes(3);
-    expect(check.mock.calls[2]?.[0]).toEqual({ isRetry: false });
+    expect(check.mock.calls[2]?.[0]).toMatchObject({ isRetry: false });
   });
 
   it('does not retry a skipped result', async () => {
@@ -119,7 +119,7 @@ describe('createScheduler', () => {
     await flushAsyncWork();
     await vi.advanceTimersByTimeAsync(30_000);
     expect(check).toHaveBeenCalledTimes(2);
-    expect(check.mock.calls[1]?.[0]).toEqual({ isRetry: false });
+    expect(check.mock.calls[1]?.[0]).toMatchObject({ isRetry: false });
     await vi.advanceTimersByTimeAsync(9 * MINUTE + 59_000);
     expect(check).toHaveBeenCalledTimes(2);
   });
@@ -186,7 +186,7 @@ describe('createScheduler', () => {
     await flushAsyncWork();
 
     expect(check).toHaveBeenCalledTimes(2);
-    expect(check.mock.calls[1]?.[0]).toEqual({ isRetry: false });
+    expect(check.mock.calls[1]?.[0]).toMatchObject({ isRetry: false });
 
     resolveFirst('updated');
     await flushAsyncWork();
@@ -256,5 +256,57 @@ describe('createScheduler', () => {
 
     expect(timers.setTimeout).not.toHaveBeenCalled();
     expect(timers.clearTimeout).not.toHaveBeenCalled();
+  });
+
+  it('passes a generation signal and aborts it when stopped', async () => {
+    let resolveCheck!: (result: CheckResult) => void;
+    let checkSignal!: AbortSignal;
+    const check = vi.fn<SchedulerCheck>(({ signal }) => {
+      if (signal === undefined) throw new Error('scheduler signal is required');
+      checkSignal = signal;
+      return new Promise<CheckResult>((resolve) => {
+        resolveCheck = resolve;
+      });
+    });
+    const scheduler = createScheduler({ now: () => Date.now(), check });
+
+    scheduler.start();
+    await flushAsyncWork();
+    expect(checkSignal).toBeInstanceOf(AbortSignal);
+    expect(checkSignal.aborted).toBe(false);
+
+    scheduler.stop();
+    expect(checkSignal.aborted).toBe(true);
+    resolveCheck('updated');
+    await flushAsyncWork();
+  });
+
+  it('creates a fresh non-aborted signal after a stop and restart', async () => {
+    const signals: AbortSignal[] = [];
+    const resolvers: Array<(result: CheckResult) => void> = [];
+    const check = vi.fn<SchedulerCheck>(({ signal }) => {
+      if (signal === undefined) throw new Error('scheduler signal is required');
+      signals.push(signal);
+      return new Promise<CheckResult>((resolve) => {
+        resolvers.push(resolve);
+      });
+    });
+    const scheduler = createScheduler({ now: () => Date.now(), check });
+
+    scheduler.start();
+    await flushAsyncWork();
+    scheduler.stop();
+    scheduler.start();
+    await flushAsyncWork();
+
+    expect(signals).toHaveLength(2);
+    expect(signals[0]?.aborted).toBe(true);
+    expect(signals[1]).not.toBe(signals[0]);
+    expect(signals[1]?.aborted).toBe(false);
+
+    resolvers[0]?.('updated');
+    resolvers[1]?.('updated');
+    await flushAsyncWork();
+    scheduler.stop();
   });
 });
