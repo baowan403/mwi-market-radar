@@ -7,7 +7,6 @@ import { shortCategory } from '../core/categories';
 import { priceBasis, type PriceQuality } from '../core/price';
 import { PERIOD_HOURS } from '../core/trends';
 import type {
-  CatalogData,
   MarketKey,
   Period,
   Quote,
@@ -31,6 +30,7 @@ export interface ItemChartDataset {
   label: string;
   data: ChartValue[];
   spanGaps: false;
+  yAxisID: 'yPrice' | 'yVolume';
 }
 
 export interface ItemChartStats {
@@ -152,7 +152,9 @@ export function buildItemChartModel(
 
     const basis = priceBasis(quote);
     if (basis.value !== null) basisPrices.push(basis.value);
-    if (basis.quality === 'ask-only' || basis.quality === 'bid-only') oneSided = true;
+    const hasAsk = finiteNonnegativeOrNull(quote.a) !== null;
+    const hasBid = finiteNonnegativeOrNull(quote.b) !== null;
+    if (hasAsk !== hasBid) oneSided = true;
   }
 
   const latestQuote = window.length === 0 ? EMPTY_QUOTE : quoteFor(window.at(-1) as Snapshot, marketKey);
@@ -161,7 +163,11 @@ export function buildItemChartModel(
   stats.snapshotCount = window.length;
   stats.validPriceSamples = basisPrices.length;
   stats.latestQuality = latestBasis.quality;
-  stats.hasGaps = marketPrices.some((value) => value === null);
+  const hasPartialGap = (values: readonly ChartValue[]): boolean => {
+    const hasValue = values.some((value) => value !== null);
+    return hasValue && values.some((value) => value === null);
+  };
+  stats.hasGaps = [marketPrices, asks, bids].some(hasPartialGap);
   stats.oneSided = oneSided;
   if (basisPrices.length > 0) {
     stats.high = Math.max(...basisPrices);
@@ -176,17 +182,17 @@ export function buildItemChartModel(
     key: marketKey,
     labels: window.map((snapshot) => formatTaipeiChartLabel(snapshot.timestamp)),
     datasets: [
-      { type: 'line', label: '市場價', data: marketPrices, spanGaps: false },
-      { type: 'line', label: '賣一', data: asks, spanGaps: false },
-      { type: 'line', label: '買一', data: bids, spanGaps: false },
-      { type: 'bar', label: '成交量', data: volumes, spanGaps: false },
+      { type: 'line', label: '市場價', data: marketPrices, spanGaps: false, yAxisID: 'yPrice' },
+      { type: 'line', label: '賣一', data: asks, spanGaps: false, yAxisID: 'yPrice' },
+      { type: 'line', label: '買一', data: bids, spanGaps: false, yAxisID: 'yPrice' },
+      { type: 'bar', label: '成交量', data: volumes, spanGaps: false, yAxisID: 'yVolume' },
     ],
     stats,
   };
 }
 
-function defaultChartFactory(canvas: HTMLCanvasElement, model: ItemChartModel): ItemChartInstance {
-  const configuration: ChartConfiguration = {
+export function buildItemChartConfig(model: ItemChartModel): ChartConfiguration {
+  return {
     type: 'line',
     data: {
       labels: model.labels,
@@ -200,10 +206,25 @@ function defaultChartFactory(canvas: HTMLCanvasElement, model: ItemChartModel): 
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
-      scales: { y: { beginAtZero: false } },
+      scales: {
+        yPrice: {
+          type: 'linear',
+          position: 'left',
+          beginAtZero: false,
+        },
+        yVolume: {
+          type: 'linear',
+          position: 'right',
+          beginAtZero: true,
+          grid: { drawOnChartArea: false },
+        },
+      },
     },
   };
-  return new Chart(canvas, configuration);
+}
+
+function defaultChartFactory(canvas: HTMLCanvasElement, model: ItemChartModel): ItemChartInstance {
+  return new Chart(canvas, buildItemChartConfig(model));
 }
 
 function resolveSnapshots(source: ItemDetailControllerOptions['snapshots']): readonly Snapshot[] {
@@ -253,6 +274,7 @@ export function createItemDetailController(options: ItemDetailControllerOptions)
   let chart: ItemChartInstance | null = null;
   let disposed = false;
   let pinInFlight = false;
+  let clearing = false;
 
   const destroyChart = (): void => {
     if (chart === null) return;
@@ -260,13 +282,28 @@ export function createItemDetailController(options: ItemDetailControllerOptions)
     chart = null;
   };
 
-  const clearDialog = (): void => {
+  const clearDialog = (useNativeClose = true): void => {
+    if (clearing) return;
+    clearing = true;
     destroyChart();
-    options.dialog.removeAttribute('open');
+    const nativeClose = useNativeClose
+      && options.dialog.open
+      && typeof options.dialog.close === 'function';
+    if (nativeClose) {
+      try {
+        options.dialog.close();
+      } catch {
+        // Fall back to removing the attribute when the host dialog is not active.
+      }
+    }
+    if (!nativeClose || options.dialog.open || options.dialog.hasAttribute('open')) {
+      options.dialog.removeAttribute('open');
+    }
     options.dialog.hidden = true;
     options.dialog.removeAttribute('data-detail-key');
     options.dialog.replaceChildren();
     currentKey = null;
+    clearing = false;
   };
 
   const updatePin = (): void => {
@@ -389,8 +426,13 @@ export function createItemDetailController(options: ItemDetailControllerOptions)
     const chartContainer = element('div', 'detail-chart-container');
     const canvas = element('canvas');
     canvas.dataset.detailChart = 'true';
+    canvas.setAttribute('role', 'img');
     canvas.setAttribute('aria-label', '物品價格與成交量圖');
     chartContainer.append(canvas);
+    const chartSummary = element('p', 'detail-chart-summary');
+    chartSummary.dataset.detailChartSummary = 'true';
+    chartSummary.textContent = `圖表摘要：樣本 ${model.stats.snapshotCount}，有效價格 ${model.stats.validPriceSamples}，高 ${valueText(model.stats.high)}，低 ${valueText(model.stats.low)}${model.stats.hasGaps ? '，含缺口' : ''}`;
+    chartContainer.append(chartSummary);
     card.append(chartContainer);
 
     const actions = element('div', 'detail-actions');
@@ -402,17 +444,23 @@ export function createItemDetailController(options: ItemDetailControllerOptions)
       if (pinInFlight || currentKey === null || options.onTogglePin === undefined) return;
       const requestedKey = currentKey;
       pinInFlight = true;
-      void Promise.resolve(options.onTogglePin(requestedKey)).then(() => {
+      pin.disabled = true;
+      void Promise.resolve().then(() => options.onTogglePin?.(requestedKey)).then(() => {
         if (disposed || currentKey !== requestedKey) return;
         updatePin();
       }).catch(() => {
         if (disposed || currentKey !== requestedKey) return;
+        options.dialog.querySelector('[data-detail-error]')?.remove();
         const error = element('p', 'detail-warning');
         error.dataset.detailError = 'true';
         error.textContent = '自選儲存失敗';
         card.append(error);
       }).finally(() => {
         pinInFlight = false;
+        if (!disposed && currentKey === requestedKey) {
+          const currentPin = options.dialog.querySelector<HTMLButtonElement>('[data-detail-pin]');
+          if (currentPin) currentPin.disabled = false;
+        }
       });
     });
     actions.append(pin);
@@ -429,7 +477,7 @@ export function createItemDetailController(options: ItemDetailControllerOptions)
     }
   };
 
-  const onDialogClose = (): void => clearDialog();
+  const onDialogClose = (): void => clearDialog(false);
   const onDialogCancel = (event: Event): void => {
     event.preventDefault();
     clearDialog();

@@ -380,6 +380,7 @@ function renderDashboard(
     resolve: () => void;
     reject: (reason?: unknown) => void;
   }
+  let activeMutation: PendingMutation | null = null;
   const pendingMutations: PendingMutation[] = [];
 
   const invalidateDerived = (): void => {
@@ -480,10 +481,7 @@ function renderDashboard(
   };
 
   const runMutation = async (operation: WatchlistOperation): Promise<void> => {
-    if (!isActive()) {
-      pendingMutations.length = 0;
-      return;
-    }
+    if (!isActive()) return;
 
     let next: WatchItem[];
     try {
@@ -520,11 +518,14 @@ function renderDashboard(
     while (pendingMutations.length > 0) {
       const pending = pendingMutations.shift();
       if (pending === undefined) continue;
+      activeMutation = pending;
       try {
         await runMutation(pending.operation);
         pending.resolve();
       } catch (error) {
         pending.reject(error);
+      } finally {
+        if (activeMutation === pending) activeMutation = null;
       }
       if (!isActive()) {
         for (const remaining of pendingMutations) remaining.resolve();
@@ -627,6 +628,8 @@ function renderDashboard(
     detailController,
     destroy(): void {
       root.removeEventListener(ITEM_SELECTED_EVENT, onItemSelected);
+      activeMutation?.resolve();
+      for (const pending of pendingMutations) pending.resolve();
       pendingMutations.length = 0;
       detailController.destroy();
     },

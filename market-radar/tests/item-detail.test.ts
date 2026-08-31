@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogData, MarketKey, Snapshot, WatchItem } from '../src/core/types';
 import {
   buildItemChartModel,
+  buildItemChartConfig,
   createItemDetailController,
   formatTaipeiChartLabel,
   type ItemChartFactory,
@@ -109,7 +110,7 @@ describe('buildItemChartModel', () => {
       high: null,
       low: null,
       latestQuality: 'missing',
-      hasGaps: true,
+      hasGaps: false,
       oneSided: false,
     });
   });
@@ -187,8 +188,7 @@ describe('createItemDetailController', () => {
 
     const pin = dialog.querySelector<HTMLButtonElement>('[data-detail-pin]') as HTMLButtonElement;
     pin.click();
-    await Promise.resolve();
-    await Promise.resolve();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
     expect(onTogglePin).toHaveBeenCalledWith(key);
     expect(pin.getAttribute('aria-pressed')).toBe('false');
@@ -204,5 +204,72 @@ describe('createItemDetailController', () => {
     controller.destroy();
     controller.open(key);
     expect(chart.factory).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses native dialog.close when an open dialog supports it and destroys the chart once', () => {
+    const { dialog, chart, controller } = setup();
+    const close = vi.fn(() => dialog.removeAttribute('open'));
+    Object.defineProperty(dialog, 'close', { configurable: true, value: close });
+    controller.open(key);
+
+    controller.close();
+
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(chart.charts[0]?.destroy).toHaveBeenCalledTimes(1);
+    controller.close();
+    expect(chart.charts[0]?.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('recovers from a synchronous pin callback throw and allows a second click', async () => {
+    const onTogglePin = vi.fn(() => {
+      throw new Error('private callback detail');
+    });
+    const { dialog, controller } = setup({ onTogglePin });
+    controller.open(key);
+    const pin = dialog.querySelector<HTMLButtonElement>('[data-detail-pin]') as HTMLButtonElement;
+
+    pin.click();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    expect(onTogglePin).toHaveBeenCalledTimes(1);
+    expect(pin.disabled).toBe(false);
+    expect(dialog.querySelector('[data-detail-error]')?.textContent).toBe('自選儲存失敗');
+    expect(dialog.textContent).not.toContain('private callback detail');
+
+    pin.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(onTogglePin).toHaveBeenCalledTimes(2);
+  });
+
+  it('assigns separate price and volume axes in the model and Chart.js config', () => {
+    const model = buildItemChartModel(key, snapshots, '1d');
+    const config = buildItemChartConfig(model);
+
+    expect(model.datasets.filter((dataset) => dataset.type === 'line').every((dataset) => dataset.yAxisID === 'yPrice')).toBe(true);
+    expect(model.datasets.find((dataset) => dataset.type === 'bar')?.yAxisID).toBe('yVolume');
+    expect(config.options?.scales).toMatchObject({
+      yPrice: { position: 'left' },
+      yVolume: { position: 'right', grid: { drawOnChartArea: false } },
+    });
+  });
+
+  it('reports p/ask/bid gaps and one-sided quotes even when p is present', () => {
+    const model = buildItemChartModel(key, [
+      snapshot(latest - hour, { p: 100, a: 101, b: 99 }),
+      snapshot(latest, { p: 110, a: 111, b: null }),
+    ], '1d');
+
+    expect(model.stats.hasGaps).toBe(true);
+    expect(model.stats.oneSided).toBe(true);
+  });
+
+  it('marks the canvas as an image and renders a text chart summary fallback', () => {
+    const { dialog, controller } = setup();
+    controller.open(key);
+
+    expect(dialog.querySelector('canvas')?.getAttribute('role')).toBe('img');
+    expect(dialog.querySelector('[data-detail-chart-summary]')?.textContent).toContain('樣本');
+    expect(dialog.querySelector('[data-detail-chart-summary]')?.textContent).toContain('高');
   });
 });

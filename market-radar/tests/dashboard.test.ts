@@ -534,6 +534,30 @@ describe('mountDashboard', () => {
     expect(root.innerHTML).toBe(beforeDestroy);
   });
 
+  it('settles queued watchlist operations after destroy without starting another write', async () => {
+    const root = createRoot();
+    const writes: Array<ReturnType<typeof deferred<void>> & { value: WatchItem[] }> = [];
+    const client = createClient({
+      setWatchlist: vi.fn((value: WatchItem[]) => {
+        const pending = deferred<void>();
+        writes.push({ ...pending, value });
+        return pending.promise;
+      }),
+    });
+    const handle = await mountDashboard({ root, client, catalogLoader: vi.fn().mockResolvedValue(catalog) });
+
+    rowByKey(root, '/items/unsafe::0').querySelector<HTMLButtonElement>('[data-pin]')?.click();
+    rowByKey(root, '/items/unknown_item::0').querySelector<HTMLButtonElement>('[data-pin]')?.click();
+    expect(writes).toHaveLength(1);
+    const beforeDestroy = root.innerHTML;
+    handle.destroy();
+    writes[0]?.resolve();
+    await flushAsyncWork();
+
+    expect(writes).toHaveLength(1);
+    expect(root.innerHTML).toBe(beforeDestroy);
+  });
+
   it('places aria-sort on the header cell and marks the active primary view', async () => {
     const root = createRoot();
     await mountDashboard({ root, client: createClient(), catalogLoader: vi.fn().mockResolvedValue(catalog) });
