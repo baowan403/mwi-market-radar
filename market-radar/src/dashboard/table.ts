@@ -88,7 +88,7 @@ function sortableHeader(
   button.dataset.sortField = column.field;
   button.textContent = column.label;
   const direction = sortState?.field === column.field ? sortState.direction : null;
-  button.setAttribute('aria-sort', direction === 'desc' ? 'descending' : direction === 'asc' ? 'ascending' : 'none');
+  header.setAttribute('aria-sort', direction === 'desc' ? 'descending' : direction === 'asc' ? 'ascending' : 'none');
   button.addEventListener('click', () => onSort(column.field as SortField));
   header.append(button);
   return header;

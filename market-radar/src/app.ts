@@ -90,6 +90,8 @@ interface DashboardState {
   statusError: string | null;
 }
 
+const mountGenerations = new WeakMap<HTMLElement, number>();
+
 export interface DashboardMountOptions {
   root?: HTMLElement | null;
   client?: DashboardClient;
@@ -166,6 +168,7 @@ function renderPrimaryNavigation(
     button.type = 'button';
     button.dataset.primaryView = view.key;
     button.setAttribute('aria-pressed', String(state.view === view.key));
+    button.classList.toggle('is-active', state.view === view.key);
     button.textContent = view.label;
     button.addEventListener('click', () => onView(view.key));
     target.append(button);
@@ -274,10 +277,11 @@ function renderToolbar(
   }
   enhancement.addEventListener('change', () => {
     const selected = [...enhancement.selectedOptions]
-      .map((option) => Number(option.value))
+      .map((option) => option.value)
+      .filter((value) => value !== '')
+      .map((value) => Number(value))
       .filter((value) => Number.isSafeInteger(value));
-    if (allOption.selected && selected.length > 0) allOption.selected = false;
-    onEnhancements(selected.length === 0 || allOption.selected ? null : new Set(selected));
+    onEnhancements(selected.length === 0 ? null : new Set(selected));
   });
   enhancementLabel.append(enhancement);
   target.append(enhancementLabel);
@@ -328,32 +332,11 @@ function renderToolbar(
   target.append(reset);
 }
 
-function marketRows(state: DashboardState) {
-  const derived = deriveRows(state.snapshots, state.catalog, state.watchlist, state.period, {
-    period: state.period,
-    movePct: state.settings.anomalyMovePct,
-    volumeMultiple: state.settings.anomalyVolumeMultiple,
-    wideSpreadPct: state.settings.maximumSpreadPct ?? 10,
-    minimumVolume: state.settings.minimumVolume,
-  });
-  const filters: DashboardFilters = {
-    view: state.view,
-    query: state.query,
-    enhancementLevels: state.enhancementLevels ?? undefined,
-    minimumVolume: state.minimumVolume,
-    maximumSpreadPct: state.maximumSpreadPct,
-    officialCategories: state.officialCategories,
-  };
-  return {
-    derived,
-    visible: sortViewRows(filterViewRows(derived, filters), state.sortState, state.view),
-  };
-}
-
 function renderDashboard(
   root: HTMLElement,
   client: DashboardClient,
   state: DashboardState,
+  isActive: () => boolean,
 ): void {
   const nav = root.querySelector<HTMLElement>('#category-nav');
   const toolbar = root.querySelector<HTMLElement>('#toolbar');
@@ -361,86 +344,212 @@ function renderDashboard(
   const status = root.querySelector<HTMLElement>('#collector-status');
   if (!nav || !toolbar || !content || !status) return;
 
-  const render = (): void => {
-    const currentRows = marketRows(state);
-    renderPrimaryNavigation(nav, state, (view) => {
-      state.view = view;
-      render();
-    });
-    renderToolbar(
-      toolbar,
-      state,
-      currentRows.derived,
-      (period) => {
-        state.period = period;
-        state.settings = { ...state.settings, period };
-        render();
-      },
-      (query) => {
-        state.query = query;
-        render();
-      },
-      (levels) => {
-        state.enhancementLevels = levels;
-        render();
-      },
-      (value) => {
-        state.minimumVolume = value;
-        render();
-      },
-      (value) => {
-        state.maximumSpreadPct = value;
-        render();
-      },
-      (categories) => {
-        state.officialCategories = categories;
-        render();
-      },
-      () => {
-        state.sortState = null;
-        render();
-      },
-    );
+  let derivedCache: ReturnType<typeof deriveRows> | null = null;
+  let mutationQueue: Promise<void> | null = null;
+  let mutationRunning = false;
+  const pendingMutations: Array<(watchlist: readonly WatchItem[]) => WatchItem[]> = [];
+
+  const invalidateDerived = (): void => {
+    derivedCache = null;
+  };
+
+  const getDerivedRows = (): ReturnType<typeof deriveRows> => {
+    if (derivedCache === null) {
+      derivedCache = deriveRows(state.snapshots, state.catalog, state.watchlist, state.period, {
+        period: state.period,
+        movePct: state.settings.anomalyMovePct,
+        volumeMultiple: state.settings.anomalyVolumeMultiple,
+        wideSpreadPct: state.settings.maximumSpreadPct ?? 10,
+        minimumVolume: state.settings.minimumVolume,
+      });
+    }
+    return derivedCache;
+  };
+
+  const currentRows = (): { derived: ReturnType<typeof deriveRows>; visible: ReturnType<typeof deriveRows> } => {
+    const derived = getDerivedRows();
+    const filters: DashboardFilters = {
+      view: state.view,
+      query: state.query,
+      enhancementLevels: state.enhancementLevels ?? undefined,
+      minimumVolume: state.minimumVolume,
+      maximumSpreadPct: state.maximumSpreadPct,
+      officialCategories: state.officialCategories,
+    };
+    return {
+      derived,
+      visible: sortViewRows(filterViewRows(derived, filters), state.sortState, state.view),
+    };
+  };
+
+  const renderStatus = (): void => {
+    if (!isActive()) return;
     renderCollectorStatus(status, state.collectorStatus, state.statusError);
+  };
+
+  const renderResultsOnly = (): void => {
+    if (!isActive()) return;
+    const visibleRows = currentRows().visible;
     renderMarketTable(content, {
-      rows: currentRows.visible,
+      rows: visibleRows,
       catalog: state.catalog,
       selectedPeriod: state.period,
       sortState: state.sortState,
       view: state.view,
       onSort: (field) => {
+        if (!isActive()) return;
         state.sortState = cycleSort(state.sortState, field);
-        render();
+        renderResultsOnly();
       },
       onTogglePin: (key) => {
-        const next = togglePin(state.watchlist, key as `${string}::${number}`);
-        void client.setWatchlist(next).then(() => {
-          state.watchlist = normalizeWatchlist(next);
-          state.statusError = null;
-          render();
-        }).catch(() => {
-          state.statusError = '自選儲存失敗';
-          render();
-        });
+        if (!isActive()) return;
+        enqueueWatchlistMutation((watchlist) => togglePin(watchlist, key as `${string}::${number}`));
       },
       onMoveWatchItem: (key, direction) => {
-        const currentIndex = state.watchlist.findIndex((item) => item.key === key);
-        const destination = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-        const next = moveWatchItem(state.watchlist, currentIndex, destination);
-        if (next.every((item, index) => item.key === state.watchlist[index]?.key)) return;
-        void client.setWatchlist(next).then(() => {
-          state.watchlist = normalizeWatchlist(next);
-          state.statusError = null;
-          render();
-        }).catch(() => {
-          state.statusError = '自選儲存失敗';
-          render();
+        if (!isActive()) return;
+        enqueueWatchlistMutation((watchlist) => {
+          const currentIndex = watchlist.findIndex((item) => item.key === key);
+          const destination = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+          return moveWatchItem(watchlist, currentIndex, destination);
         });
       },
     });
   };
 
-  render();
+  const updatePeriodButtons = (): void => {
+    for (const button of toolbar.querySelectorAll<HTMLButtonElement>('[data-period]')) {
+      button.setAttribute('aria-pressed', String(button.dataset.period === state.period));
+    }
+  };
+
+  const renderNavigationOnly = (): void => {
+    if (!isActive()) return;
+    renderPrimaryNavigation(nav, state, (view) => {
+      if (!isActive()) return;
+      state.view = view;
+      renderNavigationOnly();
+      renderResultsOnly();
+    });
+  };
+
+  const sameWatchlist = (left: readonly WatchItem[], right: readonly WatchItem[]): boolean => {
+    return left.length === right.length
+      && left.every((item, index) => item.key === right[index]?.key && item.order === right[index]?.order);
+  };
+
+  const runMutation = async (
+    operation: (watchlist: readonly WatchItem[]) => WatchItem[],
+  ): Promise<void> => {
+    if (!isActive()) {
+      pendingMutations.length = 0;
+      return;
+    }
+
+    let next: WatchItem[];
+    try {
+      next = operation(state.watchlist);
+    } catch {
+      state.statusError = '自選儲存失敗';
+      renderStatus();
+      return;
+    }
+    if (sameWatchlist(next, state.watchlist)) return;
+
+    try {
+      await client.setWatchlist(next);
+    } catch {
+      if (isActive()) {
+        state.statusError = '自選儲存失敗';
+        renderStatus();
+      }
+      return;
+    }
+
+    if (!isActive()) {
+      pendingMutations.length = 0;
+      return;
+    }
+    state.watchlist = normalizeWatchlist(next);
+    state.statusError = null;
+    invalidateDerived();
+    renderStatus();
+    renderResultsOnly();
+  };
+
+  const drainMutations = async (): Promise<void> => {
+    while (pendingMutations.length > 0) {
+      const operation = pendingMutations.shift();
+      if (operation === undefined) continue;
+      await runMutation(operation);
+      if (!isActive()) {
+        pendingMutations.length = 0;
+        break;
+      }
+    }
+  };
+
+  const startMutationDrain = (): void => {
+    if (mutationRunning || !isActive()) return;
+    mutationRunning = true;
+    mutationQueue = drainMutations().finally(() => {
+      mutationRunning = false;
+      mutationQueue = null;
+      if (pendingMutations.length > 0) startMutationDrain();
+    });
+  };
+
+  function enqueueWatchlistMutation(operation: (watchlist: readonly WatchItem[]) => WatchItem[]): void {
+    if (!isActive()) return;
+    pendingMutations.push(operation);
+    startMutationDrain();
+  }
+
+  renderNavigationOnly();
+  renderToolbar(
+    toolbar,
+    state,
+    getDerivedRows(),
+    (period) => {
+      if (!isActive()) return;
+      state.period = period;
+      state.settings = { ...state.settings, period };
+      invalidateDerived();
+      updatePeriodButtons();
+      renderResultsOnly();
+    },
+    (query) => {
+      if (!isActive()) return;
+      state.query = query;
+      renderResultsOnly();
+    },
+    (levels) => {
+      if (!isActive()) return;
+      state.enhancementLevels = levels;
+      renderResultsOnly();
+    },
+    (value) => {
+      if (!isActive()) return;
+      state.minimumVolume = value;
+      renderResultsOnly();
+    },
+    (value) => {
+      if (!isActive()) return;
+      state.maximumSpreadPct = value;
+      renderResultsOnly();
+    },
+    (categories) => {
+      if (!isActive()) return;
+      state.officialCategories = categories;
+      renderResultsOnly();
+    },
+    () => {
+      if (!isActive()) return;
+      state.sortState = null;
+      renderResultsOnly();
+    },
+  );
+  renderStatus();
+  renderResultsOnly();
 }
 
 export function renderApp(root: HTMLElement | null = document.querySelector<HTMLElement>('#app')): void {
@@ -453,6 +562,12 @@ export function renderApp(root: HTMLElement | null = document.querySelector<HTML
 export async function mountDashboard(options: DashboardMountOptions = {}): Promise<DashboardMountHandle> {
   const root = options.root ?? (typeof document === 'undefined' ? null : document.querySelector<HTMLElement>('#app'));
   if (!root) throw new Error('Missing #app root');
+
+  const mountGeneration = (mountGenerations.get(root) ?? 0) + 1;
+  mountGenerations.set(root, mountGeneration);
+  let destroyed = false;
+  const isActive = (): boolean => !destroyed && mountGenerations.get(root) === mountGeneration;
+
   renderApp(root);
 
   const status = root.querySelector<HTMLElement>('#collector-status');
@@ -462,7 +577,6 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
   const target = typeof window === 'undefined' ? new EventTarget() : window;
   const client = options.client ?? createDashboardClient(target);
   const catalogLoader = options.catalogLoader ?? defaultCatalogLoader;
-  let destroyed = false;
 
   try {
     const [bootstrap, snapshots, catalogInput] = await Promise.all([
@@ -470,7 +584,7 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       client.listSnapshots(),
       catalogLoader(),
     ]);
-    if (destroyed) return { destroy: () => undefined };
+    if (!isActive()) return { destroy: () => undefined };
 
     const settings = { ...bootstrap.settings };
     const state: DashboardState = {
@@ -489,9 +603,9 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       officialCategories: new Set(),
       statusError: null,
     };
-    renderDashboard(root, client, state);
+    renderDashboard(root, client, state, isActive);
   } catch {
-    if (!destroyed) {
+    if (isActive()) {
       renderBridgeUnavailable(status);
       renderUnavailableContent(content);
     }
@@ -500,6 +614,9 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
   return {
     destroy(): void {
       destroyed = true;
+      if (mountGenerations.get(root) === mountGeneration) {
+        mountGenerations.set(root, mountGeneration + 1);
+      }
     },
   };
 }

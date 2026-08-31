@@ -10,6 +10,7 @@ import type {
 } from '../src/core/types';
 import type { DashboardClient } from '../src/dashboard/client';
 import { mountDashboard } from '../src/app';
+import * as dashboardState from '../src/dashboard/state';
 
 const BASE_TIMESTAMP = Date.parse('2026-08-30T10:00:00Z');
 const LATEST_TIMESTAMP = Date.parse('2026-08-31T10:00:00Z');
@@ -116,6 +117,16 @@ async function flushAsyncWork(): Promise<void> {
   await Promise.resolve();
 }
 
+function deferred<T>(): { promise: Promise<T>; resolve(value: T): void; reject(reason?: unknown): void } {
+  let resolvePromise!: (value: T) => void;
+  let rejectPromise!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
+  });
+  return { promise, resolve: resolvePromise, reject: rejectPromise };
+}
+
 beforeEach(() => {
   vi.useRealTimers();
 });
@@ -206,15 +217,16 @@ describe('mountDashboard', () => {
   it('cycles sortable headers descending, ascending, then default with nulls last', async () => {
     const root = createRoot();
     await mountDashboard({ root, client: createClient(), catalogLoader: vi.fn().mockResolvedValue(catalog) });
-    const priceHeader = (): HTMLButtonElement => root.querySelector<HTMLButtonElement>('[data-sort-field="price"]') as HTMLButtonElement;
+    const priceHeader = (): HTMLTableCellElement => root.querySelector<HTMLTableCellElement>('[data-sort-header="price"]') as HTMLTableCellElement;
+    const priceButton = (): HTMLButtonElement => priceHeader().querySelector<HTMLButtonElement>('[data-sort-field="price"]') as HTMLButtonElement;
 
-    priceHeader().click();
+    priceButton().click();
     expect(priceHeader().getAttribute('aria-sort')).toBe('descending');
     expect(rows(root).at(-1)?.dataset.marketKey).toBe('/items/no_market::0');
-    priceHeader().click();
+    priceButton().click();
     expect(priceHeader().getAttribute('aria-sort')).toBe('ascending');
     expect(rows(root).at(-1)?.dataset.marketKey).toBe('/items/no_market::0');
-    priceHeader().click();
+    priceButton().click();
     expect(priceHeader().getAttribute('aria-sort')).toBe('none');
   });
 
@@ -314,5 +326,173 @@ describe('mountDashboard', () => {
     expect(selected).toHaveBeenCalledTimes(1);
     expect((selected.mock.calls[0]?.[0] as CustomEvent<{ key: string }>).detail.key).toBe('/items/alpha::0');
     expect(root.querySelector('dialog')?.hasAttribute('open')).toBe(false);
+  });
+
+  it('does not turn the all enhancement option into an accidental +0 filter', async () => {
+    const root = createRoot();
+    await mountDashboard({ root, client: createClient(), catalogLoader: vi.fn().mockResolvedValue(catalog) });
+    const enhancement = root.querySelector<HTMLSelectElement>('select[data-filter="enhancement"]') as HTMLSelectElement;
+    const level7 = [...enhancement.options].find((option) => option.value === '7');
+    const all = [...enhancement.options].find((option) => option.value === '');
+    if (!level7 || !all) throw new Error('Missing enhancement options');
+
+    all.selected = true;
+    level7.selected = true;
+    enhancement.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(rows(root).map((row) => row.dataset.marketKey)).toEqual(['/items/gloves::7']);
+  });
+
+  it('serializes rapid pin writes and computes each operation from the latest committed state', async () => {
+    const root = createRoot();
+    const writes: Array<ReturnType<typeof deferred<void>> & { value: WatchItem[] }> = [];
+    const client = createClient({
+      setWatchlist: vi.fn((value: WatchItem[]) => {
+        const pending = deferred<void>();
+        writes.push({ ...pending, value });
+        return pending.promise;
+      }),
+    });
+    await mountDashboard({ root, client, catalogLoader: vi.fn().mockResolvedValue(catalog) });
+
+    rowByKey(root, '/items/unsafe::0').querySelector<HTMLButtonElement>('[data-pin]')?.click();
+    rowByKey(root, '/items/unknown_item::0').querySelector<HTMLButtonElement>('[data-pin]')?.click();
+
+    expect(writes).toHaveLength(1);
+    writes[0]?.resolve();
+    await flushAsyncWork();
+    expect(writes).toHaveLength(2);
+    expect(writes[1]?.value).toEqual([
+      { key: '/items/gloves::7', order: 0 },
+      { key: '/items/alpha::0', order: 1 },
+      { key: '/items/unsafe::0', order: 2 },
+      { key: '/items/unknown_item::0', order: 3 },
+    ]);
+    writes[1]?.resolve();
+    await flushAsyncWork();
+
+    expect(rowByKey(root, '/items/unsafe::0').querySelector('[data-pin]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(rowByKey(root, '/items/unknown_item::0').querySelector('[data-pin]')?.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('continues the serialized watchlist queue after a failed mutation', async () => {
+    const root = createRoot();
+    const writes: Array<ReturnType<typeof deferred<void>> & { value: WatchItem[] }> = [];
+    const client = createClient({
+      setWatchlist: vi.fn((value: WatchItem[]) => {
+        const pending = deferred<void>();
+        writes.push({ ...pending, value });
+        return pending.promise;
+      }),
+    });
+    await mountDashboard({ root, client, catalogLoader: vi.fn().mockResolvedValue(catalog) });
+
+    rowByKey(root, '/items/unsafe::0').querySelector<HTMLButtonElement>('[data-pin]')?.click();
+    rowByKey(root, '/items/unknown_item::0').querySelector<HTMLButtonElement>('[data-pin]')?.click();
+    writes[0]?.reject(new Error('private write failure'));
+    await flushAsyncWork();
+
+    expect(writes).toHaveLength(2);
+    expect(writes[1]?.value).toEqual([
+      { key: '/items/gloves::7', order: 0 },
+      { key: '/items/alpha::0', order: 1 },
+      { key: '/items/unknown_item::0', order: 2 },
+    ]);
+    expect(root.querySelector('[data-status-error]')?.textContent).toContain('自選儲存失敗');
+    writes[1]?.resolve();
+    await flushAsyncWork();
+    expect(rowByKey(root, '/items/unknown_item::0').querySelector('[data-pin]')?.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('serializes rapid watchlist reorders without losing the second move', async () => {
+    const root = createRoot();
+    const reorderBootstrap = {
+      ...bootstrap,
+      watchlist: [
+        { key: '/items/gloves::7', order: 0 },
+        { key: '/items/alpha::0', order: 1 },
+        { key: '/items/unsafe::0', order: 2 },
+      ],
+    };
+    const writes: Array<ReturnType<typeof deferred<void>> & { value: WatchItem[] }> = [];
+    const client = createClient({
+      bootstrap: vi.fn().mockResolvedValue(reorderBootstrap),
+      setWatchlist: vi.fn((value: WatchItem[]) => {
+        const pending = deferred<void>();
+        writes.push({ ...pending, value });
+        return pending.promise;
+      }),
+    });
+    await mountDashboard({ root, client, catalogLoader: vi.fn().mockResolvedValue(catalog) });
+    root.querySelector<HTMLElement>('[data-primary-view="watchlist"]')?.click();
+
+    const down = rowByKey(root, '/items/gloves::7').querySelector<HTMLButtonElement>('[data-watch-move="down"]');
+    down?.click();
+    down?.click();
+    expect(writes).toHaveLength(1);
+    writes[0]?.resolve();
+    await flushAsyncWork();
+
+    expect(writes).toHaveLength(2);
+    expect(writes[1]?.value).toEqual([
+      { key: '/items/alpha::0', order: 0 },
+      { key: '/items/unsafe::0', order: 1 },
+      { key: '/items/gloves::7', order: 2 },
+    ]);
+    writes[1]?.resolve();
+    await flushAsyncWork();
+    expect(rows(root).map((row) => row.dataset.marketKey)).toEqual([
+      '/items/alpha::0', '/items/unsafe::0', '/items/gloves::7',
+    ]);
+  });
+
+  it('keeps filter inputs mounted and reuses derived rows while typing and sorting', async () => {
+    const root = createRoot();
+    const deriveSpy = vi.spyOn(dashboardState, 'deriveRows');
+    await mountDashboard({ root, client: createClient(), catalogLoader: vi.fn().mockResolvedValue(catalog) });
+    const initialDeriveCalls = deriveSpy.mock.calls.length;
+    const search = root.querySelector<HTMLInputElement>('input[data-filter="search"]') as HTMLInputElement;
+    search.focus();
+    search.value = 'C';
+    search.setSelectionRange(1, 1);
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(root.querySelector('input[data-filter="search"]')).toBe(search);
+    search.value = 'Ch';
+    search.setSelectionRange(2, 2);
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(document.activeElement).toBe(search);
+    expect(search.value).toBe('Ch');
+    root.querySelector<HTMLButtonElement>('[data-sort-field="price"]')?.click();
+    expect(deriveSpy.mock.calls.length).toBe(initialDeriveCalls);
+    deriveSpy.mockRestore();
+  });
+
+  it('does not mutate the root when a pending watchlist write resolves after destroy', async () => {
+    const root = createRoot();
+    const pending = deferred<void>();
+    const client = createClient({ setWatchlist: vi.fn().mockReturnValue(pending.promise) });
+    const handle = await mountDashboard({ root, client, catalogLoader: vi.fn().mockResolvedValue(catalog) });
+    rowByKey(root, '/items/unsafe::0').querySelector<HTMLButtonElement>('[data-pin]')?.click();
+    const beforeDestroy = root.innerHTML;
+    handle.destroy();
+    pending.resolve();
+    await flushAsyncWork();
+
+    expect(root.innerHTML).toBe(beforeDestroy);
+  });
+
+  it('places aria-sort on the header cell and marks the active primary view', async () => {
+    const root = createRoot();
+    await mountDashboard({ root, client: createClient(), catalogLoader: vi.fn().mockResolvedValue(catalog) });
+    const priceButton = (): HTMLButtonElement => root.querySelector<HTMLButtonElement>('[data-sort-field="price"]') as HTMLButtonElement;
+    const priceHeader = (): HTMLTableCellElement => root.querySelector<HTMLTableCellElement>('[data-sort-header="price"]') as HTMLTableCellElement;
+
+    expect(root.querySelector('[data-primary-view="all"]')?.classList.contains('is-active')).toBe(true);
+    priceButton().click();
+    expect(priceHeader().getAttribute('aria-sort')).toBe('descending');
+    expect(priceButton().hasAttribute('aria-sort')).toBe(false);
+    root.querySelector<HTMLElement>('[data-primary-view="resource"]')?.click();
+    expect(root.querySelector('[data-primary-view="resource"]')?.classList.contains('is-active')).toBe(true);
+    expect(root.querySelector('[data-primary-view="all"]')?.classList.contains('is-active')).toBe(false);
   });
 });
