@@ -38,6 +38,39 @@ export interface CollectorStatus {
   lastErrorCode: string | null;
 }
 
+export interface BridgeBootstrap {
+  watchlist: WatchItem[];
+  settings: RadarSettings;
+  collectorStatus: CollectorStatus;
+  latestTimestamp: number | null;
+  snapshotCount: number;
+}
+
+export type BridgeRequest =
+  | { id: string; type: 'bootstrap' }
+  | { id: string; type: 'snapshots' }
+  | { id: string; type: 'set-watchlist'; value: WatchItem[] }
+  | { id: string; type: 'set-settings'; value: RadarSettings };
+
+export interface BridgeSuccessResponse<T = unknown> {
+  id: string;
+  ok: true;
+  value: T;
+}
+
+export interface BridgeErrorPayload {
+  code: string;
+  message: string;
+}
+
+export interface BridgeErrorResponse {
+  id: string;
+  ok: false;
+  error: BridgeErrorPayload;
+}
+
+export type BridgeResponse<T = unknown> = BridgeSuccessResponse<T> | BridgeErrorResponse;
+
 export interface CatalogItem {
   hrid: string;
   name: string;
