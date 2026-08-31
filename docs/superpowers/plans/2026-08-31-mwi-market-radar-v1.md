@@ -752,7 +752,7 @@ Add to `src/core/types.ts`:
 ```ts
 export type BridgeRequest =
   | { id: string; type: 'bootstrap' }
-  | { id: string; type: 'snapshots'; value: { beforeTimestamp: number | null; limit: number } }
+  | { id: string; type: 'snapshots'; beforeTimestamp: number | null; limit: number }
   | { id: string; type: 'set-watchlist'; value: WatchItem[] }
   | { id: string; type: 'set-settings'; value: RadarSettings };
 export type BridgeResponse =
