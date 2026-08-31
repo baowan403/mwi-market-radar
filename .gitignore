@@ -1,0 +1,7 @@
+.worktrees/
+work/
+market-radar/node_modules/
+market-radar/dist/
+market-radar/test-results/
+market-radar/playwright-report/
+*.log
