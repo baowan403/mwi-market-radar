@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import type { CollectorStatus, Snapshot } from '../src/core/types';
+import { StorageWriteError } from '../src/collector/market-store';
+import { OfficialMarketError } from '../src/collector/official-client';
+import { CollectorLockError } from '../src/collector/lock';
 import {
   buildHealthModel,
   detectSnapshotGaps,
@@ -85,11 +88,13 @@ describe('snapshot health', () => {
 
 describe('collector error classification', () => {
   it('maps network/schema/storage/lock/cancel and unknown failures to stable codes', () => {
-    expect(classifyCollectorError(new Error('Official marketplace request timed out'))).toBe('network');
+    expect(classifyCollectorError(new OfficialMarketError('timeout', 'Official marketplace request timed out'))).toBe('network');
     expect(classifyCollectorError(new SyntaxError('invalid JSON body'))).toBe('schema');
-    expect(classifyCollectorError(Object.assign(new Error('private'), { name: 'StorageWriteError' }))).toBe('storage');
-    expect(classifyCollectorError(new Error('Collector Web Lock API is unavailable.'))).toBe('lock');
-    expect(classifyCollectorError(new Error('Collector check cancelled'))).toBe('cancel');
+    const storageError = new StorageWriteError('private-key');
+    storageError.name = 'TypeError';
+    expect(classifyCollectorError(storageError)).toBe('storage');
+    expect(classifyCollectorError(new CollectorLockError('unavailable'))).toBe('lock');
+    expect(classifyCollectorError(new OfficialMarketError('cancelled', 'Official marketplace request cancelled'))).toBe('cancel');
     expect(classifyCollectorError(new Error('private unexpected body'))).toBe('unknown');
   });
 });

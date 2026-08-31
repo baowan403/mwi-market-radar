@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  CollectorLockError,
   COLLECTOR_LOCK_NAME,
   type CollectorLockManager,
   withCollectorLock,
@@ -54,6 +55,29 @@ describe('collector lock with Web Locks', () => {
     await expect(
       withCollectorLock({ lockManager: { request } }, () => Promise.reject(error)),
     ).rejects.toBe(error);
+  });
+
+  it('throws a typed unavailable error without invoking the task', async () => {
+    const task = vi.fn(async () => 'must not run');
+    vi.stubGlobal('navigator', { locks: undefined });
+
+    const error = await withCollectorLock({ navigator: {} }, task).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(CollectorLockError);
+    expect(error).toMatchObject({ code: 'unavailable' });
+    expect(task).not.toHaveBeenCalled();
+  });
+
+  it('wraps native request infrastructure failures without exposing the cause', async () => {
+    const task = vi.fn(async () => 'must not run');
+    const request = vi.fn().mockRejectedValue(new Error('private lock internals')) as CollectorLockManager['request'];
+
+    const error = await withCollectorLock({ lockManager: { request } }, task).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(CollectorLockError);
+    expect(error).toMatchObject({ code: 'request' });
+    expect((error as Error).message).not.toContain('private lock internals');
+    expect(task).not.toHaveBeenCalled();
   });
 
   it('fails closed without invoking the task when Web Locks are unavailable', async () => {

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  OfficialMarketError,
   OFFICIAL_REQUEST_CANCELLED_MESSAGE,
   OFFICIAL_MARKETPLACE_URL,
   fetchOfficialSnapshot,
@@ -71,6 +72,8 @@ describe('fetchOfficialSnapshot', () => {
     expect((error as Error).message).toBe('Official marketplace request failed: 503');
     expect((error as Error).message).not.toContain('private response body');
     expect(json).not.toHaveBeenCalled();
+    expect(error).toBeInstanceOf(OfficialMarketError);
+    expect(error).toMatchObject({ code: 'network', status: 503 });
   });
 
   it('turns JSON decoding failures into a body-free error', async () => {
@@ -85,6 +88,7 @@ describe('fetchOfficialSnapshot', () => {
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toBe('Official marketplace response JSON parse failed');
     expect((error as Error).message).not.toContain('sensitive raw body');
+    expect(error).toMatchObject({ code: 'schema' });
   });
 
   it('preserves schema validation errors without exposing response data', async () => {
@@ -95,6 +99,7 @@ describe('fetchOfficialSnapshot', () => {
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toBe('Invalid timestamp');
     expect((error as Error).message).not.toContain('marketData');
+    expect(error).toMatchObject({ code: 'schema' });
   });
 
   describe('request timeout', () => {
@@ -130,7 +135,9 @@ describe('fetchOfficialSnapshot', () => {
       await vi.advanceTimersByTimeAsync(1);
       await rejected;
       expect(controller.signal.aborted).toBe(true);
-      expect((await request.catch((cause: unknown) => cause) as Error).message).not.toContain('sensitive');
+      const error = await request.catch((cause: unknown) => cause) as OfficialMarketError;
+      expect(error).toMatchObject({ code: 'timeout' });
+      expect(error.message).not.toContain('sensitive');
       expect(vi.getTimerCount()).toBe(0);
     });
 
@@ -195,14 +202,15 @@ describe('fetchOfficialSnapshot', () => {
         clearTimeout: vi.fn(),
       };
 
-      await expect(fetchOfficialSnapshot({
+      const cancelled = await fetchOfficialSnapshot({
         fetcher,
         signal: externalController.signal,
         timer,
-      })).rejects.toThrow(OFFICIAL_REQUEST_CANCELLED_MESSAGE);
+      }).catch((cause: unknown) => cause) as OfficialMarketError;
 
       expect(fetcher).not.toHaveBeenCalled();
       expect(timer.setTimeout).not.toHaveBeenCalled();
+      expect(cancelled).toMatchObject({ code: 'cancelled', message: OFFICIAL_REQUEST_CANCELLED_MESSAGE });
     });
 
     it('aborts the internal fetch and cleans timer/listener on external cancellation', async () => {

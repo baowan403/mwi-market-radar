@@ -1,10 +1,25 @@
-import { parseOfficialSnapshot } from '../core/market-schema';
+import { MarketSchemaError, parseOfficialSnapshot } from '../core/market-schema';
 import type { Snapshot } from '../core/types';
 
 export const OFFICIAL_MARKETPLACE_URL = 'https://www.milkywayidle.com/game_data/marketplace.json';
 export const DEFAULT_OFFICIAL_REQUEST_TIMEOUT_MS = 15_000;
 export const OFFICIAL_REQUEST_TIMEOUT_MESSAGE = 'Official marketplace request timed out';
 export const OFFICIAL_REQUEST_CANCELLED_MESSAGE = 'Official marketplace request cancelled';
+
+export type OfficialMarketErrorCode = 'network' | 'timeout' | 'cancelled' | 'schema';
+
+export class OfficialMarketError extends Error {
+  readonly code: OfficialMarketErrorCode;
+  readonly status?: number;
+
+  constructor(code: OfficialMarketErrorCode, message: string, status?: number) {
+    super(message);
+    this.name = 'OfficialMarketError';
+    this.code = code;
+    this.status = status;
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
 
 export interface OfficialSnapshotTimer {
   setTimeout(callback: () => void, delayMs: number): unknown;
@@ -40,11 +55,22 @@ function isAbortError(error: unknown): boolean {
 }
 
 function timeoutError(): Error {
-  return new Error(OFFICIAL_REQUEST_TIMEOUT_MESSAGE);
+  return new OfficialMarketError('timeout', OFFICIAL_REQUEST_TIMEOUT_MESSAGE);
 }
 
 function cancellationError(): Error {
-  return new Error(OFFICIAL_REQUEST_CANCELLED_MESSAGE);
+  return new OfficialMarketError('cancelled', OFFICIAL_REQUEST_CANCELLED_MESSAGE);
+}
+
+function networkError(status?: number): OfficialMarketError {
+  const message = status === undefined
+    ? 'Official marketplace request failed'
+    : `Official marketplace request failed: ${status}`;
+  return new OfficialMarketError('network', message, status);
+}
+
+function schemaError(message = 'Official marketplace response schema invalid'): OfficialMarketError {
+  return new OfficialMarketError('schema', message);
 }
 
 /** Fetch and validate one public marketplace snapshot without sending credentials. */
@@ -121,7 +147,7 @@ export async function fetchOfficialSnapshot(
       const response = await fetcher(url, requestInit);
 
       if (!response.ok) {
-        throw new Error(`Official marketplace request failed: ${response.status}`);
+        throw networkError(response.status);
       }
 
       let raw: unknown;
@@ -129,14 +155,17 @@ export async function fetchOfficialSnapshot(
         raw = await response.json();
       } catch (cause) {
         if (isAbortError(cause)) throw cause;
-        throw new Error('Official marketplace response JSON parse failed');
+        throw schemaError('Official marketplace response JSON parse failed');
       }
 
       return parseOfficialSnapshot(raw);
     } catch (cause) {
       if (cancelled || externalSignal?.aborted) throw cancellationError();
       if (isAbortError(cause)) throw timeoutError();
-      throw cause;
+      if (cause instanceof OfficialMarketError) throw cause;
+      if (cause instanceof MarketSchemaError) throw schemaError(cause.message);
+      if (cause instanceof SyntaxError) throw schemaError('Official marketplace response JSON parse failed');
+      throw networkError();
     }
   })();
 

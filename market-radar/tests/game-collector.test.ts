@@ -10,7 +10,7 @@ import {
   type GameCollectorDependencies,
   type LockRunner,
 } from '../src/userscript/game-collector';
-import type { CollectorLockResult } from '../src/collector/lock';
+import { CollectorLockError, type CollectorLockResult } from '../src/collector/lock';
 import type { Scheduler, SchedulerCheck } from '../src/collector/scheduler';
 
 const HOUR = 3_600_000;
@@ -307,6 +307,34 @@ describe('createCollectorCheck', () => {
     expect(harness.saveSnapshot).not.toHaveBeenCalled();
     expect(harness.statusWrites).toEqual([]);
     expect(harness.statusWriteInsideLock).toEqual([]);
+  });
+
+  it('records a safe lock error status when lock infrastructure rejects', async () => {
+    const harness = createHarness();
+    const lockError = new CollectorLockError('request');
+    harness.lockRunner.mockImplementationOnce(async () => {
+      throw lockError;
+    });
+
+    await expect(harness.check({ isRetry: false })).rejects.toBe(lockError);
+
+    expect(harness.statusWrites.at(-1)).toMatchObject({ state: 'error', lastErrorCode: 'lock' });
+    expect(harness.values.has(LAST_CHECKED_SLOT_KEY)).toBe(false);
+    expect(harness.fetchSnapshot).not.toHaveBeenCalled();
+    expect(harness.saveSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('records the same safe lock status for an unavailable native lock API', async () => {
+    const harness = createHarness();
+    const lockError = new CollectorLockError('unavailable');
+    harness.lockRunner.mockImplementationOnce(async () => {
+      throw lockError;
+    });
+
+    await expect(harness.check({ isRetry: false })).rejects.toBe(lockError);
+
+    expect(harness.statusWrites.at(-1)).toMatchObject({ state: 'error', lastErrorCode: 'lock' });
+    expect(harness.values.has(LAST_CHECKED_SLOT_KEY)).toBe(false);
   });
 
   it('does not let a busy loser overwrite the winner status', async () => {

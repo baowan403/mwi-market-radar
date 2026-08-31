@@ -1,8 +1,14 @@
 import marketplace from './fixtures/marketplace.json';
 import { describe, expect, it } from 'vitest';
-import { parseOfficialSnapshot } from '../src/core/market-schema';
+import { MarketSchemaError, parseOfficialSnapshot } from '../src/core/market-schema';
 
 describe('parseOfficialSnapshot', () => {
+  it('throws a typed safe schema error for invalid payloads', () => {
+    expect(() => parseOfficialSnapshot(null)).toThrow(MarketSchemaError);
+    expect(() => parseOfficialSnapshot(null)).toThrow('Invalid snapshot');
+    expect(() => parseOfficialSnapshot(null)).toThrowError(expect.objectContaining({ code: 'invalid_snapshot' }));
+  });
+
   it('normalizes seconds timestamps to milliseconds and preserves millisecond timestamps', () => {
     const seconds = parseOfficialSnapshot({
       timestamp: 1_787_645_160,

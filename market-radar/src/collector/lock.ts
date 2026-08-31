@@ -1,5 +1,20 @@
 export const COLLECTOR_LOCK_NAME = 'mwi-market-radar-collector';
 
+export type CollectorLockErrorCode = 'unavailable' | 'request';
+
+export class CollectorLockError extends Error {
+  readonly code: CollectorLockErrorCode;
+
+  constructor(code: CollectorLockErrorCode, message?: string) {
+    super(message ?? (code === 'unavailable'
+      ? 'Collector Web Lock API is unavailable.'
+      : 'Collector Web Lock request failed.'));
+    this.name = 'CollectorLockError';
+    this.code = code;
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
 export interface CollectorLockManager {
   request<T>(
     name: string,
@@ -47,10 +62,21 @@ export async function withCollectorLock<T>(
   task: () => T | PromiseLike<T>,
 ): Promise<CollectorLockResult<T>> {
   const lockManager = getNativeLockManager(options);
-  if (!lockManager) throw new Error(UNAVAILABLE_ERROR);
+  if (!lockManager) throw new CollectorLockError('unavailable', UNAVAILABLE_ERROR);
 
-  return lockManager.request(COLLECTOR_LOCK_NAME, { ifAvailable: true }, async (lock) => {
-    if (lock === null) return { acquired: false };
-    return { acquired: true, value: await task() };
-  });
+  let taskFailed = false;
+  try {
+    return await lockManager.request(COLLECTOR_LOCK_NAME, { ifAvailable: true }, async (lock) => {
+      if (lock === null) return { acquired: false };
+      try {
+        return { acquired: true, value: await task() };
+      } catch (error) {
+        taskFailed = true;
+        throw error;
+      }
+    });
+  } catch (error) {
+    if (taskFailed || error instanceof CollectorLockError) throw error;
+    throw new CollectorLockError('request');
+  }
 }

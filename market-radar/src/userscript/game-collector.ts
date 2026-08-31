@@ -4,8 +4,10 @@ import {
   STORAGE_PREFIX,
   createGMKeyValueStore,
   MarketStore,
+  StorageWriteError,
   type KeyValueStore,
 } from '../collector/market-store';
+import { MarketSchemaError } from '../core/market-schema';
 import {
   RETRY_DELAY_MS,
   createScheduler,
@@ -17,13 +19,13 @@ import {
   type SchedulerTimerApi,
 } from '../collector/scheduler';
 import {
+  CollectorLockError,
   withCollectorLock,
   type CollectorLockOptions,
   type CollectorLockResult,
 } from '../collector/lock';
 import {
-  OFFICIAL_REQUEST_CANCELLED_MESSAGE,
-  OFFICIAL_REQUEST_TIMEOUT_MESSAGE,
+  OfficialMarketError,
   fetchOfficialSnapshot,
 } from '../collector/official-client';
 
@@ -110,6 +112,15 @@ function errorProperty(error: unknown, key: string): unknown {
 
 /** Classify an error without ever persisting its message or arbitrary properties. */
 export function classifyCollectorError(error: unknown): CollectorErrorCode {
+  if (error instanceof StorageWriteError) return 'storage';
+  if (error instanceof MarketSchemaError) return 'schema';
+  if (error instanceof CollectorLockError) return 'lock';
+  if (error instanceof OfficialMarketError) {
+    if (error.code === 'cancelled') return 'cancel';
+    if (error.code === 'schema') return 'schema';
+    return 'network';
+  }
+
   for (const key of ['code', 'kind', 'category', 'type']) {
     const value = errorProperty(error, key);
     if (isCollectorErrorCode(value)) return value;
@@ -119,22 +130,12 @@ export function classifyCollectorError(error: unknown): CollectorErrorCode {
   if (name === 'StorageWriteError' || name === 'QuotaExceededError') return 'storage';
   if (name === 'SyntaxError') return 'schema';
   if (name === 'AbortError') return 'cancel';
-
-  const message = error instanceof Error ? error.message.toLowerCase() : '';
-  if (
-    message.includes(COLLECTOR_CHECK_CANCELLED_MESSAGE.toLowerCase())
-    || message.includes(OFFICIAL_REQUEST_CANCELLED_MESSAGE.toLowerCase())
-  ) return 'cancel';
-  if (message.includes('collector web lock api is unavailable')) return 'lock';
-  if (message === OFFICIAL_REQUEST_TIMEOUT_MESSAGE.toLowerCase() || /timed?\s*out|timeout/.test(message)) return 'network';
-  if (/schema|payload|json|parse|invalid snapshot|invalid market/.test(message)) return 'schema';
   if (name === 'TypeError') return 'network';
-  if (/storage|quota|persist|write|disk/.test(message)) return 'storage';
-  if (/network|fetch|request|timeout|offline|abort|http|status|load/.test(message)) return 'network';
   return 'unknown';
 }
 
 const classifyError = classifyCollectorError;
+export const classifyErrorCode = classifyCollectorError;
 
 function copyStatus(status: CollectorStatus): CollectorStatus {
   return {
@@ -165,6 +166,36 @@ function isInsertedResult(value: unknown): value is { inserted: boolean } {
     && typeof (value as { inserted?: unknown }).inserted === 'boolean';
 }
 
+async function writeLockFailureStatus(
+  options: CollectorCheckOptions,
+  isRetry: boolean,
+  attemptAt: number,
+  signal: AbortSignal,
+): Promise<void> {
+  if (signal.aborted) return;
+
+  let previousStatus = copyStatus(DEFAULT_COLLECTOR_STATUS);
+  try {
+    previousStatus = await options.marketStore.getCollectorStatus();
+  } catch {
+    // A lock failure still gets a safe status when the previous status is unreadable.
+  }
+  if (signal.aborted) return;
+
+  const status: CollectorStatus = {
+    ...previousStatus,
+    state: 'error',
+    lastAttemptAt: attemptAt,
+    nextRunAt: isRetry ? nextHourlyRun(attemptAt) : attemptAt + RETRY_DELAY_MS,
+    lastErrorCode: 'lock',
+  };
+  try {
+    await options.marketStore.setCollectorStatus(status);
+  } catch {
+    // Preserve the original lock error; do not expose storage details.
+  }
+}
+
 /**
  * Build one injected, lock-aware collector check.
  *
@@ -183,8 +214,12 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
     throwIfCancelled(signal);
     const attemptAt = clock();
     let failureCode: CollectorErrorCode = 'unknown';
+    let lockCallbackEntered = false;
 
-    const lockedResult = await lockRunner(async (): Promise<LockedCheckResult> => {
+    let lockedResult: CollectorLockResult<LockedCheckResult>;
+    try {
+      lockedResult = await lockRunner(async (): Promise<LockedCheckResult> => {
+      lockCallbackEntered = true;
       throwIfCancelled(signal);
       // A normal check must compare the slot after acquiring the lock. This
       // keeps both de-duplication and the subsequent writes owner-authoritative.
@@ -304,7 +339,13 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
         throwIfCancelled(signal);
         throw error;
       }
-    });
+      });
+    } catch (error) {
+      if (shouldCancel(error, signal)) throw cancellationError();
+      if (lockCallbackEntered) throw error;
+      await writeLockFailureStatus(options, isRetry, attemptAt, signal);
+      throw error;
+    }
 
     throwIfCancelled(signal);
     if (!lockedResult.acquired) {
