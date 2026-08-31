@@ -12,10 +12,12 @@ import {
   moveWatchItem,
   normalizeCatalog,
   normalizeWatchlist,
+  volumeMultipleForKey,
   sortViewRows,
   togglePin,
 } from '../src/dashboard/state';
 import { filterViewRows } from '../src/dashboard/filters';
+import { rankRowsForMode } from '../src/dashboard/rankings-view';
 
 const HOUR = 3_600_000;
 
@@ -97,10 +99,79 @@ describe('dashboard state', () => {
     expect(gloves?.changes['7d']).toBeCloseTo(40);
     expect(gloves?.volatilityPct).not.toBeNull();
     expect(gloves?.flags).toContain('move');
-    expect(gloves?.volumeMultiple).toBeNull();
+    expect(gloves?.volumeMultiple).toBeCloseTo(0.2);
 
     const oneDay = deriveRows(history, catalog, [], '1d').find((row) => row.key === '/items/gloves::7');
     expect(oneDay?.volatilityPct).toBeNull();
+  });
+
+  it('derives a volume multiple from seven same-time daily baselines and flags a 2x spike', () => {
+    const latestTimestamp = 7 * 24 * HOUR;
+    const snapshots = [
+      snapshot(0, { '/items/gloves::7': quote({ v: 10 }) }),
+      snapshot(24 * HOUR, { '/items/gloves::7': quote({ v: 20 }) }),
+      snapshot(48 * HOUR, { '/items/gloves::7': quote({ v: 30 }) }),
+      snapshot(72 * HOUR, { '/items/gloves::7': quote({ v: 40 }) }),
+      snapshot(96 * HOUR, { '/items/gloves::7': quote({ v: 50 }) }),
+      snapshot(120 * HOUR, { '/items/gloves::7': quote({ v: 60 }) }),
+      snapshot(144 * HOUR, { '/items/gloves::7': quote({ v: 70 }) }),
+      snapshot(latestTimestamp, { '/items/gloves::7': quote({ v: 80 }) }),
+    ];
+    const rows = deriveRows(snapshots, catalog, [], '1d');
+    const gloves = rows.find((row) => row.key === '/items/gloves::7');
+
+    expect(gloves?.volumeMultiple).toBe(2);
+    expect(gloves?.flags).toContain('volume-spike');
+    expect(rankRowsForMode(rows, 'volume-anomaly', '1d').map((row) => row.key)).toEqual(['/items/gloves::7']);
+  });
+
+  it('accepts nearest baselines within one hour and rejects unrelated or over-two-hour samples', () => {
+    const latestTimestamp = 7 * 24 * HOUR;
+    const snapshots = [
+      snapshot(0, { '/items/gloves::7': quote({ v: 10 }) }),
+      snapshot(24 * HOUR, { '/items/gloves::7': quote({ v: 20 }) }),
+      snapshot(48 * HOUR, { '/items/gloves::7': quote({ v: 30 }) }),
+      snapshot(72 * HOUR, { '/items/gloves::7': quote({ v: 40 }) }),
+      snapshot(96 * HOUR, { '/items/gloves::7': quote({ v: 50 }) }),
+      snapshot(120 * HOUR + 3 * HOUR, { '/items/gloves::7': quote({ v: 999 }) }),
+      snapshot(144 * HOUR + 3_600_000, { '/items/gloves::7': quote({ v: 70 }) }),
+      snapshot(144 * HOUR + 3 * 3_600_000, { '/items/gloves::7': quote({ v: 888 }) }),
+      snapshot(latestTimestamp, { '/items/gloves::7': quote({ v: 80 }) }),
+    ];
+    const gloves = deriveRows(snapshots, catalog, [], '1d').find((row) => row.key === '/items/gloves::7');
+
+    expect(gloves?.volumeMultiple).toBeCloseTo(80 / 35);
+  });
+
+  it('returns null for fewer than three positive baselines or a missing current volume', () => {
+    const latestTimestamp = 7 * 24 * HOUR;
+    const snapshots = [
+      snapshot(0, { '/items/gloves::7': quote({ v: 10 }) }),
+      snapshot(24 * HOUR, { '/items/gloves::7': quote({ v: 20 }) }),
+      snapshot(48 * HOUR, { '/items/gloves::7': quote({ v: 0 }) }),
+      snapshot(latestTimestamp, { '/items/gloves::7': quote({ v: 40 }) }),
+    ];
+    const rows = deriveRows(snapshots, catalog, [], '1d');
+    expect(rows[0]?.volumeMultiple).toBeNull();
+
+    const noCurrentVolume = deriveRows([
+      ...snapshots.slice(0, -1),
+      snapshot(latestTimestamp, { '/items/gloves::7': quote({ v: null }) }),
+    ], catalog, [], '1d');
+    expect(noCurrentVolume[0]?.volumeMultiple).toBeNull();
+  });
+
+  it('does not reuse the same snapshot object when selecting daily baselines', () => {
+    const latestTimestamp = 7 * 24 * HOUR;
+    const shared = snapshot(0, { '/items/gloves::7': quote({ v: 10 }) });
+    const latest = snapshot(latestTimestamp, { '/items/gloves::7': quote({ v: 60 }) });
+
+    expect(volumeMultipleForKey('/items/gloves::7', latest, [
+      shared,
+      shared,
+      snapshot(24 * HOUR, { '/items/gloves::7': quote({ v: 20 }) }),
+      snapshot(48 * HOUR, { '/items/gloves::7': quote({ v: 30 }) }),
+    ])).toBe(3);
   });
 
   it('does not mutate snapshots, catalog, or watchlist inputs', () => {

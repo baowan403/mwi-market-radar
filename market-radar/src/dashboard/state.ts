@@ -4,6 +4,7 @@ import {
   calculateChange,
   calculateVolatilityPct,
   PERIOD_HOURS,
+  volumeMultiple as calculateVolumeMultiple,
 } from '../core/trends';
 import type {
   CatalogCategory,
@@ -25,6 +26,8 @@ import {
 } from '../core/rankings';
 
 const HOUR_MS = 3_600_000;
+const VOLUME_BASELINE_DAYS = 7;
+const VOLUME_BASELINE_TOLERANCE_MS = 2 * HOUR_MS;
 const UNKNOWN_CATEGORY_HRID = '/item_categories/unknown';
 const MARKET_KEY_PATTERN = /^.+::(?:0|[1-9]\d*)$/;
 
@@ -173,6 +176,48 @@ function periodWindow(
   );
 }
 
+/** Compare today's volume with one nearest same-time sample from each prior day. */
+export function volumeMultipleForKey(
+  key: MarketKey,
+  latest: Snapshot,
+  snapshots: readonly Snapshot[],
+): number | null {
+  const currentVolume = quoteOrEmpty(latest.quotes[key]).v;
+  const usedSnapshots = new Set<Snapshot>();
+  const baselines: number[] = [];
+
+  for (let day = 1; day <= VOLUME_BASELINE_DAYS; day += 1) {
+    const targetTimestamp = latest.timestamp - day * 24 * HOUR_MS;
+    let nearest: Snapshot | undefined;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    for (const candidate of snapshots) {
+      if (candidate === latest || usedSnapshots.has(candidate) || candidate.timestamp >= latest.timestamp) continue;
+      const candidateVolume = quoteOrEmpty(candidate.quotes[key]).v;
+      if (candidateVolume === null) continue;
+      const distance = Math.abs(candidate.timestamp - targetTimestamp);
+      if (distance > VOLUME_BASELINE_TOLERANCE_MS) continue;
+      if (
+        nearest === undefined
+        || distance < nearestDistance
+        || (distance === nearestDistance && candidate.timestamp < nearest.timestamp)
+      ) {
+        nearest = candidate;
+        nearestDistance = distance;
+      }
+    }
+
+    if (nearest !== undefined) {
+      usedSnapshots.add(nearest);
+      const volume = quoteOrEmpty(nearest.quotes[key]).v;
+      if (volume !== null) baselines.push(volume);
+    }
+  }
+
+  if (baselines.filter((volume) => volume > 0).length < 3) return null;
+  return calculateVolumeMultiple(currentVolume, baselines);
+}
+
 /** Derive immutable UI rows from the latest snapshot and catalog metadata. */
 export function deriveRows(
   snapshots: readonly Snapshot[],
@@ -197,6 +242,7 @@ export function deriveRows(
     const quote = quoteOrEmpty(rawQuote);
     const basis = priceBasis(quote);
     const catalogItem = catalog.itemsByHrid.get(parsedKey.itemHrid);
+    const marketKey = key as MarketKey;
     const rowWithoutFlags: MarketRow = {
       key,
       name: catalogItem?.name ?? fallbackItemName(parsedKey.itemHrid),
@@ -213,12 +259,11 @@ export function deriveRows(
         '7d': calculateChange(key as MarketKey, PERIOD_HOURS['7d'], snapshots).pct,
       },
       volatilityPct: calculateVolatilityPct(key as MarketKey, volatilitySnapshots),
-      volumeMultiple: null,
+      volumeMultiple: volumeMultipleForKey(marketKey, latest, snapshots),
       quality: basis.quality as PriceQuality,
       flags: [],
     };
     const flags = flagsForRow(rowWithoutFlags, { ...flagThresholds, period: selectedPeriod });
-    const marketKey = key as MarketKey;
     rows.push({
       ...rowWithoutFlags,
       flags,
