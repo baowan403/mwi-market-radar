@@ -1,0 +1,14 @@
+{
+  "timestamp": 1787645160,
+  "marketData": {
+    "/items/cowbell": {
+      "0": { "a": 100, "b": 99, "p": 99.5, "v": 42 }
+    },
+    "/items/enchanted_cowbell": {
+      "3": { "a": 1250, "b": 1200, "p": 1225, "v": 8 }
+    },
+    "/items/milking_tea": {
+      "7": { "a": 450, "b": 400, "p": 425, "v": 17 }
+    }
+  }
+}
