@@ -6,6 +6,7 @@ const RETENTION_MS = 8 * DAY_MS;
 
 export const STORAGE_PREFIX = 'mwi-radar:v1:';
 const HOURLY_PREFIX = `${STORAGE_PREFIX}hourly:`;
+const HOURLY_KEY_PATTERN = new RegExp(`^${STORAGE_PREFIX}hourly:(\\d{4})-(\\d{2})-(\\d{2})$`);
 export const WATCHLIST_KEY = `${STORAGE_PREFIX}watchlist`;
 export const SETTINGS_KEY = `${STORAGE_PREFIX}settings`;
 const MISSING_PREFERENCE = Symbol('missing preference');
@@ -68,7 +69,15 @@ export function hourlyDayKey(timestamp: number): string {
 }
 
 function isHourlyKey(key: string): boolean {
-  return key.startsWith(HOURLY_PREFIX);
+  const match = HOURLY_KEY_PATTERN.exec(key);
+  const year = match?.[1];
+  const month = match?.[2];
+  const day = match?.[3];
+  if (!year || !month || !day) return false;
+
+  const calendarDate = `${year}-${month}-${day}`;
+  const timestamp = Date.parse(`${calendarDate}T00:00:00.000Z`);
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString().slice(0, 10) === calendarDate;
 }
 
 function sortUniqueSnapshots(snapshots: Iterable<Snapshot>): Snapshot[] {
@@ -158,6 +167,12 @@ function corruptPreferenceError(kind: 'watchlist' | 'settings', cause: unknown):
 }
 
 export class MarketStore {
+  /**
+   * All snapshot saves share this fulfilled promise tail so each read-modify-write
+   * runs exclusively within this store; a rejected save cannot poison later work.
+   */
+  private saveQueue: Promise<void> = Promise.resolve();
+
   constructor(private readonly storage: KeyValueStore) {}
 
   async getWatchlist(): Promise<WatchItem[]> {
@@ -202,18 +217,27 @@ export class MarketStore {
     }
   }
 
-  async saveSnapshot(snapshot: Snapshot): Promise<SnapshotSaveResult> {
+  saveSnapshot(snapshot: Snapshot): Promise<SnapshotSaveResult> {
+    const result = this.saveQueue.then(() => this.saveSnapshotExclusive(snapshot));
+    this.saveQueue = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  private async saveSnapshotExclusive(snapshot: Snapshot): Promise<SnapshotSaveResult> {
     const chunks = await this.readHourlyChunks();
     const existingSnapshots = [...chunks.values()].flat();
     const existingByTimestamp = new Set(existingSnapshots.map((entry) => entry.timestamp));
-    const latestTimestamp = Math.max(snapshot.timestamp, ...existingByTimestamp);
+    const latestTimestamp = Math.max(snapshot.timestamp, ...existingSnapshots.map((entry) => entry.timestamp));
     const cutoff = latestTimestamp - RETENTION_MS;
+    const currentKey = hourlyDayKey(snapshot.timestamp);
 
     if (snapshot.timestamp < cutoff || existingByTimestamp.has(snapshot.timestamp)) {
-      return { inserted: false, cleanupErrors: [] };
+      return { inserted: false, cleanupErrors: await this.cleanup(cutoff) };
     }
 
-    const currentKey = hourlyDayKey(snapshot.timestamp);
     const currentChunk = sortUniqueSnapshots([...(chunks.get(currentKey) ?? []), snapshot]);
     const encodedCurrentChunk = await encodeDayChunk(currentChunk);
 
@@ -240,14 +264,16 @@ export class MarketStore {
 
     for (const key of keys) {
       const encoded = await this.storage.get<string | null>(key, null);
-      if (encoded === null || encoded === undefined) continue;
+      if (encoded === null || encoded === undefined) {
+        throw new Error(`Corrupt hourly snapshot chunk at key: ${key}`);
+      }
       chunks.set(key, await decodeDayChunk(encoded));
     }
 
     return chunks;
   }
 
-  private async cleanup(cutoff: number, currentKey: string): Promise<string[]> {
+  private async cleanup(cutoff: number, currentKey?: string): Promise<string[]> {
     let keys: Set<string>;
     try {
       keys = new Set((await this.storage.keys()).filter(isHourlyKey));
@@ -255,7 +281,7 @@ export class MarketStore {
       return ['keys'];
     }
 
-    keys.add(currentKey);
+    if (currentKey !== undefined) keys.add(currentKey);
     const cleanupErrors: string[] = [];
 
     for (const key of [...keys].sort()) {
@@ -266,7 +292,10 @@ export class MarketStore {
         cleanupErrors.push(`get:${key}`);
         continue;
       }
-      if (encoded === null || encoded === undefined) continue;
+      if (encoded === null || encoded === undefined) {
+        cleanupErrors.push(`get:${key}`);
+        continue;
+      }
 
       let retained: Snapshot[];
       try {

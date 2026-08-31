@@ -60,6 +60,37 @@ class MemoryKeyValueStore implements KeyValueStore {
   }
 }
 
+class DelayedFirstWriteStore extends MemoryKeyValueStore {
+  readonly firstWriteStarted: Promise<void>;
+  private resolveFirstWriteStarted!: () => void;
+  private releaseFirstWriteGate!: () => void;
+  private readonly firstWriteReleased: Promise<void>;
+  private blockFirstWrite = true;
+
+  constructor() {
+    super();
+    this.firstWriteStarted = new Promise((resolve) => {
+      this.resolveFirstWriteStarted = resolve;
+    });
+    this.firstWriteReleased = new Promise((resolve) => {
+      this.releaseFirstWriteGate = resolve;
+    });
+  }
+
+  releaseFirstWrite(): void {
+    this.releaseFirstWriteGate();
+  }
+
+  override async set<T>(storageKey: string, value: T): Promise<void> {
+    if (this.blockFirstWrite) {
+      this.blockFirstWrite = false;
+      this.resolveFirstWriteStarted();
+      await this.firstWriteReleased;
+    }
+    await super.set(storageKey, value);
+  }
+}
+
 function snapshot(timestamp: number, price = 100): Snapshot {
   return {
     timestamp,
@@ -268,6 +299,135 @@ describe('MarketStore snapshot history', () => {
     const encodedCurrent = await adapter.get<string | null>(currentKey, null);
     await expect(decodeDayChunk(encodedCurrent as string)).resolves.toEqual([latest]);
     await expect(createStore(adapter).listSnapshots()).rejects.toThrow(/base64/i);
+  });
+
+  it('ignores malformed hourly namespace keys without attempting to decode them', async () => {
+    const adapter = new MemoryKeyValueStore();
+    const store = createStore(adapter);
+    const valid = snapshot(Date.parse('2026-08-31T12:08:00Z'));
+    await adapter.set(hourlyDayKey(valid.timestamp), await encodeDayChunk([valid]));
+
+    const malformedKeys = [
+      `${STORAGE_PREFIX}hourly:2026-08-31T00:00:00.000Z`,
+      `${STORAGE_PREFIX}hourly:2026-8-31`,
+      `${STORAGE_PREFIX}hourly:2026-08-31-extra`,
+      `${STORAGE_PREFIX}hourlyX:2026-08-31`,
+    ];
+    for (const key of malformedKeys) {
+      adapter.values.set(key, `${STORAGE_CODEC_GZIP_PREFIX}not-valid!`);
+    }
+
+    await expect(store.listSnapshots()).resolves.toEqual([valid]);
+  });
+
+  it('ignores an impossible calendar date in an hourly key', async () => {
+    const adapter = new MemoryKeyValueStore();
+    const store = createStore(adapter);
+    const invalidDateKey = `${STORAGE_PREFIX}hourly:2026-02-30`;
+    adapter.values.set(invalidDateKey, `${STORAGE_CODEC_GZIP_PREFIX}not-valid!`);
+
+    await expect(store.listSnapshots()).resolves.toEqual([]);
+  });
+
+  it('retries cleanup on a duplicate after an earlier cleanup failure', async () => {
+    const adapter = new MemoryKeyValueStore();
+    const store = createStore(adapter);
+    const old = snapshot(Date.parse('2026-08-20T12:08:00Z'), 50);
+    const latest = snapshot(Date.parse('2026-08-31T12:08:00Z'), 200);
+    const oldKey = hourlyDayKey(old.timestamp);
+
+    await store.saveSnapshot(old);
+    adapter.failDeleteFor = oldKey;
+    const firstResult = await store.saveSnapshot(latest);
+    expect(firstResult.cleanupErrors).toContain(`delete:${oldKey}`);
+
+    adapter.failDeleteFor = null;
+    await expect(store.saveSnapshot(latest)).resolves.toEqual({
+      inserted: false,
+      cleanupErrors: [],
+    });
+    expect(await adapter.keys()).not.toContain(oldKey);
+    await expect(store.listSnapshots()).resolves.toEqual([latest]);
+  });
+
+  it('uses the newest readable chunk when an older snapshot still triggers cleanup', async () => {
+    const adapter = new MemoryKeyValueStore();
+    const store = createStore(adapter);
+    const stale = snapshot(Date.parse('2026-08-20T12:08:00Z'), 50);
+    const latest = snapshot(Date.parse('2026-08-31T12:08:00Z'), 200);
+    const staleKey = hourlyDayKey(stale.timestamp);
+
+    await store.saveSnapshot(stale);
+    adapter.failDeleteFor = staleKey;
+    await store.saveSnapshot(latest);
+    adapter.failDeleteFor = null;
+
+    const result = await store.saveSnapshot(snapshot(Date.parse('2026-08-21T12:08:00Z'), 75));
+
+    expect(result).toEqual({ inserted: false, cleanupErrors: [] });
+    expect(await adapter.keys()).not.toContain(staleKey);
+    await expect(store.listSnapshots()).resolves.toEqual([latest]);
+  });
+
+  it('throws for a listed hourly key whose value is null', async () => {
+    const adapter = new MemoryKeyValueStore();
+    const store = createStore(adapter);
+    const key = `${STORAGE_PREFIX}hourly:2026-08-31`;
+    adapter.values.set(key, null);
+
+    await expect(store.listSnapshots()).rejects.toThrow(/corrupt.*hourly|missing.*hourly/i);
+  });
+
+  it('reports a null listed hourly value during cleanup and keeps the current chunk', async () => {
+    const adapter = new MemoryKeyValueStore();
+    const store = createStore(adapter);
+    const old = snapshot(Date.parse('2026-08-30T12:08:00Z'), 50);
+    const latest = snapshot(Date.parse('2026-08-31T12:08:00Z'), 200);
+    const oldKey = hourlyDayKey(old.timestamp);
+    const currentKey = hourlyDayKey(latest.timestamp);
+
+    await store.saveSnapshot(old);
+    adapter.afterSet = (storageKey) => {
+      if (storageKey === currentKey) adapter.values.set(oldKey, null);
+    };
+
+    const result = await store.saveSnapshot(latest);
+
+    expect(result.inserted).toBe(true);
+    expect(result.cleanupErrors).toContain(`get:${oldKey}`);
+    adapter.afterSet = null;
+    const encodedCurrent = await adapter.get<string | null>(currentKey, null);
+    await expect(decodeDayChunk(encodedCurrent as string)).resolves.toEqual([latest]);
+  });
+
+  it('serializes concurrent same-day saves so both snapshots are retained', async () => {
+    const adapter = new DelayedFirstWriteStore();
+    const store = createStore(adapter);
+    const first = snapshot(Date.parse('2026-08-31T12:08:00Z'), 100);
+    const second = snapshot(Date.parse('2026-08-31T13:08:00Z'), 110);
+
+    const firstSave = store.saveSnapshot(first);
+    await adapter.firstWriteStarted;
+    const secondSave = store.saveSnapshot(second);
+    adapter.releaseFirstWrite();
+
+    await expect(Promise.all([firstSave, secondSave])).resolves.toHaveLength(2);
+    await expect(store.listSnapshots()).resolves.toEqual([first, second]);
+  });
+
+  it('continues queued saves after a prior save rejects', async () => {
+    const adapter = new MemoryKeyValueStore();
+    const store = createStore(adapter);
+    const first = snapshot(Date.parse('2026-08-31T12:08:00Z'), 100);
+    const second = snapshot(Date.parse('2026-08-31T13:08:00Z'), 110);
+    adapter.failSetOnAttempt = 1;
+
+    const firstSave = store.saveSnapshot(first);
+    const secondSave = store.saveSnapshot(second);
+
+    await expect(firstSave).rejects.toBeInstanceOf(StorageWriteError);
+    await expect(secondSave).resolves.toMatchObject({ inserted: true });
+    await expect(store.listSnapshots()).resolves.toEqual([second]);
   });
 
   it('deduplicates timestamps globally while listing every hourly chunk', async () => {
