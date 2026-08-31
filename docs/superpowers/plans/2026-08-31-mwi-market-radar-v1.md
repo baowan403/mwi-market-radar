@@ -4,7 +4,7 @@
 
 **Goal:** Build a standalone, stock-style MWI market dashboard whose Tampermonkey collector stores hourly official market snapshots locally and supports watchlists, official categories, 1D/3D/7D trends, sorting, rankings, filters, and item charts without any trading action or AI request.
 
-**Architecture:** A Vite/TypeScript static dashboard and one separately bundled `vite-plugin-monkey` userscript share pure market-domain modules. On MWI pages the userscript fetches the public official snapshot with credentials omitted, validates and stores compact day chunks in GM storage, and schedules hourly collection; on the dashboard origin it exposes an allowlisted CustomEvent bridge for read-only market data plus local watchlist/settings writes. The dashboard uses a sortable DOM table and Chart.js, while all calculations remain pure and covered by Vitest.
+**Architecture:** A Vite/TypeScript static dashboard and one separately bundled `vite-plugin-monkey` userscript share pure market-domain modules. On MWI pages the userscript fetches the public official snapshot with credentials omitted, validates and stores compact day chunks in GM storage, and schedules hourly collection; on the dashboard origin it exposes an allowlisted JSON-string CustomEvent bridge for read-only paged market data plus local watchlist/settings writes. The dashboard uses a sortable DOM table and Chart.js, while all calculations remain pure and covered by Vitest.
 
 **Tech Stack:** TypeScript, Vite, vanilla DOM/CSS, Vitest + jsdom, vite-plugin-monkey, Chart.js, Playwright (local end-to-end only), Tampermonkey GM APIs.
 
@@ -752,7 +752,7 @@ Add to `src/core/types.ts`:
 ```ts
 export type BridgeRequest =
   | { id: string; type: 'bootstrap' }
-  | { id: string; type: 'snapshots' }
+  | { id: string; type: 'snapshots'; value: { beforeTimestamp: number | null; limit: number } }
   | { id: string; type: 'set-watchlist'; value: WatchItem[] }
   | { id: string; type: 'set-settings'; value: RadarSettings };
 export type BridgeResponse =
@@ -781,15 +781,16 @@ it('returns snapshots and persists watchlist through request ids', async () => {
 
 - [ ] **Step 3: Implement a CustomEvent bridge with exact-origin checks**
 
-Use event names `mwi-radar:request` and `mwi-radar:response`. Validate request shape, dispatch responses using the same opaque UUID, expose only the four operations in `BridgeRequest`, and never expose a generic GM read/write method.
+Use event names `mwi-radar:request` and `mwi-radar:response`. Serialize request and response details as JSON strings so the Tampermonkey and page realms exchange only a primitive wire value. Validate request shape, dispatch responses using the same opaque UUID, expose only the four operations in `BridgeRequest`, and never expose a generic GM read/write method. Snapshot responses are cursor-paged at 1–24 snapshots per event; the dashboard client follows the strictly decreasing timestamp cursor, deduplicates, and returns an ascending list.
 
 ```ts
-if (!allowedOrigins.includes(location.origin)) return;
+if (!matchesAllowedDashboardBase(location.href, allowedOrigins)) return;
 window.addEventListener('mwi-radar:request', async (event) => {
-  if (!(event instanceof CustomEvent)) return;
-  const request = event.detail as BridgeRequest;
+  const detail = (event as Event & { detail?: unknown }).detail;
+  if (typeof detail !== 'string') return;
+  const request = JSON.parse(detail) as BridgeRequest;
   const response = await handleKnownRequest(request, store);
-  window.dispatchEvent(new CustomEvent('mwi-radar:response', { detail: response }));
+  window.dispatchEvent(new CustomEvent('mwi-radar:response', { detail: JSON.stringify(response) }));
 });
 ```
 

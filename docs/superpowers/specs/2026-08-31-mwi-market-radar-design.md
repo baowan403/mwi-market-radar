@@ -17,6 +17,7 @@
 - 靜態網站只提供 HTML、CSS、JavaScript 介面，可部署到 GitHub Pages。
 - 同一支 Tampermonkey 腳本同時匹配 MWI 遊戲頁及獨立看盤頁。
 - 遊戲頁負責採集；看盤頁透過腳本橋接讀取本機歷史資料。
+- 橋接使用跨 Tampermonkey／頁面 realm 安全的 JSON 字串線路格式；歷史快照按時間游標分頁傳送，不把八天全市場資料塞入單一事件。
 - 市場歷史只保存在使用者自己的 Tampermonkey 儲存空間，不上傳到 GitHub Pages 或第三方伺服器。
 - 網址尚未決定。任何建立 repository、GitHub Pages 或公開網址的動作，都必須先向 Owner 確認確切網址／帳號／repository 名稱。
 
