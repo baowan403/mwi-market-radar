@@ -54,59 +54,72 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
   };
 
   let started = false;
-  let inFlight = false;
+  let generation = 0;
+  let inFlightGeneration: number | null = null;
   let timer: unknown;
   let hasTimer = false;
 
   function clearScheduledTimer(): void {
     if (!hasTimer) return;
-    timerApi.clearTimeout(timer);
+    const handle = timer;
     timer = undefined;
     hasTimer = false;
+    timerApi.clearTimeout(handle);
   }
 
-  function schedule(delayMs: number, isRetry: boolean): void {
-    if (!started) return;
+  function isActive(lifecycleGeneration: number): boolean {
+    return started && lifecycleGeneration === generation;
+  }
+
+  function schedule(delayMs: number, isRetry: boolean, lifecycleGeneration: number): void {
+    if (!isActive(lifecycleGeneration)) return;
     clearScheduledTimer();
-    timer = timerApi.setTimeout(() => {
+    let scheduledHandle: unknown;
+    const callback = (): void => {
+      if (!isActive(lifecycleGeneration) || timer !== scheduledHandle) return;
       timer = undefined;
       hasTimer = false;
-      void runCheck(isRetry);
-    }, Math.max(0, delayMs));
+      void runCheck(isRetry, lifecycleGeneration);
+    };
+    scheduledHandle = timerApi.setTimeout(callback, Math.max(0, delayMs));
+    timer = scheduledHandle;
     hasTimer = true;
   }
 
-  function scheduleRegular(): void {
+  function scheduleRegular(lifecycleGeneration: number): void {
+    if (!isActive(lifecycleGeneration)) return;
     const currentTime = clock();
-    schedule(nextHourlyRun(currentTime) - currentTime, false);
+    schedule(nextHourlyRun(currentTime) - currentTime, false, lifecycleGeneration);
   }
 
-  function scheduleRetry(): void {
-    schedule(RETRY_DELAY_MS, true);
+  function scheduleRetry(lifecycleGeneration: number): void {
+    schedule(RETRY_DELAY_MS, true, lifecycleGeneration);
   }
 
-  async function runCheck(isRetry: boolean): Promise<void> {
-    if (!started || inFlight) return;
-    inFlight = true;
+  async function runCheck(isRetry: boolean, lifecycleGeneration: number): Promise<void> {
+    if (!isActive(lifecycleGeneration) || inFlightGeneration === lifecycleGeneration) return;
+    inFlightGeneration = lifecycleGeneration;
 
     try {
       const result = await options.check({ isRetry });
-      if (!started) return;
+      if (!isActive(lifecycleGeneration)) return;
 
       if (isRetry || result !== 'unchanged') {
-        scheduleRegular();
+        scheduleRegular(lifecycleGeneration);
       } else {
-        scheduleRetry();
+        scheduleRetry(lifecycleGeneration);
       }
     } catch {
-      if (!started) return;
+      if (!isActive(lifecycleGeneration)) return;
       if (isRetry) {
-        scheduleRegular();
+        scheduleRegular(lifecycleGeneration);
       } else {
-        scheduleRetry();
+        scheduleRetry(lifecycleGeneration);
       }
     } finally {
-      inFlight = false;
+      if (inFlightGeneration === lifecycleGeneration) {
+        inFlightGeneration = null;
+      }
     }
   }
 
@@ -114,11 +127,13 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
     start(): void {
       if (started) return;
       started = true;
-      void runCheck(false);
+      const lifecycleGeneration = ++generation;
+      void runCheck(false, lifecycleGeneration);
     },
 
     stop(): void {
       started = false;
+      generation += 1;
       clearScheduledTimer();
     },
   };

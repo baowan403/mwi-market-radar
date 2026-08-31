@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createScheduler, nextHourlyRun, type CheckResult } from '../src/collector/scheduler';
+import {
+  createScheduler,
+  nextHourlyRun,
+  type CheckResult,
+  type SchedulerCheck,
+} from '../src/collector/scheduler';
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -156,5 +161,100 @@ describe('createScheduler', () => {
     await flushAsyncWork();
     await vi.advanceTimersByTimeAsync(30_000);
     expect(check).toHaveBeenCalledTimes(2);
+  });
+
+  it('starts a new immediate check after stop and restart during a slow check', async () => {
+    vi.setSystemTime(atTaipeiTime('2026-08-31T10:07:30'));
+    let resolveFirst!: (result: CheckResult) => void;
+    let resolveSecond!: (result: CheckResult) => void;
+    const check = vi.fn<SchedulerCheck>(() => {
+      if (check.mock.calls.length === 1) {
+        return new Promise<CheckResult>((resolve) => {
+          resolveFirst = resolve;
+        });
+      }
+      return new Promise<CheckResult>((resolve) => {
+        resolveSecond = resolve;
+      });
+    });
+    const scheduler = createScheduler({ now: () => Date.now(), check });
+
+    scheduler.start();
+    await flushAsyncWork();
+    scheduler.stop();
+    scheduler.start();
+    await flushAsyncWork();
+
+    expect(check).toHaveBeenCalledTimes(2);
+    expect(check.mock.calls[1]?.[0]).toEqual({ isRetry: false });
+
+    resolveFirst('updated');
+    await flushAsyncWork();
+    expect(vi.getTimerCount()).toBe(0);
+    resolveSecond('updated');
+    await flushAsyncWork();
+    scheduler.stop();
+  });
+
+  it('does not let an old generation overwrite the new generation timer', async () => {
+    vi.setSystemTime(atTaipeiTime('2026-08-31T10:07:30'));
+    let resolveFirst!: (result: CheckResult) => void;
+    const activeTimers = new Set<number>();
+    let nextTimerId = 0;
+    const timers = {
+      setTimeout: vi.fn((callback: () => void, _delayMs: number) => {
+        void callback;
+        const timerId = ++nextTimerId;
+        activeTimers.add(timerId);
+        return timerId;
+      }),
+      clearTimeout: vi.fn((handle: unknown) => {
+        activeTimers.delete(handle as number);
+      }),
+    };
+    const check = vi.fn()
+      .mockImplementationOnce(() => new Promise<CheckResult>((resolve) => {
+        resolveFirst = resolve;
+      }))
+      .mockResolvedValueOnce('updated');
+    const scheduler = createScheduler({ now: () => Date.now(), check, timers });
+
+    scheduler.start();
+    await flushAsyncWork();
+    scheduler.stop();
+    scheduler.start();
+    await flushAsyncWork();
+
+    expect(timers.setTimeout).toHaveBeenCalledTimes(1);
+    expect(activeTimers.size).toBe(1);
+
+    resolveFirst('updated');
+    await flushAsyncWork();
+
+    expect(timers.setTimeout).toHaveBeenCalledTimes(1);
+    expect(timers.clearTimeout).not.toHaveBeenCalled();
+    expect(activeTimers.size).toBe(1);
+    scheduler.stop();
+  });
+
+  it('does not schedule after a stopped generation resolves without restart', async () => {
+    let resolveCheck!: (result: CheckResult) => void;
+    const timers = {
+      setTimeout: vi.fn(() => 1),
+      clearTimeout: vi.fn(),
+    };
+    const check = vi.fn(() => new Promise<CheckResult>((resolve) => {
+      resolveCheck = resolve;
+    }));
+    const scheduler = createScheduler({ now: () => Date.now(), check, timers });
+
+    scheduler.start();
+    await flushAsyncWork();
+    scheduler.stop();
+    resolveCheck('updated');
+    await flushAsyncWork();
+
+    expect(timers.setTimeout).not.toHaveBeenCalled();
+    expect(timers.clearTimeout).not.toHaveBeenCalled();
   });
 });
