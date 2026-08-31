@@ -68,7 +68,7 @@ export interface GameCollectorDependencies {
   createMarketStore?: (storage: KeyValueStore) => MarketStore;
   fetchOfficialSnapshot?: FetchSnapshot;
   withCollectorLock?: CollectorLockFactory;
-  lockOptions?: Omit<CollectorLockOptions, 'storage'>;
+  lockOptions?: CollectorLockOptions;
   createCollectorCheck?: CollectorCheckFactory;
   createScheduler?: (options: SchedulerOptions) => Scheduler;
 }
@@ -283,14 +283,7 @@ export function startGameCollector(
 
   const lockRunner: LockRunner = dependencies.lockRunner ?? dependencies.withLock ?? (<T>(task: () => Promise<T>) => {
     const lockFactory = dependencies.withCollectorLock ?? withCollectorLock;
-    const lockOptions: CollectorLockOptions = {
-      ...dependencies.lockOptions,
-      storage,
-    };
-    if (dependencies.now !== undefined && dependencies.lockOptions?.now === undefined) {
-      lockOptions.now = dependencies.now;
-    }
-    return lockFactory(lockOptions, task);
+    return lockFactory(dependencies.lockOptions ?? {}, task);
   });
 
   const checkFactory = dependencies.createCollectorCheck ?? createCollectorCheck;
