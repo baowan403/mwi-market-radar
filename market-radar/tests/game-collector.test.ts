@@ -31,7 +31,7 @@ function snapshot(timestamp = SNAPSHOT_TIMESTAMP): Snapshot {
 
 interface HarnessOptions {
   inserted?: boolean;
-  fetchSnapshot?: () => Promise<Snapshot>;
+  fetchSnapshot?: (signal?: AbortSignal) => Promise<Snapshot>;
   lockResult?: 'acquired' | 'busy';
   initialStatus?: Partial<CollectorStatus>;
 }
@@ -125,6 +125,52 @@ describe('slotId', () => {
 });
 
 describe('createCollectorCheck', () => {
+  it('cancels before acquiring the lock when the signal starts aborted', async () => {
+    const harness = createHarness();
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(harness.check({ isRetry: false, signal: controller.signal })).rejects.toThrow(
+      'Collector check cancelled',
+    );
+
+    expect(harness.lockRunner).not.toHaveBeenCalled();
+    expect(harness.fetchSnapshot).not.toHaveBeenCalled();
+    expect(harness.saveSnapshot).not.toHaveBeenCalled();
+    expect(harness.statusWrites).toEqual([]);
+    expect(harness.values.has(LAST_CHECKED_SLOT_KEY)).toBe(false);
+  });
+
+  it('cancels a pending fetch without saving, writing an error status, or marking the slot', async () => {
+    let resolveFetch!: (value: Snapshot) => void;
+    let fetchStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      fetchStarted = resolve;
+    });
+    let receivedSignal: AbortSignal | undefined;
+    const fetchSnapshot = vi.fn((signal?: AbortSignal) => {
+      receivedSignal = signal;
+      fetchStarted();
+      return new Promise<Snapshot>((resolve) => {
+        resolveFetch = resolve;
+      });
+    });
+    const harness = createHarness({ fetchSnapshot });
+    const controller = new AbortController();
+    const check = harness.check({ isRetry: false, signal: controller.signal });
+
+    await started;
+    controller.abort();
+    resolveFetch(snapshot());
+
+    await expect(check).rejects.toThrow('Collector check cancelled');
+    expect(receivedSignal).toBe(controller.signal);
+    expect(harness.saveSnapshot).not.toHaveBeenCalled();
+    expect(harness.values.has(LAST_CHECKED_SLOT_KEY)).toBe(false);
+    expect(harness.statusWrites).toHaveLength(1);
+    expect(harness.statusWrites[0]?.lastErrorCode).toBeNull();
+  });
+
   it('saves an inserted snapshot inside the lock and marks a normal check updated', async () => {
     const harness = createHarness();
     harness.saveSnapshot.mockImplementationOnce(async () => {
@@ -288,6 +334,54 @@ describe('createCollectorCheck', () => {
 });
 
 describe('startGameCollector', () => {
+  it('passes the scheduler signal through the production fetch wrapper', async () => {
+    const storage = {} as KeyValueStore;
+    const marketStore = {} as MarketStore;
+    const signal = new AbortController().signal;
+    const fetchOfficialSnapshot = vi.fn(async (options?: { signal?: AbortSignal }) => {
+      expect(options?.signal).toBe(signal);
+      return snapshot();
+    });
+    const lockRunner: LockRunner = async <T>(task: () => Promise<T>): Promise<CollectorLockResult<T>> => ({
+      acquired: true,
+      value: await task(),
+    });
+    let check!: SchedulerCheck;
+    let schedulerCheck: SchedulerCheck | undefined;
+    const scheduler: Scheduler = {
+      start: vi.fn(() => {
+        void schedulerCheck?.({ isRetry: false, signal });
+      }),
+      stop: vi.fn(),
+    };
+    const createCollectorCheck = vi.fn((options: CollectorCheckOptions) => {
+      expect(options.fetchSnapshot).not.toBe(fetchOfficialSnapshot);
+      check = vi.fn<SchedulerCheck>(async ({ signal: checkSignal }) => {
+        if (checkSignal === undefined) throw new Error('scheduler signal is required');
+        await options.fetchSnapshot(checkSignal);
+        return 'updated' as const;
+      });
+      return check;
+    });
+    const createScheduler = vi.fn((options: { check: SchedulerCheck }): Scheduler => {
+      schedulerCheck = options.check;
+      return scheduler;
+    });
+
+    startGameCollector({
+      storage,
+      marketStore,
+      fetchOfficialSnapshot,
+      lockRunner,
+      createCollectorCheck,
+      createScheduler,
+    });
+    await Promise.resolve();
+
+    expect(check).toHaveBeenCalledWith({ isRetry: false, signal });
+    expect(fetchOfficialSnapshot).toHaveBeenCalledWith({ signal });
+  });
+
   it('wires injected dependencies, starts the scheduler immediately, and delegates stop', async () => {
     const storage = {} as KeyValueStore;
     const marketStore = {} as MarketStore;
@@ -307,7 +401,7 @@ describe('startGameCollector', () => {
     const createCollectorCheck = vi.fn((options: CollectorCheckOptions) => {
       expect(options.storage).toBe(storage);
       expect(options.marketStore).toBe(marketStore);
-      expect(options.fetchSnapshot).toBe(fetchOfficialSnapshot);
+      expect(options.fetchSnapshot).not.toBe(fetchOfficialSnapshot);
       expect(options.lockRunner).toBe(lockRunner);
       return check;
     });

@@ -25,13 +25,16 @@ import { fetchOfficialSnapshot } from '../collector/official-client';
 
 const HOUR_MS = 3_600_000;
 const LAST_CHECKED_SLOT_KEY = `${STORAGE_PREFIX}last-checked-slot`;
+export const COLLECTOR_CHECK_CANCELLED_MESSAGE = 'Collector check cancelled';
 
 type CollectorErrorCode = 'network' | 'schema' | 'storage' | 'unknown';
 export type LockRunner = <T>(task: () => Promise<T>) => Promise<CollectorLockResult<T>>;
-export type FetchSnapshot = () => Snapshot | PromiseLike<Snapshot>;
+export type FetchSnapshot = (signal: AbortSignal) => Snapshot | PromiseLike<Snapshot>;
 
 export interface CollectorCheckContext {
   isRetry: boolean;
+  /** Scheduler lifecycle signal; omitted for direct/manual callers. */
+  signal?: AbortSignal;
 }
 
 export interface CollectorCheckOptions {
@@ -66,7 +69,7 @@ export interface GameCollectorDependencies {
   createGMKeyValueStore?: () => KeyValueStore;
   createStorage?: () => KeyValueStore;
   createMarketStore?: (storage: KeyValueStore) => MarketStore;
-  fetchOfficialSnapshot?: FetchSnapshot;
+  fetchOfficialSnapshot?: (options: { signal: AbortSignal }) => Snapshot | PromiseLike<Snapshot>;
   withCollectorLock?: CollectorLockFactory;
   lockOptions?: CollectorLockOptions;
   createCollectorCheck?: CollectorCheckFactory;
@@ -126,6 +129,14 @@ function copyStatus(status: CollectorStatus): CollectorStatus {
   };
 }
 
+function cancellationError(): Error {
+  return new Error(COLLECTOR_CHECK_CANCELLED_MESSAGE);
+}
+
+function throwIfCancelled(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw cancellationError();
+}
+
 function isInsertedResult(value: unknown): value is { inserted: boolean } {
   return value !== null
     && typeof value === 'object'
@@ -145,18 +156,24 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
     throw new Error('Collector lock runner is required.');
   }
 
-  return async ({ isRetry }: CollectorCheckContext): Promise<CheckResult> => {
+  return async ({ isRetry, signal: contextSignal }: CollectorCheckContext): Promise<CheckResult> => {
+    const signal = contextSignal ?? new AbortController().signal;
+    throwIfCancelled(signal);
     const attemptAt = clock();
     let failureCode: CollectorErrorCode = 'unknown';
 
     const lockedResult = await lockRunner(async (): Promise<LockedCheckResult> => {
+      throwIfCancelled(signal);
       // A normal check must compare the slot after acquiring the lock. This
       // keeps both de-duplication and the subsequent writes owner-authoritative.
       let lastCheckedSlot: number | null = null;
       if (!isRetry) {
+        throwIfCancelled(signal);
         try {
           lastCheckedSlot = await options.storage.get<number | null>(LAST_CHECKED_SLOT_KEY, null);
+          throwIfCancelled(signal);
         } catch (error) {
+          if (signal?.aborted) throw cancellationError();
           failureCode = 'storage';
           throw error;
         }
@@ -167,11 +184,14 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
       }
 
       let previousStatus: CollectorStatus;
+      throwIfCancelled(signal);
       try {
         previousStatus = typeof options.marketStore.getCollectorStatus === 'function'
           ? await options.marketStore.getCollectorStatus()
           : copyStatus(DEFAULT_COLLECTOR_STATUS);
+        throwIfCancelled(signal);
       } catch (error) {
+        if (signal?.aborted) throw cancellationError();
         failureCode = classifyError(error);
         throw error;
       }
@@ -186,21 +206,29 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
       try {
         // Status writes stay in the lock so a busy loser cannot overwrite the
         // status written by the tab that owns the collector lease.
+        throwIfCancelled(signal);
         await options.marketStore.setCollectorStatus(startedStatus);
+        throwIfCancelled(signal);
 
         let snapshot: Snapshot;
+        throwIfCancelled(signal);
         try {
-          snapshot = await options.fetchSnapshot();
+          snapshot = await options.fetchSnapshot(signal);
+          throwIfCancelled(signal);
         } catch (error) {
+          if (signal?.aborted) throw cancellationError();
           failureCode = classifyError(error);
           throw error;
         }
 
         let saved: unknown;
+        throwIfCancelled(signal);
         try {
           // Snapshot persistence must remain inside the cross-tab lock.
           saved = await options.marketStore.saveSnapshot(snapshot);
+          throwIfCancelled(signal);
         } catch (error) {
+          if (signal?.aborted) throw cancellationError();
           failureCode = 'storage';
           throw error;
         }
@@ -211,8 +239,11 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
 
         try {
           // Mark the current slot only after the snapshot save has fulfilled.
+          throwIfCancelled(signal);
           await options.storage.set(LAST_CHECKED_SLOT_KEY, slotIdForTimestamp(attemptAt));
+          throwIfCancelled(signal);
         } catch (error) {
+          if (signal?.aborted) throw cancellationError();
           failureCode = 'storage';
           throw error;
         }
@@ -231,9 +262,12 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
           finalStatus.officialTimestamp = snapshot.timestamp;
         }
 
+        throwIfCancelled(signal);
         await options.marketStore.setCollectorStatus(finalStatus);
+        throwIfCancelled(signal);
         return { result, snapshot };
       } catch (error) {
+        if (signal?.aborted) throw cancellationError();
         if (failureCode === 'unknown') failureCode = classifyError(error);
         const failureStatus: CollectorStatus = {
           ...startedStatus,
@@ -243,11 +277,14 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
             : attemptAt + RETRY_DELAY_MS,
           lastErrorCode: failureCode,
         };
+        throwIfCancelled(signal);
         await options.marketStore.setCollectorStatus(failureStatus);
+        throwIfCancelled(signal);
         throw error;
       }
     });
 
+    throwIfCancelled(signal);
     if (!lockedResult.acquired) {
       // Busy callers intentionally leave the persisted status untouched.
       return 'skipped';
@@ -277,9 +314,8 @@ export function startGameCollector(
 
   const marketStore = dependencies.marketStore
     ?? (dependencies.createMarketStore ?? ((adapter: KeyValueStore) => new MarketStore(adapter)))(storage);
-  const fetchSnapshot = dependencies.fetchSnapshot
-    ?? dependencies.fetchOfficialSnapshot
-    ?? (() => fetchOfficialSnapshot());
+  const fetchSnapshot: FetchSnapshot = dependencies.fetchSnapshot
+    ?? ((signal: AbortSignal) => (dependencies.fetchOfficialSnapshot ?? fetchOfficialSnapshot)({ signal }));
 
   const lockRunner: LockRunner = dependencies.lockRunner ?? dependencies.withLock ?? (<T>(task: () => Promise<T>) => {
     const lockFactory = dependencies.withCollectorLock ?? withCollectorLock;
