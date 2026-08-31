@@ -734,6 +734,13 @@ dialog::backdrop {
 }
 
 @media (max-width: 640px) {
+  html,
+  body,
+  #app,
+  .radar-shell {
+    min-height: 100dvh;
+  }
+
   .radar-shell {
     padding: 12px 12px 32px;
   }
@@ -756,6 +763,11 @@ dialog::backdrop {
   .toolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .table-scroll {
+    max-height: calc(100dvh - 24px);
+    overflow: auto;
   }
 
   .period-controls {
