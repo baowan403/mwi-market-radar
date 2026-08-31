@@ -11,10 +11,13 @@ const STATE_LABELS: Record<CollectorStatus['state'], string> = {
 export const NO_BRIDGE_MESSAGE = '尚未偵測到 MWI Market Radar 腳本';
 export const NO_SNAPSHOTS_MESSAGE = '尚無市場快照，請保持 MWI 分頁開啟';
 export const STALE_COLLECTION_MESSAGE = '等待遊戲分頁／資料已停止更新';
+export const POLL_FAILURE_MESSAGE = '市場資料更新失敗，保留舊資料';
+
+export const MAX_DATE_MS = 8_640_000_000_000_000;
 
 const GAP_THRESHOLD_HOURS = 1.75;
 const STALE_AFTER_HOURS = 2.5;
-const SAFE_TRANSIENT_ERRORS = new Set(['自選儲存失敗']);
+const SAFE_TRANSIENT_ERRORS = new Set(['自選儲存失敗', POLL_FAILURE_MESSAGE]);
 const UNKNOWN_ERROR_MESSAGE = '採集發生未知錯誤，保留舊資料';
 
 export interface SnapshotGap {
@@ -33,8 +36,15 @@ export interface CollectionHealthModel {
   stale: boolean;
 }
 
+export function isDateRepresentable(value: unknown): value is number {
+  return typeof value === 'number'
+    && Number.isFinite(value)
+    && Number.isSafeInteger(value)
+    && Math.abs(value) <= MAX_DATE_MS;
+}
+
 export function formatTaipeiTime(timestamp: number | null): string {
-  if (timestamp === null || !Number.isFinite(timestamp)) return '—';
+  if (!isDateRepresentable(timestamp)) return '—';
 
   return new Intl.DateTimeFormat('zh-TW', {
     timeZone: 'Asia/Taipei',
@@ -53,15 +63,17 @@ export function detectSnapshotGaps(snapshots: readonly Snapshot[]): SnapshotGap[
   const timestamps = [...new Set(
     snapshots
       .map((snapshot) => snapshot.timestamp)
-      .filter((timestamp): timestamp is number => Number.isFinite(timestamp)),
+      .filter(isDateRepresentable),
   )].sort((left, right) => left - right);
   const gaps: SnapshotGap[] = [];
   for (let index = 1; index < timestamps.length; index += 1) {
     const from = timestamps[index - 1];
     const to = timestamps[index];
     if (from === undefined || to === undefined) continue;
-    const hours = (to - from) / 3_600_000;
-    if (hours > GAP_THRESHOLD_HOURS) gaps.push({ from, to, hours });
+    const difference = to - from;
+    if (!Number.isFinite(difference) || difference <= 0) continue;
+    const hours = difference / 3_600_000;
+    if (Number.isFinite(hours) && hours > GAP_THRESHOLD_HOURS) gaps.push({ from, to, hours });
   }
   return gaps;
 }
@@ -77,7 +89,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 function latestTimestamp(snapshots: readonly Snapshot[]): number | null {
   return snapshots.reduce<number | null>((latest, snapshot) => {
-    if (!Number.isFinite(snapshot.timestamp)) return latest;
+    if (!isDateRepresentable(snapshot.timestamp)) return latest;
     return latest === null || snapshot.timestamp > latest ? snapshot.timestamp : latest;
   }, null);
 }
@@ -96,23 +108,24 @@ export function buildHealthModel(
 ): CollectionHealthModel {
   const gaps = detectSnapshotGaps(snapshots);
   const latest = latestTimestamp(snapshots);
-  const stale = status.lastSuccessAt === null
-    || !Number.isFinite(status.lastSuccessAt)
-    || (Number.isFinite(now) && now - status.lastSuccessAt > STALE_AFTER_HOURS * 3_600_000);
+  const stale = !isDateRepresentable(status.lastSuccessAt)
+    || (isDateRepresentable(now) && now - status.lastSuccessAt > STALE_AFTER_HOURS * 3_600_000);
 
   let headline: string;
   let detail: string;
-  if (latest === null) {
-    headline = NO_SNAPSHOTS_MESSAGE;
-    detail = '請保持 MWI 分頁開啟，等待下一個官方快照。';
-  } else if (status.state === 'retrying') {
+  if (status.state === 'retrying') {
     headline = '採集重試中';
     detail = status.nextRunAt === null
       ? '將在稍後重試。'
       : `下次重試：${formatTaipeiTime(status.nextRunAt)}`;
+    if (latest === null) detail += ` ${NO_SNAPSHOTS_MESSAGE}`;
   } else if (status.state === 'error') {
     headline = '採集發生問題';
     detail = ERROR_MESSAGES[status.lastErrorCode ?? 'unknown'] ?? UNKNOWN_ERROR_MESSAGE;
+    if (latest === null) detail += ` ${NO_SNAPSHOTS_MESSAGE}`;
+  } else if (latest === null) {
+    headline = NO_SNAPSHOTS_MESSAGE;
+    detail = '請保持 MWI 分頁開啟，等待下一個官方快照。';
   } else if (stale) {
     headline = STALE_COLLECTION_MESSAGE;
     detail = '請確認遊戲分頁仍開啟，資料不會自動補齊。';
@@ -165,7 +178,13 @@ export function renderCollectorStatus(
   target.dataset.statusState = status.state;
 
   const dot = document.createElement('span');
-  dot.className = 'status-dot';
+  const severity = status.state === 'error'
+    ? 'error'
+    : status.state === 'retrying' || status.state === 'checking' || health?.stale === true
+      ? 'warn'
+      : 'normal';
+  dot.className = `status-dot status-dot-${severity}`;
+  target.dataset.statusSeverity = severity;
   dot.setAttribute('aria-hidden', 'true');
   target.append(dot);
 
@@ -204,6 +223,7 @@ export function renderCollectorStatus(
 export function renderBridgeUnavailable(target: HTMLElement, message = NO_BRIDGE_MESSAGE): void {
   target.replaceChildren();
   target.dataset.statusState = 'error';
+  target.dataset.statusSeverity = 'error';
 
   const dot = document.createElement('span');
   dot.className = 'status-dot status-dot-error';

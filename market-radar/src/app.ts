@@ -22,7 +22,12 @@ import {
   type NormalizedCatalog,
   type SortState,
 } from './dashboard/state';
-import { buildHealthModel, renderCollectorStatus, renderBridgeUnavailable } from './dashboard/status';
+import {
+  buildHealthModel,
+  POLL_FAILURE_MESSAGE,
+  renderCollectorStatus,
+  renderBridgeUnavailable,
+} from './dashboard/status';
 import { renderMarketTable, ITEM_SELECTED_EVENT } from './dashboard/table';
 import {
   createItemDetailController,
@@ -109,6 +114,10 @@ export interface DashboardMountOptions {
   client?: DashboardClient;
   catalogLoader?: () => CatalogInput | Promise<CatalogInput>;
   chartFactory?: ItemChartFactory;
+  pollMs?: number;
+  now?: () => number;
+  setInterval?: (callback: () => void, delayMs: number) => unknown;
+  clearInterval?: (handle: unknown) => void;
 }
 
 export interface DashboardMountHandle {
@@ -362,6 +371,10 @@ function renderDashboard(
   state: DashboardState,
   isActive: () => boolean,
   chartFactory?: ItemChartFactory,
+  now: () => number = () => Date.now(),
+  pollMs = 60_000,
+  setIntervalFn: (callback: () => void, delayMs: number) => unknown = (callback, delayMs) => globalThis.setInterval(callback, delayMs),
+  clearIntervalFn: (handle: unknown) => void = (handle) => globalThis.clearInterval(handle as ReturnType<typeof setInterval>),
 ): { detailController: ItemDetailController; destroy(): void } | null {
   const nav = root.querySelector<HTMLElement>('#category-nav');
   const toolbar = root.querySelector<HTMLElement>('#toolbar');
@@ -381,6 +394,9 @@ function renderDashboard(
   }
   let activeMutation: PendingMutation | null = null;
   const pendingMutations: PendingMutation[] = [];
+  let pollInFlight = false;
+  let pollTimer: unknown;
+  let pollTimerActive = false;
 
   const invalidateDerived = (): void => {
     derivedCache = null;
@@ -425,7 +441,7 @@ function renderDashboard(
       status,
       state.collectorStatus,
       state.statusError,
-      buildHealthModel(state.collectorStatus, state.snapshots, Date.now()),
+      buildHealthModel(state.collectorStatus, state.snapshots, now()),
     );
   };
 
@@ -558,6 +574,43 @@ function renderDashboard(
     return result;
   }
 
+  const poll = async (): Promise<void> => {
+    if (!isActive() || pollInFlight) return;
+    pollInFlight = true;
+    try {
+      const nextBootstrap = await client.bootstrap();
+      if (!isActive()) return;
+
+      const previousLatest = state.snapshots.reduce<number | null>(
+        (latest, snapshot) => Number.isFinite(snapshot.timestamp)
+          && (latest === null || snapshot.timestamp > latest)
+          ? snapshot.timestamp
+          : latest,
+        null,
+      );
+      state.collectorStatus = nextBootstrap.collectorStatus;
+      const metadataChanged = nextBootstrap.latestTimestamp !== previousLatest
+        || nextBootstrap.snapshotCount !== state.snapshots.length;
+
+      if (metadataChanged) {
+        const nextSnapshots = await client.listSnapshots();
+        if (!isActive()) return;
+        state.snapshots = nextSnapshots;
+        invalidateDerived();
+        renderResultsOnly();
+      }
+      state.statusError = null;
+      renderStatus();
+    } catch {
+      if (isActive()) {
+        state.statusError = POLL_FAILURE_MESSAGE;
+        renderStatus();
+      }
+    } finally {
+      pollInFlight = false;
+    }
+  };
+
   const detailController = createItemDetailController({
     dialog: detailDialog,
     snapshots: () => state.snapshots,
@@ -628,10 +681,21 @@ function renderDashboard(
   );
   renderStatus();
   renderResultsOnly();
+  const pollingDelay = Number.isFinite(pollMs) && pollMs > 0 ? pollMs : 60_000;
+  pollTimer = setIntervalFn(() => {
+    void poll();
+  }, pollingDelay);
+  pollTimerActive = true;
   return {
     detailController,
     destroy(): void {
       root.removeEventListener(ITEM_SELECTED_EVENT, onItemSelected);
+      if (pollTimerActive) {
+        const handle = pollTimer;
+        pollTimer = undefined;
+        pollTimerActive = false;
+        clearIntervalFn(handle);
+      }
       activeMutation?.resolve();
       for (const pending of pendingMutations) pending.resolve();
       pendingMutations.length = 0;
@@ -693,7 +757,17 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       officialCategories: new Set(),
       statusError: null,
     };
-    runtime = renderDashboard(root, client, state, isActive, options.chartFactory);
+    runtime = renderDashboard(
+      root,
+      client,
+      state,
+      isActive,
+      options.chartFactory,
+      options.now,
+      options.pollMs,
+      options.setInterval,
+      options.clearInterval,
+    );
   } catch {
     if (isActive()) {
       renderBridgeUnavailable(status);

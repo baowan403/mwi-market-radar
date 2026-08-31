@@ -8,6 +8,7 @@ import {
   buildHealthModel,
   detectSnapshotGaps,
   formatTaipeiTime,
+  isDateRepresentable,
   renderBridgeUnavailable,
   renderCollectorStatus,
 } from '../src/dashboard/status';
@@ -67,6 +68,61 @@ describe('snapshot health', () => {
       expect(model.detail).not.toContain('stack');
       if (code === 'storage') expect(model.detail).toContain('保留舊資料');
     }
+  });
+
+  it('prioritizes the first failure reason over an empty snapshot message', () => {
+    const failed = buildHealthModel(
+      status({ state: 'error', lastErrorCode: 'network', lastSuccessAt: null }),
+      [],
+      3 * HOUR,
+    );
+    expect(failed.headline).toContain('採集發生問題');
+    expect(failed.detail).toContain('網路讀取失敗');
+    expect(failed.detail).toContain('尚無市場快照');
+
+    const retrying = buildHealthModel(
+      status({ state: 'retrying', nextRunAt: 4 * HOUR, lastSuccessAt: null }),
+      [],
+      3 * HOUR,
+    );
+    expect(retrying.headline).toContain('重試');
+    expect(retrying.detail).toContain('下次重試');
+    expect(retrying.detail).toContain('尚無市場快照');
+  });
+
+  it('guards date formatting and gap detection against unsafe or overflowing timestamps', () => {
+    const invalid = [
+      Number.MAX_SAFE_INTEGER,
+      Infinity,
+      -Infinity,
+      8_640_000_000_000_001,
+      -8_640_000_000_000_001,
+    ];
+    for (const timestamp of invalid) {
+      expect(isDateRepresentable(timestamp)).toBe(false);
+      expect(() => formatTaipeiTime(timestamp)).not.toThrow();
+      expect(formatTaipeiTime(timestamp)).toBe('—');
+    }
+
+    const guarded = detectSnapshotGaps([
+      ...snapshots([0, 3 * HOUR]),
+      ...snapshots(invalid),
+    ]);
+    expect(guarded).toEqual([{ from: 0, to: 3 * HOUR, hours: 3 }]);
+  });
+
+  it('marks normal, warning, and error status dots with explicit severity classes', () => {
+    const target = document.createElement('div');
+    renderCollectorStatus(target, status({ state: 'ok' }));
+    expect(target.querySelector('.status-dot')?.classList.contains('status-dot-normal')).toBe(true);
+
+    renderCollectorStatus(target, status({ state: 'retrying' }));
+    expect(target.querySelector('.status-dot')?.classList.contains('status-dot-warn')).toBe(true);
+
+    renderCollectorStatus(target, status({ state: 'error', lastErrorCode: 'network' }));
+    expect(target.querySelector('.status-dot')?.classList.contains('status-dot-error')).toBe(true);
+    renderBridgeUnavailable(target);
+    expect(target.querySelector('.status-dot')?.classList.contains('status-dot-error')).toBe(true);
   });
 
   it('exposes gap count/ranges and renders only safe text inside the live status region', () => {

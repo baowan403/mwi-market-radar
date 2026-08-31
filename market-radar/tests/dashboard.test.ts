@@ -572,4 +572,178 @@ describe('mountDashboard', () => {
     expect(root.querySelector('[data-primary-view="resource"]')?.classList.contains('is-active')).toBe(true);
     expect(root.querySelector('[data-primary-view="all"]')?.classList.contains('is-active')).toBe(false);
   });
+
+  it('polls health without rebuilding the table or focused inputs when data is unchanged', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(LATEST_TIMESTAMP);
+    const root = createRoot();
+    const client = createClient();
+    const setIntervalSpy = vi.fn((callback: () => void, delay: number) => setInterval(callback, delay));
+    const clearIntervalSpy = vi.fn((handle: unknown) => clearInterval(handle as ReturnType<typeof setInterval>));
+    const handle = await mountDashboard({
+      root,
+      client,
+      catalogLoader: vi.fn().mockResolvedValue(catalog),
+      setInterval: setIntervalSpy,
+      clearInterval: clearIntervalSpy,
+      pollMs: 60_000,
+      now: () => Date.now(),
+    });
+    const table = root.querySelector('table');
+    const search = root.querySelector<HTMLInputElement>('input[data-filter="search"]') as HTMLInputElement;
+    search.focus();
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 60_000);
+    expect(client.bootstrap).toHaveBeenCalledTimes(2);
+    expect(client.listSnapshots).toHaveBeenCalledTimes(1);
+    expect(root.querySelector('table')).toBe(table);
+    expect(root.querySelector('input[data-filter="search"]')).toBe(search);
+    expect(document.activeElement).toBe(search);
+    handle.destroy();
+  });
+
+  it('shows stale health after polling advances beyond the freshness window', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(LATEST_TIMESTAMP);
+    const root = createRoot();
+    const staleBootstrap = {
+      ...bootstrap,
+      collectorStatus: { ...collectorStatus, lastSuccessAt: LATEST_TIMESTAMP },
+    };
+    const client = createClient({ bootstrap: vi.fn().mockResolvedValue(staleBootstrap) });
+    const handle = await mountDashboard({
+      root,
+      client,
+      catalogLoader: vi.fn().mockResolvedValue(catalog),
+      pollMs: 60_000,
+      now: () => Date.now(),
+    });
+
+    await vi.advanceTimersByTimeAsync(2.5 * 60 * 60 * 1_000 + 60_000);
+
+    expect(root.querySelector('[data-status-field="state"]')?.textContent).toContain('資料已停止更新');
+    handle.destroy();
+  });
+
+  it('fetches snapshots and refreshes rows when poll metadata changes', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(LATEST_TIMESTAMP);
+    const root = createRoot();
+    const nextTimestamp = LATEST_TIMESTAMP + 60 * 60 * 1_000;
+    const nextSnapshots: Snapshot[] = [
+      ...snapshots,
+      {
+        timestamp: nextTimestamp,
+        quotes: {
+          '/items/alpha::0': { a: 131, b: 129, p: 130, v: 9 },
+          '/items/gloves::7': { a: 82, b: 80, p: 81, v: 2 },
+        },
+      },
+    ];
+    const nextBootstrap = {
+      ...bootstrap,
+      latestTimestamp: nextTimestamp,
+      snapshotCount: nextSnapshots.length,
+      collectorStatus: { ...collectorStatus, officialTimestamp: nextTimestamp, lastSuccessAt: nextTimestamp },
+    };
+    const client = createClient({
+      bootstrap: vi.fn().mockResolvedValueOnce(bootstrap).mockResolvedValueOnce(nextBootstrap),
+      listSnapshots: vi.fn().mockResolvedValueOnce(snapshots).mockResolvedValueOnce(nextSnapshots),
+    });
+    const handle = await mountDashboard({
+      root,
+      client,
+      catalogLoader: vi.fn().mockResolvedValue(catalog),
+      pollMs: 60_000,
+      now: () => Date.now(),
+    });
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(client.listSnapshots).toHaveBeenCalledTimes(2);
+    expect(rowByKey(root, '/items/alpha::0').textContent).toContain('130');
+    handle.destroy();
+  });
+
+  it('keeps old rows and reports a safe poll failure', async () => {
+    vi.useFakeTimers();
+    const root = createRoot();
+    const client = createClient({
+      bootstrap: vi.fn().mockResolvedValueOnce(bootstrap).mockRejectedValueOnce(new Error('private poll payload')),
+    });
+    const handle = await mountDashboard({
+      root,
+      client,
+      catalogLoader: vi.fn().mockResolvedValue(catalog),
+      pollMs: 60_000,
+    });
+    const beforeRows = rows(root).map((row) => row.dataset.marketKey);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(rows(root).map((row) => row.dataset.marketKey)).toEqual(beforeRows);
+    expect(root.textContent).toContain('市場資料更新失敗');
+    expect(root.textContent).not.toContain('private poll payload');
+    handle.destroy();
+  });
+
+  it('does not overlap polling and resumes after the in-flight check settles', async () => {
+    vi.useFakeTimers();
+    let resolvePoll!: (value: BridgeBootstrap) => void;
+    const root = createRoot();
+    const client = createClient({
+      bootstrap: vi.fn()
+        .mockResolvedValueOnce(bootstrap)
+        .mockImplementationOnce(() => new Promise<BridgeBootstrap>((resolve) => {
+          resolvePoll = resolve;
+        }))
+        .mockResolvedValue(bootstrap),
+    });
+    const handle = await mountDashboard({
+      root,
+      client,
+      catalogLoader: vi.fn().mockResolvedValue(catalog),
+      pollMs: 60_000,
+    });
+
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(client.bootstrap).toHaveBeenCalledTimes(2);
+    resolvePoll(bootstrap);
+    await flushAsyncWork();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(client.bootstrap).toHaveBeenCalledTimes(3);
+    handle.destroy();
+  });
+
+  it('clears polling and ignores an in-flight poll result after destroy', async () => {
+    vi.useFakeTimers();
+    let resolvePoll!: (value: BridgeBootstrap) => void;
+    const root = createRoot();
+    const client = createClient({
+      bootstrap: vi.fn()
+        .mockResolvedValueOnce(bootstrap)
+        .mockImplementationOnce(() => new Promise<BridgeBootstrap>((resolve) => {
+          resolvePoll = resolve;
+        })),
+    });
+    const clearIntervalSpy = vi.fn((handle: unknown) => clearInterval(handle as ReturnType<typeof setInterval>));
+    const handle = await mountDashboard({
+      root,
+      client,
+      catalogLoader: vi.fn().mockResolvedValue(catalog),
+      pollMs: 60_000,
+      clearInterval: clearIntervalSpy,
+    });
+    await vi.advanceTimersByTimeAsync(60_000);
+    const beforeDestroy = root.innerHTML;
+
+    handle.destroy();
+    resolvePoll({ ...bootstrap, latestTimestamp: LATEST_TIMESTAMP + 1, snapshotCount: 999 });
+    await flushAsyncWork();
+
+    expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
+    expect(root.innerHTML).toBe(beforeDestroy);
+  });
 });

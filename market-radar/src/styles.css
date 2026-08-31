@@ -259,6 +259,26 @@ h2 {
   box-shadow: 0 0 0 4px rgb(255 90 98 / 12%);
 }
 
+.status-dot-normal {
+  background: var(--color-down);
+  box-shadow: 0 0 0 4px rgb(54 201 143 / 12%);
+}
+
+.status-dot-warn {
+  background: #ffd36e;
+  box-shadow: 0 0 0 4px rgb(255 211 110 / 14%);
+}
+
+.status-dot-normal {
+  background: var(--color-down);
+  box-shadow: 0 0 0 4px rgb(54 201 143 / 12%);
+}
+
+.status-dot-warn {
+  background: #ffd36e;
+  box-shadow: 0 0 0 4px rgb(255 211 110 / 14%);
+}
+
 .toolbar {
   flex-wrap: wrap;
   align-items: flex-end;
