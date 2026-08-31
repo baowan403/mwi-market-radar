@@ -41,7 +41,7 @@ market-radar/
     core/storage-codec.ts         compact day-chunk serialization
     collector/market-store.ts     GM-backed snapshot/watchlist/settings repository
     collector/official-client.ts  credential-free official snapshot fetch
-    collector/lock.ts             Web Locks plus GM lease fallback
+    collector/lock.ts             atomic Chrome Web Locks with fail-closed fallback
     collector/scheduler.ts        immediate/hourly/retry schedule
     userscript/main.ts            origin router and userscript bootstrap
     userscript/gm.d.ts            typed legacy Tampermonkey GM grants
@@ -704,7 +704,7 @@ export async function fetchOfficialSnapshot(fetcher: typeof fetch = fetch) {
 
 - [ ] **Step 3: Implement lock and slot de-duplication**
 
-Use `navigator.locks.request('mwi-market-radar-collector', { ifAvailable: true }, callback)` on MWI tabs. Inside the lock, compare the current hourly slot and `lastCheckedSlot` in GM storage before fetching. The fallback stores `{ owner, expiresAt }` under `mwi-radar:v1:lease`, waits a random 100–400 ms, verifies ownership, and expires after 120 seconds.
+Use `navigator.locks.request('mwi-market-radar-collector', { ifAvailable: true }, callback)` on MWI tabs. Inside the lock, compare the current hourly slot and `lastCheckedSlot` in GM storage before fetching. Chrome Web Locks are required because the four legacy GM storage operations do not provide atomic compare-and-set; if Web Locks are unavailable, collection fails closed and does not execute the fetch or write path. A probabilistic GM lease must not be presented as mutual exclusion.
 
 ```ts
 export const slotId = (timestamp: number) => Math.floor(timestamp / 3_600_000);
