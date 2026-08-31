@@ -24,6 +24,12 @@ import {
 } from './dashboard/state';
 import { renderCollectorStatus, renderBridgeUnavailable } from './dashboard/status';
 import { renderMarketTable } from './dashboard/table';
+import {
+  rankRowsForMode,
+  renderRankingModeButtons,
+  updateRankingModeButtons,
+  type RankingMode,
+} from './dashboard/rankings-view';
 
 const dashboardMarkup = `
   <div class="radar-shell">
@@ -81,6 +87,7 @@ interface DashboardState {
   collectorStatus: CollectorStatus;
   period: Period;
   view: PrimaryView;
+  mode: RankingMode;
   sortState: SortState | null;
   query: string;
   enhancementLevels: Set<number> | null;
@@ -216,6 +223,7 @@ function renderToolbar(
   target: HTMLElement,
   state: DashboardState,
   rows: ReturnType<typeof deriveRows>,
+  onMode: (mode: RankingMode) => void,
   onPeriod: (period: Period) => void,
   onQuery: (query: string) => void,
   onEnhancements: (levels: Set<number> | null) => void,
@@ -225,6 +233,8 @@ function renderToolbar(
   onResetSort: () => void,
 ): void {
   target.replaceChildren();
+
+  renderRankingModeButtons(target, state.mode, onMode);
 
   const periodGroup = createElement('div', 'period-controls');
   const periodLabel = createElement('span', 'control-label');
@@ -385,9 +395,13 @@ function renderDashboard(
       maximumSpreadPct: state.maximumSpreadPct,
       officialCategories: state.officialCategories,
     };
+    const filtered = filterViewRows(derived, filters);
+    const ranked = rankRowsForMode(filtered, state.mode, state.period);
     return {
       derived,
-      visible: sortViewRows(filterViewRows(derived, filters), state.sortState, state.view),
+      visible: state.sortState === null && state.mode !== 'market'
+        ? ranked
+        : sortViewRows(ranked, state.sortState, state.view),
     };
   };
 
@@ -429,6 +443,10 @@ function renderDashboard(
     for (const button of toolbar.querySelectorAll<HTMLButtonElement>('[data-period]')) {
       button.setAttribute('aria-pressed', String(button.dataset.period === state.period));
     }
+  };
+
+  const updateModeButtons = (): void => {
+    updateRankingModeButtons(toolbar, state.mode);
   };
 
   const renderNavigationOnly = (): void => {
@@ -518,6 +536,13 @@ function renderDashboard(
     toolbar,
     state,
     getDerivedRows(),
+    (mode) => {
+      if (!isActive()) return;
+      state.mode = mode;
+      state.sortState = null;
+      updateModeButtons();
+      renderResultsOnly();
+    },
     (period) => {
       if (!isActive()) return;
       state.period = period;
@@ -604,6 +629,7 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       collectorStatus: bootstrap.collectorStatus,
       period: settings.period,
       view: 'all',
+      mode: 'market',
       sortState: null,
       query: '',
       enhancementLevels: null,

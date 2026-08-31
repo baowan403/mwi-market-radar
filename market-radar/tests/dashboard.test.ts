@@ -214,6 +214,39 @@ describe('mountDashboard', () => {
     expect(rows(root).map((row) => row.dataset.marketKey)).toEqual(['/items/gloves::7']);
   });
 
+  it('renders secondary market modes, ranks filtered results, and updates on period changes', async () => {
+    const root = createRoot();
+    await mountDashboard({ root, client: createClient(), catalogLoader: vi.fn().mockResolvedValue(catalog) });
+
+    const modeButtons = [...root.querySelectorAll<HTMLButtonElement>('[data-ranking-mode]')];
+    expect(modeButtons.map((button) => button.textContent)).toEqual([
+      '行情表', '漲幅榜', '跌幅榜', '成交量榜', '異常量榜', '波動榜', '大價差榜', '無買/無賣',
+    ]);
+    expect(root.querySelector('[data-ranking-mode="market"]')?.getAttribute('aria-pressed')).toBe('true');
+
+    root.querySelector<HTMLButtonElement>('[data-ranking-mode="gainers"]')?.click();
+    expect(root.querySelector('[data-ranking-mode="gainers"]')?.classList.contains('is-active')).toBe(true);
+    expect(rows(root).at(0)?.dataset.marketKey).toBe('/items/alpha::0');
+    expect(rows(root).some((row) => row.dataset.marketKey === '/items/no_market::0')).toBe(false);
+
+    const search = root.querySelector<HTMLInputElement>('input[data-filter="search"]') as HTMLInputElement;
+    search.value = 'Alpha';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(rows(root).map((row) => row.dataset.marketKey)).toEqual(['/items/alpha::0']);
+    search.value = '';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+
+    root.querySelector<HTMLButtonElement>('[data-ranking-mode="losers"]')?.click();
+    expect(root.querySelector('[data-ranking-mode="losers"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(rows(root).at(0)?.dataset.marketKey).toBe('/items/gloves::7');
+    root.querySelector<HTMLButtonElement>('[data-sort-field="price"]')?.click();
+    expect(root.querySelector('[data-sort-header="price"]')?.getAttribute('aria-sort')).toBe('descending');
+    root.querySelector<HTMLButtonElement>('[data-ranking-mode="gainers"]')?.click();
+    expect(root.querySelector('[data-sort-header="price"]')?.getAttribute('aria-sort')).toBe('none');
+    root.querySelector<HTMLButtonElement>('[data-period="3d"]')?.click();
+    expect(root.querySelector('.table-empty')?.textContent).toBe('目前篩選沒有符合項目');
+  });
+
   it('cycles sortable headers descending, ascending, then default with nulls last', async () => {
     const root = createRoot();
     await mountDashboard({ root, client: createClient(), catalogLoader: vi.fn().mockResolvedValue(catalog) });

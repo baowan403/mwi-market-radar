@@ -46,6 +46,14 @@ const QUALITY_LABELS: Record<DerivedMarketRow['quality'], string> = {
   missing: '無市場',
 };
 
+const FLAG_LABELS: Record<DerivedMarketRow['flags'][number], string> = {
+  thin: '薄量',
+  'one-sided': '單邊',
+  'wide-spread': '大價差',
+  'volume-spike': '異常量',
+  move: '異動',
+};
+
 function finiteValue(value: number | null): value is number {
   return value !== null && Number.isFinite(value);
 }
@@ -168,6 +176,18 @@ function appendNameCell(row: HTMLTableRowElement, marketRow: DerivedMarketRow): 
   level.className = 'item-level';
   level.textContent = `+${marketRow.enhancementLevel}`;
   cell.append(level);
+  if (marketRow.flags.length > 0) {
+    const badges = document.createElement('span');
+    badges.className = 'market-flags';
+    for (const flag of marketRow.flags) {
+      const badge = document.createElement('span');
+      badge.className = 'market-flag';
+      badge.dataset.flag = flag;
+      badge.textContent = FLAG_LABELS[flag];
+      badges.append(badge);
+    }
+    cell.append(badges);
+  }
   row.append(cell);
 }
 
@@ -178,7 +198,7 @@ export function renderMarketTable(target: HTMLElement, options: MarketTableOptio
   if (options.rows.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'table-empty';
-    empty.textContent = options.view === 'watchlist' ? '尚未加入自選標的' : '目前篩選沒有行情資料';
+    empty.textContent = '目前篩選沒有符合項目';
     target.append(empty);
     return;
   }
