@@ -85,3 +85,14 @@ export interface CatalogItem {
   categoryHrid: string;
   sortIndex: number;
 }
+
+export interface CatalogCategory {
+  hrid: string;
+  name: string;
+  sortIndex: number;
+}
+
+export interface CatalogData {
+  categories: CatalogCategory[];
+  items: CatalogItem[];
+}
