@@ -27,6 +27,17 @@ export interface RadarSettings {
   anomalyVolumeMultiple: number;
 }
 
+export type CollectorState = 'idle' | 'checking' | 'retrying' | 'ok' | 'error';
+
+export interface CollectorStatus {
+  state: CollectorState;
+  lastAttemptAt: number | null;
+  lastSuccessAt: number | null;
+  officialTimestamp: number | null;
+  nextRunAt: number | null;
+  lastErrorCode: string | null;
+}
+
 export interface CatalogItem {
   hrid: string;
   name: string;

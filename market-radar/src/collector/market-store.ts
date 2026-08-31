@@ -1,4 +1,4 @@
-import type { MarketKey, RadarSettings, Snapshot, WatchItem } from '../core/types';
+import type { CollectorState, CollectorStatus, MarketKey, RadarSettings, Snapshot, WatchItem } from '../core/types';
 import { decodeDayChunk, encodeDayChunk } from '../core/storage-codec';
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
@@ -9,6 +9,7 @@ const HOURLY_PREFIX = `${STORAGE_PREFIX}hourly:`;
 const HOURLY_KEY_PATTERN = new RegExp(`^${STORAGE_PREFIX}hourly:(\\d{4})-(\\d{2})-(\\d{2})$`);
 export const WATCHLIST_KEY = `${STORAGE_PREFIX}watchlist`;
 export const SETTINGS_KEY = `${STORAGE_PREFIX}settings`;
+export const COLLECTOR_STATUS_KEY = `${STORAGE_PREFIX}collector-status`;
 const MISSING_PREFERENCE = Symbol('missing preference');
 
 export const DEFAULT_SETTINGS: RadarSettings = {
@@ -17,6 +18,15 @@ export const DEFAULT_SETTINGS: RadarSettings = {
   maximumSpreadPct: null,
   anomalyMovePct: 5,
   anomalyVolumeMultiple: 2,
+};
+
+export const DEFAULT_COLLECTOR_STATUS: CollectorStatus = {
+  state: 'idle',
+  lastAttemptAt: null,
+  lastSuccessAt: null,
+  officialTimestamp: null,
+  nextRunAt: null,
+  lastErrorCode: null,
 };
 
 export interface KeyValueStore {
@@ -136,6 +146,28 @@ function isFiniteNonnegative(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
+function isNullableNonnegativeSafeInteger(value: unknown): value is number | null {
+  return value === null || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0);
+}
+
+function isNullableSafeErrorCode(value: unknown): value is string | null {
+  return value === null || (typeof value === 'string' && value.length <= 80);
+}
+
+function normalizeCollectorTimestamp(value: unknown, field: string): number | null {
+  if (!isNullableNonnegativeSafeInteger(value)) {
+    throw new Error(`Invalid collector status ${field}: expected null or a non-negative safe integer`);
+  }
+  return value;
+}
+
+function normalizeCollectorErrorCode(value: unknown): string | null {
+  if (!isNullableSafeErrorCode(value)) {
+    throw new Error('Invalid collector status lastErrorCode: expected null or a safe string of at most 80 characters');
+  }
+  return value;
+}
+
 function normalizeSettings(value: unknown): RadarSettings {
   if (!isRecord(value)) {
     throw new Error('Invalid settings: expected an object');
@@ -165,9 +197,32 @@ function normalizeSettings(value: unknown): RadarSettings {
   };
 }
 
-function corruptPreferenceError(kind: 'watchlist' | 'settings', cause: unknown): Error {
+function normalizeCollectorStatus(value: unknown): CollectorStatus {
+  if (!isRecord(value)) {
+    throw new Error('Invalid collector status: expected an object');
+  }
+  if (value.state !== 'idle' && value.state !== 'checking' && value.state !== 'retrying' && value.state !== 'ok' && value.state !== 'error') {
+    throw new Error('Invalid collector status state');
+  }
+
+  return {
+    state: value.state as CollectorState,
+    lastAttemptAt: normalizeCollectorTimestamp(value.lastAttemptAt, 'lastAttemptAt'),
+    lastSuccessAt: normalizeCollectorTimestamp(value.lastSuccessAt, 'lastSuccessAt'),
+    officialTimestamp: normalizeCollectorTimestamp(value.officialTimestamp, 'officialTimestamp'),
+    nextRunAt: normalizeCollectorTimestamp(value.nextRunAt, 'nextRunAt'),
+    lastErrorCode: normalizeCollectorErrorCode(value.lastErrorCode),
+  };
+}
+
+function corruptPreferenceError(kind: 'watchlist' | 'settings' | 'collector status', cause: unknown): Error {
   const reason = cause instanceof Error ? cause.message : 'invalid stored value';
-  return new Error(`Corrupt stored ${kind} at key ${kind === 'watchlist' ? WATCHLIST_KEY : SETTINGS_KEY}: ${reason}`);
+  const key = kind === 'watchlist'
+    ? WATCHLIST_KEY
+    : kind === 'settings'
+      ? SETTINGS_KEY
+      : COLLECTOR_STATUS_KEY;
+  return new Error(`Corrupt stored ${kind} at key ${key}: ${reason}`);
 }
 
 export class MarketStore {
@@ -220,6 +275,27 @@ export class MarketStore {
       await this.storage.set(SETTINGS_KEY, normalized);
     } catch {
       throw new StorageWriteError(SETTINGS_KEY);
+    }
+  }
+
+  async getCollectorStatus(): Promise<CollectorStatus> {
+    const stored = await this.storage.get<unknown | typeof MISSING_PREFERENCE>(COLLECTOR_STATUS_KEY, MISSING_PREFERENCE);
+    if (stored === MISSING_PREFERENCE) return { ...DEFAULT_COLLECTOR_STATUS };
+
+    try {
+      return normalizeCollectorStatus(stored);
+    } catch (cause) {
+      throw corruptPreferenceError('collector status', cause);
+    }
+  }
+
+  async setCollectorStatus(value: CollectorStatus): Promise<void> {
+    const normalized = normalizeCollectorStatus(value);
+
+    try {
+      await this.storage.set(COLLECTOR_STATUS_KEY, normalized);
+    } catch {
+      throw new StorageWriteError(COLLECTOR_STATUS_KEY);
     }
   }
 

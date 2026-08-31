@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { RadarSettings, Snapshot, WatchItem } from '../src/core/types';
+import type { CollectorStatus, RadarSettings, Snapshot, WatchItem } from '../src/core/types';
 import {
+  COLLECTOR_STATUS_KEY,
+  DEFAULT_COLLECTOR_STATUS,
   DEFAULT_SETTINGS,
   MarketStore,
   SETTINGS_KEY,
@@ -566,6 +568,27 @@ describe('MarketStore preferences', () => {
     await expect(store.getSettings()).resolves.toEqual(DEFAULT_SETTINGS);
   });
 
+  it('returns a fresh copy of the default collector status when none is stored', async () => {
+    const adapter = new MemoryKeyValueStore();
+    const store = createStore(adapter);
+
+    const status = await store.getCollectorStatus();
+    expect(status).toEqual(DEFAULT_COLLECTOR_STATUS);
+    expect(status).not.toBe(DEFAULT_COLLECTOR_STATUS);
+    status.state = 'ok';
+    status.lastAttemptAt = 1_735_680_000_000;
+
+    expect(DEFAULT_COLLECTOR_STATUS).toEqual({
+      state: 'idle',
+      lastAttemptAt: null,
+      lastSuccessAt: null,
+      officialTimestamp: null,
+      nextRunAt: null,
+      lastErrorCode: null,
+    });
+    await expect(store.getCollectorStatus()).resolves.toEqual(DEFAULT_COLLECTOR_STATUS);
+  });
+
   it('round trips watchlist and settings using independent deterministic values', async () => {
     const adapter = new MemoryKeyValueStore();
     const store = createStore(adapter);
@@ -602,6 +625,26 @@ describe('MarketStore preferences', () => {
     expect(adapter.values.get(SETTINGS_KEY)).toEqual(settings);
   });
 
+  it('round trips collector status through its independent storage key', async () => {
+    const adapter = new MemoryKeyValueStore();
+    const store = createStore(adapter);
+    const status: CollectorStatus = {
+      state: 'ok',
+      lastAttemptAt: 1_735_680_000_000,
+      lastSuccessAt: 1_735_680_001_000,
+      officialTimestamp: 1_735_679_998_000,
+      nextRunAt: 1_735_683_600_000,
+      lastErrorCode: null,
+    };
+
+    await store.setCollectorStatus(status);
+
+    expect(adapter.values.get(COLLECTOR_STATUS_KEY)).toEqual(status);
+    await expect(store.getCollectorStatus()).resolves.toEqual(status);
+    expect(adapter.values.has(SETTINGS_KEY)).toBe(false);
+    expect(adapter.values.has(WATCHLIST_KEY)).toBe(false);
+  });
+
   it('reads preferences after a MarketStore restart with the same adapter', async () => {
     const adapter = new MemoryKeyValueStore();
     const firstStore = createStore(adapter);
@@ -620,6 +663,24 @@ describe('MarketStore preferences', () => {
     const restartedStore = createStore(adapter);
     await expect(restartedStore.getWatchlist()).resolves.toEqual(watchlist);
     await expect(restartedStore.getSettings()).resolves.toEqual(settings);
+  });
+
+  it('reads collector status after a MarketStore restart with the same adapter', async () => {
+    const adapter = new MemoryKeyValueStore();
+    const firstStore = createStore(adapter);
+    const status: CollectorStatus = {
+      state: 'retrying',
+      lastAttemptAt: 1_735_680_000_000,
+      lastSuccessAt: null,
+      officialTimestamp: null,
+      nextRunAt: 1_735_683_600_000,
+      lastErrorCode: 'network_timeout',
+    };
+
+    await firstStore.setCollectorStatus(status);
+
+    const restartedStore = createStore(adapter);
+    await expect(restartedStore.getCollectorStatus()).resolves.toEqual(status);
   });
 
   it('rejects duplicate or malformed watchlist entries before writing', async () => {
@@ -682,6 +743,53 @@ describe('MarketStore preferences', () => {
     await expect(store.getSettings()).rejects.toThrow(/corrupt.*settings|invalid.*settings/i);
   });
 
+  it('reports corrupt stored collector status instead of returning defaults', async () => {
+    const adapter = new MemoryKeyValueStore();
+    const store = createStore(adapter);
+    const baseStatus: CollectorStatus = { ...DEFAULT_COLLECTOR_STATUS };
+    const invalidValues: unknown[] = [
+      null,
+      'raw-status',
+      { ...baseStatus, state: 'unknown' },
+      { ...baseStatus, lastAttemptAt: -1 },
+      { ...baseStatus, lastSuccessAt: 1.5 },
+      { ...baseStatus, officialTimestamp: Number.NaN },
+      { ...baseStatus, nextRunAt: Number.MAX_SAFE_INTEGER + 1 },
+      { ...baseStatus, lastErrorCode: { code: 'object' } },
+      { ...baseStatus, lastErrorCode: 'x'.repeat(81) },
+    ];
+
+    for (const value of invalidValues) {
+      adapter.values.set(COLLECTOR_STATUS_KEY, value);
+      await expect(store.getCollectorStatus()).rejects.toThrow(
+        /corrupt.*collector status|invalid.*collector status/i,
+      );
+    }
+  });
+
+  it('rejects invalid collector status values before writing', async () => {
+    const adapter = new MemoryKeyValueStore();
+    const store = createStore(adapter);
+    const baseStatus: CollectorStatus = { ...DEFAULT_COLLECTOR_STATUS };
+    const invalidValues: unknown[] = [
+      { ...baseStatus, state: 'bad' },
+      { ...baseStatus, lastAttemptAt: -1 },
+      { ...baseStatus, lastSuccessAt: 1.5 },
+      { ...baseStatus, officialTimestamp: Infinity },
+      { ...baseStatus, nextRunAt: Number.MAX_SAFE_INTEGER + 1 },
+      { ...baseStatus, lastErrorCode: {} },
+      { ...baseStatus, lastErrorCode: 'x'.repeat(81) },
+    ];
+
+    for (const value of invalidValues) {
+      await expect(store.setCollectorStatus(value as CollectorStatus)).rejects.toThrow(
+        /collector status|state|timestamp|error code/i,
+      );
+    }
+
+    expect(adapter.values.has(COLLECTOR_STATUS_KEY)).toBe(false);
+  });
+
   it('wraps preference write failures without exposing the value', async () => {
     const adapter = new MemoryKeyValueStore();
     const store = createStore(adapter);
@@ -695,6 +803,28 @@ describe('MarketStore preferences', () => {
     expect((error as Error).message).toBe(`Storage write failed for key: ${WATCHLIST_KEY}`);
     expect((error as Error).message).not.toContain(JSON.stringify(watchlist));
     expect(adapter.values.has(WATCHLIST_KEY)).toBe(false);
+  });
+
+  it('wraps collector status write failures without exposing the value', async () => {
+    const adapter = new MemoryKeyValueStore();
+    const store = createStore(adapter);
+    const status: CollectorStatus = {
+      state: 'error',
+      lastAttemptAt: 1_735_680_000_000,
+      lastSuccessAt: null,
+      officialTimestamp: null,
+      nextRunAt: null,
+      lastErrorCode: 'private_error_code',
+    };
+    adapter.failSetFor = COLLECTOR_STATUS_KEY;
+
+    const error = await store.setCollectorStatus(status).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(StorageWriteError);
+    expect((error as StorageWriteError).key).toBe(COLLECTOR_STATUS_KEY);
+    expect((error as Error).message).toBe(`Storage write failed for key: ${COLLECTOR_STATUS_KEY}`);
+    expect((error as Error).message).not.toContain(JSON.stringify(status));
+    expect(adapter.values.has(COLLECTOR_STATUS_KEY)).toBe(false);
   });
 
   it('preserves preferences while snapshot retention cleans hourly chunks', async () => {
@@ -713,6 +843,26 @@ describe('MarketStore preferences', () => {
     expect(await adapter.keys()).toEqual(
       expect.arrayContaining([WATCHLIST_KEY, SETTINGS_KEY]),
     );
+  });
+
+  it('preserves collector status while snapshot retention cleans hourly chunks', async () => {
+    const adapter = new MemoryKeyValueStore();
+    const store = createStore(adapter);
+    const status: CollectorStatus = {
+      state: 'ok',
+      lastAttemptAt: 1_735_680_000_000,
+      lastSuccessAt: 1_735_680_001_000,
+      officialTimestamp: 1_735_679_998_000,
+      nextRunAt: 1_735_683_600_000,
+      lastErrorCode: null,
+    };
+
+    await store.setCollectorStatus(status);
+    await store.saveSnapshot(snapshot(Date.parse('2026-08-20T12:08:00Z')));
+    await store.saveSnapshot(snapshot(Date.parse('2026-08-31T12:08:00Z')));
+
+    await expect(store.getCollectorStatus()).resolves.toEqual(status);
+    expect(await adapter.keys()).toContain(COLLECTOR_STATUS_KEY);
   });
 });
 
