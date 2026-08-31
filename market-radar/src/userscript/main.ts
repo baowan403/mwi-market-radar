@@ -1,5 +1,11 @@
-import { DEFAULT_DASHBOARD_ORIGINS } from './origins';
+import { createGMKeyValueStore, MarketStore, type KeyValueStore } from '../collector/market-store';
+import {
+  installDashboardBridge,
+  type DashboardBridgeCleanup,
+  type DashboardBridgeOptions,
+} from './dashboard-bridge';
 import { startGameCollector as defaultStartGameCollector, type GameCollectorHandle } from './game-collector';
+import { DEFAULT_DASHBOARD_ORIGINS, isAllowedDashboardUrl } from './origins';
 
 declare const __MWI_RADAR_DASHBOARD_ORIGINS__: readonly string[];
 
@@ -15,12 +21,11 @@ export interface OriginStartupOptions {
   allowedDashboardOrigins?: readonly string[];
   /** Injected for tests; production uses the real MWI collector. */
   startGameCollector?: () => GameCollectorHandle | void;
-}
-
-function isPathWithinDashboardBase(pathname: string, basePathname: string): boolean {
-  const basePath = basePathname.replace(/\/+$/, '');
-
-  return basePath === '' || pathname === basePath || pathname.startsWith(`${basePath}/`);
+  /** Injected for tests; production installs the real dashboard bridge. */
+  startDashboardBridge?: (options: DashboardBridgeOptions) => DashboardBridgeCleanup | void;
+  createGMKeyValueStore?: () => KeyValueStore;
+  createMarketStore?: (storage: KeyValueStore) => MarketStore;
+  dashboardTarget?: EventTarget;
 }
 
 export function resolveOriginRoute(locationReference: string | URL, allowedDashboardOrigins: readonly string[]): OriginRoute {
@@ -36,26 +41,22 @@ export function resolveOriginRoute(locationReference: string | URL, allowedDashb
     return 'mwi';
   }
 
-  for (const dashboardBase of allowedDashboardOrigins) {
-    try {
-      const dashboardUrl = new URL(dashboardBase);
-
-      if (
-        currentUrl.origin === dashboardUrl.origin &&
-        isPathWithinDashboardBase(currentUrl.pathname, dashboardUrl.pathname)
-      ) {
-        return 'dashboard';
-      }
-    } catch {
-      // Ignore malformed configured dashboard bases.
-    }
-  }
+  if (isAllowedDashboardUrl(currentUrl, allowedDashboardOrigins)) return 'dashboard';
 
   return 'none';
 }
 
-function startDashboardRoute(): void {
-  // Reserved for the dashboard-side bridge.
+function startDashboardRoute(
+  currentUrl: string | URL,
+  allowedBaseUrls: readonly string[],
+  options: OriginStartupOptions,
+): void {
+  const storage = (options.createGMKeyValueStore ?? createGMKeyValueStore)();
+  const store = (options.createMarketStore ?? ((adapter: KeyValueStore) => new MarketStore(adapter)))(storage);
+  const target = options.dashboardTarget ?? (typeof window === 'undefined' ? globalThis : window);
+  const install = options.startDashboardBridge ?? installDashboardBridge;
+
+  install({ target, currentUrl, allowedBaseUrls, store });
 }
 
 export function startForCurrentOrigin(
@@ -70,7 +71,11 @@ export function startForCurrentOrigin(
   if (route === 'mwi') {
     (options.startGameCollector ?? defaultStartGameCollector)();
   } else if (route === 'dashboard') {
-    startDashboardRoute();
+    startDashboardRoute(
+      locationReference,
+      options.allowedDashboardOrigins ?? dashboardOrigins,
+      options,
+    );
   }
 
   return route;

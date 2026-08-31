@@ -38,9 +38,11 @@ describe('userscript origin router', () => {
 
   it('starts the collector only for the official MWI route', () => {
     const startGameCollector = vi.fn();
+    const startDashboardBridge = vi.fn();
     const options = {
       allowedDashboardOrigins: ['http://localhost:4173'],
       startGameCollector,
+      startDashboardBridge,
     };
 
     expect(startForCurrentOrigin('https://www.milkywayidle.com/game', options)).toBe('mwi');
@@ -49,8 +51,10 @@ describe('userscript origin router', () => {
     startGameCollector.mockClear();
     expect(startForCurrentOrigin('http://localhost:4173', options)).toBe('dashboard');
     expect(startGameCollector).not.toHaveBeenCalled();
+    expect(startDashboardBridge).toHaveBeenCalledTimes(1);
 
     expect(startForCurrentOrigin('https://example.com', options)).toBe('none');
     expect(startGameCollector).not.toHaveBeenCalled();
+    expect(startDashboardBridge).toHaveBeenCalledTimes(1);
   });
 });
