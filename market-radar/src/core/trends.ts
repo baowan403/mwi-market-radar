@@ -149,15 +149,25 @@ export function calculateChange(
     }
     return closest;
   });
-  const elapsedHours = (latest.timestamp - base.timestamp) / HOUR_MS;
+  const elapsedHoursValue = (latest.timestamp - base.timestamp) / HOUR_MS;
+  const elapsedHours = Number.isFinite(elapsedHoursValue) ? elapsedHoursValue : null;
   const minimumElapsed = targetHours * 0.75;
   const maximumElapsed = targetHours * 1.25;
   const inWindow =
     Number.isFinite(targetHours) &&
     targetHours > 0 &&
+    elapsedHours !== null &&
     elapsedHours >= minimumElapsed &&
     elapsedHours <= maximumElapsed;
-  const pct = inWindow && base.price !== 0 ? ((latest.price - base.price) / base.price) * 100 : null;
+  let pct: number | null = null;
+  if (inWindow && base.price !== 0) {
+    const difference = latest.price - base.price;
+    const relativeChange = difference / base.price;
+    const percentage = relativeChange * 100;
+    if (Number.isFinite(difference) && Number.isFinite(relativeChange) && Number.isFinite(percentage)) {
+      pct = percentage;
+    }
+  }
 
   return {
     pct,
@@ -186,16 +196,39 @@ export function calculateVolatilityPct(
     if (!previous || !current) {
       continue;
     }
-    returns.push(Math.log(current.price / previous.price));
+    const ratio = current.price / previous.price;
+    if (!Number.isFinite(ratio) || ratio <= 0) {
+      return null;
+    }
+    const logReturn = Math.log(ratio);
+    if (!Number.isFinite(logReturn)) {
+      return null;
+    }
+    returns.push(logReturn);
   }
 
   if (returns.length < 2) {
     return null;
   }
 
-  const mean = returns.reduce((sum, value) => sum + value, 0) / returns.length;
+  const returnSum = returns.reduce((sum, value) => sum + value, 0);
+  if (!Number.isFinite(returnSum)) {
+    return null;
+  }
+  const mean = returnSum / returns.length;
+  if (!Number.isFinite(mean)) {
+    return null;
+  }
   const squaredDistance = returns.reduce((sum, value) => sum + (value - mean) ** 2, 0);
-  return Math.sqrt(squaredDistance / (returns.length - 1)) * 100;
+  if (!Number.isFinite(squaredDistance)) {
+    return null;
+  }
+  const sampleVariance = squaredDistance / (returns.length - 1);
+  if (!Number.isFinite(sampleVariance) || sampleVariance < 0) {
+    return null;
+  }
+  const volatility = Math.sqrt(sampleVariance) * 100;
+  return Number.isFinite(volatility) ? volatility : null;
 }
 
 export function volumeMultiple(
@@ -218,10 +251,11 @@ export function volumeMultiple(
   const median =
     positiveBaseline.length % 2 === 1
       ? positiveBaseline[middle]
-      : ((positiveBaseline[middle - 1] ?? 0) + (positiveBaseline[middle] ?? 0)) / 2;
+      : (positiveBaseline[middle - 1] ?? 0) / 2 + (positiveBaseline[middle] ?? 0) / 2;
 
-  if (median === undefined || median <= 0) {
+  if (median === undefined || !Number.isFinite(median) || median <= 0) {
     return null;
   }
-  return current / median;
+  const multiple = current / median;
+  return Number.isFinite(multiple) ? multiple : null;
 }

@@ -105,6 +105,15 @@ describe('calculateChange', () => {
     });
   });
 
+  it('returns null instead of an infinite percentage for an extreme price ratio', () => {
+    const result = calculateChange(key, periodHours('1d'), [
+      snapshot(0, { p: Number.MIN_VALUE }),
+      snapshot(24 * HOUR, { p: Number.MAX_VALUE }),
+    ]);
+
+    expect(result.pct).toBeNull();
+  });
+
   it('deduplicates equal timestamps deterministically and counts one sample', () => {
     const firstOrder = calculateChange(key, 24, [
       snapshot(0, { p: 100 }),
@@ -149,6 +158,16 @@ describe('calculateVolatilityPct', () => {
       ]),
     ).toBeNull();
   });
+
+  it('returns null when an extreme adjacent ratio would produce a non-finite log return', () => {
+    expect(
+      calculateVolatilityPct(key, [
+        snapshot(0, { p: Number.MIN_VALUE }),
+        snapshot(HOUR, { p: 1 }),
+        snapshot(2 * HOUR, { p: Number.MAX_VALUE }),
+      ]),
+    ).toBeNull();
+  });
 });
 
 describe('volumeMultiple', () => {
@@ -162,6 +181,11 @@ describe('volumeMultiple', () => {
     expect(volumeMultiple(null, [10])).toBeNull();
     expect(volumeMultiple(-1, [10])).toBeNull();
     expect(volumeMultiple(10, [null, 0])).toBeNull();
+  });
+
+  it('uses overflow-safe even medians and rejects a non-finite ratio', () => {
+    expect(volumeMultiple(Number.MAX_VALUE, [Number.MAX_VALUE, Number.MAX_VALUE])).toBe(1);
+    expect(volumeMultiple(Number.MAX_VALUE, [Number.MIN_VALUE])).toBeNull();
   });
 });
 

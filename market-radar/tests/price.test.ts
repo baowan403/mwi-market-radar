@@ -37,6 +37,16 @@ describe('price basis', () => {
       quality: 'missing',
     });
   });
+
+  it('calculates an overflow-safe midpoint and finite spread at the numeric limit', () => {
+    const quote = { a: Number.MAX_VALUE, b: Number.MAX_VALUE, p: null, v: null };
+
+    expect(priceBasis(quote)).toEqual({
+      value: Number.MAX_VALUE,
+      quality: 'midpoint',
+    });
+    expect(spreadPct(quote)).toBe(0);
+  });
 });
 
 describe('spread percentage', () => {
