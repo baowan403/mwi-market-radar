@@ -10,13 +10,38 @@ const dashboardOrigins: readonly string[] =
 
 export type OriginRoute = 'mwi' | 'dashboard' | 'none';
 
-export function resolveOriginRoute(origin: string, allowedDashboardOrigins: readonly string[]): OriginRoute {
-  if (origin === MWI_ORIGIN) {
+function isPathWithinDashboardBase(pathname: string, basePathname: string): boolean {
+  const basePath = basePathname.replace(/\/+$/, '');
+
+  return basePath === '' || pathname === basePath || pathname.startsWith(`${basePath}/`);
+}
+
+export function resolveOriginRoute(locationReference: string | URL, allowedDashboardOrigins: readonly string[]): OriginRoute {
+  let currentUrl: URL;
+
+  try {
+    currentUrl = typeof locationReference === 'string' ? new URL(locationReference) : locationReference;
+  } catch {
+    return 'none';
+  }
+
+  if (currentUrl.origin === MWI_ORIGIN) {
     return 'mwi';
   }
 
-  if (allowedDashboardOrigins.includes(origin)) {
-    return 'dashboard';
+  for (const dashboardBase of allowedDashboardOrigins) {
+    try {
+      const dashboardUrl = new URL(dashboardBase);
+
+      if (
+        currentUrl.origin === dashboardUrl.origin &&
+        isPathWithinDashboardBase(currentUrl.pathname, dashboardUrl.pathname)
+      ) {
+        return 'dashboard';
+      }
+    } catch {
+      // Ignore malformed configured dashboard bases.
+    }
   }
 
   return 'none';
@@ -30,8 +55,10 @@ function startDashboardRoute(): void {
   // Reserved for the dashboard-side bridge.
 }
 
-export function startForCurrentOrigin(origin = typeof window === 'undefined' ? '' : window.location.origin): OriginRoute {
-  const route = resolveOriginRoute(origin, dashboardOrigins);
+export function startForCurrentOrigin(
+  locationReference: string | URL = typeof window === 'undefined' ? '' : window.location.href,
+): OriginRoute {
+  const route = resolveOriginRoute(locationReference, dashboardOrigins);
 
   if (route === 'mwi') {
     startMwiRoute();

@@ -23,6 +23,15 @@ describe('userscript origin router', () => {
     expect(resolveOriginRoute('http://localhost:4173', ['http://localhost:4173'])).toBe('dashboard');
   });
 
+  it('routes dashboard pages under an allowlisted base path only', () => {
+    const allowedDashboardBase = ['https://example.github.io/radar'];
+
+    expect(resolveOriginRoute('https://example.github.io/radar/index.html', allowedDashboardBase)).toBe('dashboard');
+    expect(resolveOriginRoute(new URL('https://example.github.io/radar/index.html'), allowedDashboardBase)).toBe('dashboard');
+    expect(resolveOriginRoute('https://example.github.io/other', allowedDashboardBase)).toBe('none');
+    expect(resolveOriginRoute('https://example.github.io/radar-evil', allowedDashboardBase)).toBe('none');
+  });
+
   it('does not start a route for an unknown origin', () => {
     expect(resolveOriginRoute('https://example.com', ['http://localhost:4173'])).toBe('none');
   });
