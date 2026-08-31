@@ -151,8 +151,8 @@ describe('dashboard filters and pins', () => {
     ]);
     expect(togglePin(initial, '/items/a::0')).toEqual([{ key: '/items/b::0', order: 0 }]);
     expect(moveWatchItem(initial, 1, 0)).toEqual([
-      { key: '/items/a::0', order: 0 },
-      { key: '/items/b::0', order: 1 },
+      { key: '/items/b::0', order: 0 },
+      { key: '/items/a::0', order: 1 },
     ]);
   });
 });

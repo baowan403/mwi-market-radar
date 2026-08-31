@@ -284,7 +284,7 @@ export function moveWatchItem(
   const [entry] = moved.splice(fromIndex, 1);
   if (entry === undefined) return normalized;
   moved.splice(toIndex, 0, entry);
-  return normalizeWatchlist(moved);
+  return normalizeWatchlist(moved.map((item, index) => ({ ...item, order: index })));
 }
 
 /** Cycle one column through descending, ascending, and the default ordering. */
@@ -304,7 +304,11 @@ function compareDefaultRows(left: DerivedMarketRow, right: DerivedMarketRow, vie
     if (leftIndex !== rightIndex) return leftIndex - rightIndex;
   }
   const byName = left.name.localeCompare(right.name, 'zh-Hant');
-  return byName !== 0 ? byName : lexicalCompare(left.key, right.key);
+  if (byName !== 0) return byName;
+  if (left.enhancementLevel !== right.enhancementLevel) {
+    return left.enhancementLevel - right.enhancementLevel;
+  }
+  return lexicalCompare(left.key, right.key);
 }
 
 /** Sort derived rows without mutating them; null sort state uses the view default. */
