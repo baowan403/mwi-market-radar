@@ -122,6 +122,29 @@ describe('sortRows', () => {
     expect(sortRows(rows, 'price', 'desc')[0]?.key).toBe('/items/valid::0');
   });
 
+  it('puts positive and negative infinity last in both directions', () => {
+    const rows = [
+      row({ key: '/items/positive-infinity::0', name: 'Positive infinity', price: Number.POSITIVE_INFINITY }),
+      row({ key: '/items/negative-infinity::0', name: 'Negative infinity', price: Number.NEGATIVE_INFINITY }),
+      row({ key: '/items/valid::0', name: 'Valid', price: 9 }),
+    ];
+
+    expect(sortRows(rows, 'price', 'asc')[0]?.key).toBe('/items/valid::0');
+    expect(sortRows(rows, 'price', 'desc')[0]?.key).toBe('/items/valid::0');
+  });
+
+  it('uses ASCII lexical order for equal-name key ties', () => {
+    const rows = [
+      row({ key: '/items/a::0', name: '同名', price: 10 }),
+      row({ key: '/items/A::0', name: '同名', price: 10 }),
+    ];
+
+    expect(sortRows(rows, 'price', 'asc').map((item) => item.key)).toEqual([
+      '/items/A::0',
+      '/items/a::0',
+    ]);
+  });
+
   it.each([
     'price',
     'bid',
@@ -230,6 +253,15 @@ describe('flagsForRow', () => {
     );
 
     expect(flags).toEqual(['move', 'volume-spike', 'wide-spread', 'one-sided']);
+  });
+
+  it('does not flag a volume spike when the row volume is missing', () => {
+    const flags = flagsForRow(
+      row({ volume: null, volumeMultiple: 3 }),
+      { movePct: 99, volumeMultiple: 2, wideSpreadPct: 99, minimumVolume: 1 },
+    );
+
+    expect(flags).not.toContain('volume-spike');
   });
 
   it('never flags a missing price as a move', () => {

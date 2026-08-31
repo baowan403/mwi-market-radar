@@ -99,7 +99,7 @@ const NUMERIC_SORT_FIELDS = new Set<SortField>([
 ]);
 
 function isMissingNumber(value: number | null | undefined): boolean {
-  return value === null || value === undefined || Number.isNaN(value);
+  return value === null || value === undefined || !Number.isFinite(value);
 }
 
 function isFiniteNumber(value: number | null | undefined): value is number {
@@ -172,7 +172,8 @@ function compareText(a: string, b: string, direction: SortDirection): number {
 
 function tieBreaker(left: MarketRow, right: MarketRow): number {
   const byName = left.name.localeCompare(right.name, 'zh-Hant');
-  return byName !== 0 ? byName : left.key.localeCompare(right.key);
+  if (byName !== 0) return byName;
+  return left.key < right.key ? -1 : left.key > right.key ? 1 : 0;
 }
 
 function compareRows(left: MarketRow, right: MarketRow, field: SortField, direction: SortDirection): number {
@@ -204,7 +205,7 @@ function matchesCategory(row: MarketRow, selected: ReadonlySet<string>): boolean
 
 /** Apply all provided filters without changing the source row array. */
 export function filterRows(rows: readonly MarketRow[], filters: RowFilters = {}): MarketRow[] {
-  const query = filters.query?.toLocaleLowerCase() ?? '';
+  const query = filters.query?.toLowerCase() ?? '';
   const hasCategories = Boolean(filters.categories && filters.categories.size > 0);
   const hasEnhancements = Boolean(filters.enhancementLevels && filters.enhancementLevels.size > 0);
   const minimumVolume = filters.minimumVolume;
@@ -213,7 +214,7 @@ export function filterRows(rows: readonly MarketRow[], filters: RowFilters = {})
   const hasMaximumSpread = typeof maximumSpreadPct === 'number' && Number.isFinite(maximumSpreadPct);
 
   return rows.filter((row) => {
-    if (query && !`${row.name} ${row.key}`.toLocaleLowerCase().includes(query)) return false;
+    if (query && !`${row.name} ${row.key}`.toLowerCase().includes(query)) return false;
     if (hasCategories && !matchesCategory(row, filters.categories!)) return false;
     if (hasEnhancements && !filters.enhancementLevels!.has(row.enhancementLevel)) return false;
 
@@ -254,6 +255,8 @@ export function flagsForRow(row: MarketRow, thresholds: FlagThresholds = {}): Ma
   }
   if (
     isFiniteNumber(volumeMultiple) &&
+    isFiniteNumber(volume) &&
+    volume >= 0 &&
     isFiniteNumber(options.volumeMultiple) &&
     volumeMultiple >= options.volumeMultiple
   ) {
