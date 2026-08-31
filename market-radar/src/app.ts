@@ -7,7 +7,7 @@ const dashboardMarkup = `
         <p class="eyebrow">Milky Way Idle</p>
         <h1>Market Radar</h1>
       </div>
-      <div id="collector-status" class="collector-status" data-testid="collector-status" role="status">
+      <div id="collector-status" class="collector-status" data-testid="collector-status" role="status" aria-live="polite">
         <span class="status-dot" aria-hidden="true"></span>
         <span>Collector ready</span>
       </div>
@@ -28,13 +28,13 @@ const dashboardMarkup = `
       <button class="toolbar-button" type="button">Refresh</button>
     </section>
 
-    <main id="content" class="content" data-testid="content">
+    <section id="content" class="content" data-testid="content">
       <section class="empty-state" aria-labelledby="empty-state-title">
         <p class="eyebrow">Dashboard shell</p>
         <h2 id="empty-state-title">Market signals will appear here</h2>
         <p>Connect the collector to see current prices and movement.</p>
       </section>
-    </main>
+    </section>
 
     <dialog id="item-detail" aria-labelledby="item-detail-title">
       <form method="dialog" class="dialog-card">

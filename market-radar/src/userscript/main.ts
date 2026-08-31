@@ -1,7 +1,8 @@
+import { DEFAULT_DASHBOARD_ORIGINS } from './origins';
+
 declare const __MWI_RADAR_DASHBOARD_ORIGINS__: readonly string[];
 
 const MWI_ORIGIN = 'https://www.milkywayidle.com';
-const DEFAULT_DASHBOARD_ORIGINS = ['http://localhost:4173'] as const;
 const dashboardOrigins: readonly string[] =
   typeof __MWI_RADAR_DASHBOARD_ORIGINS__ === 'undefined'
     ? DEFAULT_DASHBOARD_ORIGINS

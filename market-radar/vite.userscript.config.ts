@@ -1,10 +1,9 @@
 import { defineConfig } from 'vite';
 import monkey from 'vite-plugin-monkey';
+import { normalizeDashboardOrigins, toUserscriptMatches } from './src/userscript/origins';
 
-const dashboardOrigins = (process.env.MWI_RADAR_DASHBOARD_ORIGINS ?? 'http://localhost:4173')
-  .split(',')
-  .map((value) => value.trim())
-  .filter(Boolean);
+const dashboardOrigins = normalizeDashboardOrigins(process.env.MWI_RADAR_DASHBOARD_ORIGINS);
+const dashboardMatches = toUserscriptMatches(dashboardOrigins);
 
 export default defineConfig({
   define: {
@@ -23,7 +22,7 @@ export default defineConfig({
         version: '0.1.0',
         match: [
           'https://www.milkywayidle.com/*',
-          'http://localhost:4173/*',
+          ...dashboardMatches,
         ],
         connect: ['www.milkywayidle.com'],
         grant: ['GM_getValue', 'GM_setValue', 'GM_deleteValue', 'GM_listValues'],

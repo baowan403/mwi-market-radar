@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { resolveOriginRoute } from '../src/userscript/main';
+import { normalizeDashboardOrigins, toUserscriptMatches } from '../src/userscript/origins';
+
+describe('userscript dashboard origins', () => {
+  it('normalizes dashboard origins and preserves path bases in metadata matches', () => {
+    const origins = normalizeDashboardOrigins('https://example.github.io/radar,http://localhost:4173');
+
+    expect(origins).toEqual(['https://example.github.io/radar', 'http://localhost:4173']);
+    expect(toUserscriptMatches(origins)).toEqual([
+      'https://example.github.io/radar/*',
+      'http://localhost:4173/*',
+    ]);
+  });
+});
 
 describe('userscript origin router', () => {
   it('routes the MWI origin to the MWI branch', () => {

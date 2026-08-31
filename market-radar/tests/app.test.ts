@@ -27,6 +27,26 @@ describe('market radar dashboard shell', () => {
     expect(root?.querySelector('dialog#item-detail')).not.toBeNull();
   });
 
+  it('keeps dashboard content within the single application main', () => {
+    const root = document.querySelector<HTMLElement>('#app');
+    expect(root).not.toBeNull();
+
+    renderApp(root as HTMLElement);
+
+    expect(document.querySelectorAll('main')).toHaveLength(1);
+    expect(root?.querySelector('#content')?.tagName).toBe('SECTION');
+  });
+
+  it('scopes live announcements to collector status', () => {
+    const root = document.querySelector<HTMLElement>('#app');
+    expect(root).not.toBeNull();
+
+    renderApp(root as HTMLElement);
+
+    expect(root?.getAttribute('aria-live')).toBeNull();
+    expect(root?.querySelector('#collector-status')?.getAttribute('aria-live')).toBe('polite');
+  });
+
   it('rejects a missing dashboard mount', () => {
     expect(() => renderApp(null)).toThrowError('Missing #app root');
   });
