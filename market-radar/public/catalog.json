@@ -1,0 +1,5798 @@
+{
+  "categories": [
+    {
+      "hrid": "/item_categories/currency",
+      "name": "Currency",
+      "sortIndex": 1
+    },
+    {
+      "hrid": "/item_categories/loot",
+      "name": "Loot",
+      "sortIndex": 2
+    },
+    {
+      "hrid": "/item_categories/scroll",
+      "name": "Scroll",
+      "sortIndex": 3
+    },
+    {
+      "hrid": "/item_categories/labyrinth",
+      "name": "Labyrinth",
+      "sortIndex": 4
+    },
+    {
+      "hrid": "/item_categories/dungeon_key",
+      "name": "Dungeon Key",
+      "sortIndex": 5
+    },
+    {
+      "hrid": "/item_categories/food",
+      "name": "Food",
+      "sortIndex": 6
+    },
+    {
+      "hrid": "/item_categories/drink",
+      "name": "Drink",
+      "sortIndex": 7
+    },
+    {
+      "hrid": "/item_categories/ability_book",
+      "name": "Ability Book",
+      "sortIndex": 8
+    },
+    {
+      "hrid": "/item_categories/equipment",
+      "name": "Equipment",
+      "sortIndex": 9
+    },
+    {
+      "hrid": "/item_categories/resource",
+      "name": "Resource",
+      "sortIndex": 10
+    }
+  ],
+  "items": [
+    {
+      "hrid": "/items/poke",
+      "name": "Poke",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 161
+    },
+    {
+      "hrid": "/items/impale",
+      "name": "Impale",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 162
+    },
+    {
+      "hrid": "/items/puncture",
+      "name": "Puncture",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 163
+    },
+    {
+      "hrid": "/items/penetrating_strike",
+      "name": "Penetrating Strike",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 164
+    },
+    {
+      "hrid": "/items/scratch",
+      "name": "Scratch",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 165
+    },
+    {
+      "hrid": "/items/cleave",
+      "name": "Cleave",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 166
+    },
+    {
+      "hrid": "/items/maim",
+      "name": "Maim",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 167
+    },
+    {
+      "hrid": "/items/crippling_slash",
+      "name": "Crippling Slash",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 168
+    },
+    {
+      "hrid": "/items/smack",
+      "name": "Smack",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 169
+    },
+    {
+      "hrid": "/items/sweep",
+      "name": "Sweep",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 170
+    },
+    {
+      "hrid": "/items/stunning_blow",
+      "name": "Stunning Blow",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 171
+    },
+    {
+      "hrid": "/items/fracturing_impact",
+      "name": "Fracturing Impact",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 172
+    },
+    {
+      "hrid": "/items/shield_bash",
+      "name": "Shield Bash",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 173
+    },
+    {
+      "hrid": "/items/quick_shot",
+      "name": "Quick Shot",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 174
+    },
+    {
+      "hrid": "/items/aqua_arrow",
+      "name": "Aqua Arrow",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 175
+    },
+    {
+      "hrid": "/items/flame_arrow",
+      "name": "Flame Arrow",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 176
+    },
+    {
+      "hrid": "/items/rain_of_arrows",
+      "name": "Rain Of Arrows",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 177
+    },
+    {
+      "hrid": "/items/silencing_shot",
+      "name": "Silencing Shot",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 178
+    },
+    {
+      "hrid": "/items/steady_shot",
+      "name": "Steady Shot",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 179
+    },
+    {
+      "hrid": "/items/pestilent_shot",
+      "name": "Pestilent Shot",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 180
+    },
+    {
+      "hrid": "/items/penetrating_shot",
+      "name": "Penetrating Shot",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 181
+    },
+    {
+      "hrid": "/items/water_strike",
+      "name": "Water Strike",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 182
+    },
+    {
+      "hrid": "/items/ice_spear",
+      "name": "Ice Spear",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 183
+    },
+    {
+      "hrid": "/items/frost_surge",
+      "name": "Frost Surge",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 184
+    },
+    {
+      "hrid": "/items/mana_spring",
+      "name": "Mana Spring",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 185
+    },
+    {
+      "hrid": "/items/entangle",
+      "name": "Entangle",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 186
+    },
+    {
+      "hrid": "/items/toxic_pollen",
+      "name": "Toxic Pollen",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 187
+    },
+    {
+      "hrid": "/items/natures_veil",
+      "name": "Nature's Veil",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 188
+    },
+    {
+      "hrid": "/items/life_drain",
+      "name": "Life Drain",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 189
+    },
+    {
+      "hrid": "/items/fireball",
+      "name": "Fireball",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 190
+    },
+    {
+      "hrid": "/items/flame_blast",
+      "name": "Flame Blast",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 191
+    },
+    {
+      "hrid": "/items/firestorm",
+      "name": "Firestorm",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 192
+    },
+    {
+      "hrid": "/items/smoke_burst",
+      "name": "Smoke Burst",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 193
+    },
+    {
+      "hrid": "/items/minor_heal",
+      "name": "Minor Heal",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 194
+    },
+    {
+      "hrid": "/items/heal",
+      "name": "Heal",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 195
+    },
+    {
+      "hrid": "/items/quick_aid",
+      "name": "Quick Aid",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 196
+    },
+    {
+      "hrid": "/items/rejuvenate",
+      "name": "Rejuvenate",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 197
+    },
+    {
+      "hrid": "/items/taunt",
+      "name": "Taunt",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 198
+    },
+    {
+      "hrid": "/items/provoke",
+      "name": "Provoke",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 199
+    },
+    {
+      "hrid": "/items/toughness",
+      "name": "Toughness",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 200
+    },
+    {
+      "hrid": "/items/elusiveness",
+      "name": "Elusiveness",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 201
+    },
+    {
+      "hrid": "/items/precision",
+      "name": "Precision",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 202
+    },
+    {
+      "hrid": "/items/berserk",
+      "name": "Berserk",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 203
+    },
+    {
+      "hrid": "/items/elemental_affinity",
+      "name": "Elemental Affinity",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 204
+    },
+    {
+      "hrid": "/items/frenzy",
+      "name": "Frenzy",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 205
+    },
+    {
+      "hrid": "/items/spike_shell",
+      "name": "Spike Shell",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 206
+    },
+    {
+      "hrid": "/items/retribution",
+      "name": "Retribution",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 207
+    },
+    {
+      "hrid": "/items/vampirism",
+      "name": "Vampirism",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 208
+    },
+    {
+      "hrid": "/items/revive",
+      "name": "Revive",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 209
+    },
+    {
+      "hrid": "/items/insanity",
+      "name": "Insanity",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 210
+    },
+    {
+      "hrid": "/items/invincible",
+      "name": "Invincible",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 211
+    },
+    {
+      "hrid": "/items/speed_aura",
+      "name": "Speed Aura",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 212
+    },
+    {
+      "hrid": "/items/guardian_aura",
+      "name": "Guardian Aura",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 213
+    },
+    {
+      "hrid": "/items/fierce_aura",
+      "name": "Fierce Aura",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 214
+    },
+    {
+      "hrid": "/items/critical_aura",
+      "name": "Critical Aura",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 215
+    },
+    {
+      "hrid": "/items/mystic_aura",
+      "name": "Mystic Aura",
+      "categoryHrid": "/item_categories/ability_book",
+      "sortIndex": 216
+    },
+    {
+      "hrid": "/items/coin",
+      "name": "Coin",
+      "categoryHrid": "/item_categories/currency",
+      "sortIndex": 1
+    },
+    {
+      "hrid": "/items/task_token",
+      "name": "Task Token",
+      "categoryHrid": "/item_categories/currency",
+      "sortIndex": 2
+    },
+    {
+      "hrid": "/items/labyrinth_token",
+      "name": "Labyrinth Token",
+      "categoryHrid": "/item_categories/currency",
+      "sortIndex": 3
+    },
+    {
+      "hrid": "/items/chimerical_token",
+      "name": "Chimerical Token",
+      "categoryHrid": "/item_categories/currency",
+      "sortIndex": 4
+    },
+    {
+      "hrid": "/items/sinister_token",
+      "name": "Sinister Token",
+      "categoryHrid": "/item_categories/currency",
+      "sortIndex": 5
+    },
+    {
+      "hrid": "/items/enchanted_token",
+      "name": "Enchanted Token",
+      "categoryHrid": "/item_categories/currency",
+      "sortIndex": 6
+    },
+    {
+      "hrid": "/items/pirate_token",
+      "name": "Pirate Token",
+      "categoryHrid": "/item_categories/currency",
+      "sortIndex": 7
+    },
+    {
+      "hrid": "/items/guild_token",
+      "name": "Guild Token",
+      "categoryHrid": "/item_categories/currency",
+      "sortIndex": 8
+    },
+    {
+      "hrid": "/items/green_guild_credit",
+      "name": "Green Guild Credit",
+      "categoryHrid": "/item_categories/currency",
+      "sortIndex": 9
+    },
+    {
+      "hrid": "/items/brown_guild_credit",
+      "name": "Brown Guild Credit",
+      "categoryHrid": "/item_categories/currency",
+      "sortIndex": 10
+    },
+    {
+      "hrid": "/items/white_guild_credit",
+      "name": "White Guild Credit",
+      "categoryHrid": "/item_categories/currency",
+      "sortIndex": 11
+    },
+    {
+      "hrid": "/items/blue_guild_credit",
+      "name": "Blue Guild Credit",
+      "categoryHrid": "/item_categories/currency",
+      "sortIndex": 12
+    },
+    {
+      "hrid": "/items/purple_guild_credit",
+      "name": "Purple Guild Credit",
+      "categoryHrid": "/item_categories/currency",
+      "sortIndex": 13
+    },
+    {
+      "hrid": "/items/red_guild_credit",
+      "name": "Red Guild Credit",
+      "categoryHrid": "/item_categories/currency",
+      "sortIndex": 14
+    },
+    {
+      "hrid": "/items/silver_guild_credit",
+      "name": "Silver Guild Credit",
+      "categoryHrid": "/item_categories/currency",
+      "sortIndex": 15
+    },
+    {
+      "hrid": "/items/gold_guild_credit",
+      "name": "Gold Guild Credit",
+      "categoryHrid": "/item_categories/currency",
+      "sortIndex": 16
+    },
+    {
+      "hrid": "/items/cowbell",
+      "name": "Cowbell",
+      "categoryHrid": "/item_categories/currency",
+      "sortIndex": 17
+    },
+    {
+      "hrid": "/items/milking_tea",
+      "name": "Milking Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 97
+    },
+    {
+      "hrid": "/items/foraging_tea",
+      "name": "Foraging Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 98
+    },
+    {
+      "hrid": "/items/woodcutting_tea",
+      "name": "Woodcutting Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 99
+    },
+    {
+      "hrid": "/items/cooking_tea",
+      "name": "Cooking Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 100
+    },
+    {
+      "hrid": "/items/brewing_tea",
+      "name": "Brewing Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 101
+    },
+    {
+      "hrid": "/items/alchemy_tea",
+      "name": "Alchemy Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 102
+    },
+    {
+      "hrid": "/items/enhancing_tea",
+      "name": "Enhancing Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 103
+    },
+    {
+      "hrid": "/items/cheesesmithing_tea",
+      "name": "Cheesesmithing Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 104
+    },
+    {
+      "hrid": "/items/crafting_tea",
+      "name": "Crafting Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 105
+    },
+    {
+      "hrid": "/items/tailoring_tea",
+      "name": "Tailoring Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 106
+    },
+    {
+      "hrid": "/items/super_milking_tea",
+      "name": "Super Milking Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 107
+    },
+    {
+      "hrid": "/items/super_foraging_tea",
+      "name": "Super Foraging Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 108
+    },
+    {
+      "hrid": "/items/super_woodcutting_tea",
+      "name": "Super Woodcutting Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 109
+    },
+    {
+      "hrid": "/items/super_cooking_tea",
+      "name": "Super Cooking Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 110
+    },
+    {
+      "hrid": "/items/super_brewing_tea",
+      "name": "Super Brewing Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 111
+    },
+    {
+      "hrid": "/items/super_alchemy_tea",
+      "name": "Super Alchemy Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 112
+    },
+    {
+      "hrid": "/items/super_enhancing_tea",
+      "name": "Super Enhancing Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 113
+    },
+    {
+      "hrid": "/items/super_cheesesmithing_tea",
+      "name": "Super Cheesesmithing Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 114
+    },
+    {
+      "hrid": "/items/super_crafting_tea",
+      "name": "Super Crafting Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 115
+    },
+    {
+      "hrid": "/items/super_tailoring_tea",
+      "name": "Super Tailoring Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 116
+    },
+    {
+      "hrid": "/items/ultra_milking_tea",
+      "name": "Ultra Milking Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 117
+    },
+    {
+      "hrid": "/items/ultra_foraging_tea",
+      "name": "Ultra Foraging Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 118
+    },
+    {
+      "hrid": "/items/ultra_woodcutting_tea",
+      "name": "Ultra Woodcutting Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 119
+    },
+    {
+      "hrid": "/items/ultra_cooking_tea",
+      "name": "Ultra Cooking Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 120
+    },
+    {
+      "hrid": "/items/ultra_brewing_tea",
+      "name": "Ultra Brewing Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 121
+    },
+    {
+      "hrid": "/items/ultra_alchemy_tea",
+      "name": "Ultra Alchemy Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 122
+    },
+    {
+      "hrid": "/items/ultra_enhancing_tea",
+      "name": "Ultra Enhancing Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 123
+    },
+    {
+      "hrid": "/items/ultra_cheesesmithing_tea",
+      "name": "Ultra Cheesesmithing Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 124
+    },
+    {
+      "hrid": "/items/ultra_crafting_tea",
+      "name": "Ultra Crafting Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 125
+    },
+    {
+      "hrid": "/items/ultra_tailoring_tea",
+      "name": "Ultra Tailoring Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 126
+    },
+    {
+      "hrid": "/items/gathering_tea",
+      "name": "Gathering Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 127
+    },
+    {
+      "hrid": "/items/gourmet_tea",
+      "name": "Gourmet Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 128
+    },
+    {
+      "hrid": "/items/wisdom_tea",
+      "name": "Wisdom Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 129
+    },
+    {
+      "hrid": "/items/processing_tea",
+      "name": "Processing Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 130
+    },
+    {
+      "hrid": "/items/efficiency_tea",
+      "name": "Efficiency Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 131
+    },
+    {
+      "hrid": "/items/artisan_tea",
+      "name": "Artisan Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 132
+    },
+    {
+      "hrid": "/items/catalytic_tea",
+      "name": "Catalytic Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 133
+    },
+    {
+      "hrid": "/items/blessed_tea",
+      "name": "Blessed Tea",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 134
+    },
+    {
+      "hrid": "/items/stamina_coffee",
+      "name": "Stamina Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 135
+    },
+    {
+      "hrid": "/items/intelligence_coffee",
+      "name": "Intelligence Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 136
+    },
+    {
+      "hrid": "/items/defense_coffee",
+      "name": "Defense Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 137
+    },
+    {
+      "hrid": "/items/attack_coffee",
+      "name": "Attack Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 138
+    },
+    {
+      "hrid": "/items/melee_coffee",
+      "name": "Melee Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 139
+    },
+    {
+      "hrid": "/items/ranged_coffee",
+      "name": "Ranged Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 140
+    },
+    {
+      "hrid": "/items/magic_coffee",
+      "name": "Magic Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 141
+    },
+    {
+      "hrid": "/items/super_stamina_coffee",
+      "name": "Super Stamina Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 142
+    },
+    {
+      "hrid": "/items/super_intelligence_coffee",
+      "name": "Super Intelligence Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 143
+    },
+    {
+      "hrid": "/items/super_defense_coffee",
+      "name": "Super Defense Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 144
+    },
+    {
+      "hrid": "/items/super_attack_coffee",
+      "name": "Super Attack Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 145
+    },
+    {
+      "hrid": "/items/super_melee_coffee",
+      "name": "Super Melee Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 146
+    },
+    {
+      "hrid": "/items/super_ranged_coffee",
+      "name": "Super Ranged Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 147
+    },
+    {
+      "hrid": "/items/super_magic_coffee",
+      "name": "Super Magic Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 148
+    },
+    {
+      "hrid": "/items/ultra_stamina_coffee",
+      "name": "Ultra Stamina Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 149
+    },
+    {
+      "hrid": "/items/ultra_intelligence_coffee",
+      "name": "Ultra Intelligence Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 150
+    },
+    {
+      "hrid": "/items/ultra_defense_coffee",
+      "name": "Ultra Defense Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 151
+    },
+    {
+      "hrid": "/items/ultra_attack_coffee",
+      "name": "Ultra Attack Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 152
+    },
+    {
+      "hrid": "/items/ultra_melee_coffee",
+      "name": "Ultra Melee Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 153
+    },
+    {
+      "hrid": "/items/ultra_ranged_coffee",
+      "name": "Ultra Ranged Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 154
+    },
+    {
+      "hrid": "/items/ultra_magic_coffee",
+      "name": "Ultra Magic Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 155
+    },
+    {
+      "hrid": "/items/wisdom_coffee",
+      "name": "Wisdom Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 156
+    },
+    {
+      "hrid": "/items/lucky_coffee",
+      "name": "Lucky Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 157
+    },
+    {
+      "hrid": "/items/swiftness_coffee",
+      "name": "Swiftness Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 158
+    },
+    {
+      "hrid": "/items/channeling_coffee",
+      "name": "Channeling Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 159
+    },
+    {
+      "hrid": "/items/critical_coffee",
+      "name": "Critical Coffee",
+      "categoryHrid": "/item_categories/drink",
+      "sortIndex": 160
+    },
+    {
+      "hrid": "/items/blue_key_fragment",
+      "name": "Blue Key Fragment",
+      "categoryHrid": "/item_categories/dungeon_key",
+      "sortIndex": 52
+    },
+    {
+      "hrid": "/items/green_key_fragment",
+      "name": "Green Key Fragment",
+      "categoryHrid": "/item_categories/dungeon_key",
+      "sortIndex": 53
+    },
+    {
+      "hrid": "/items/purple_key_fragment",
+      "name": "Purple Key Fragment",
+      "categoryHrid": "/item_categories/dungeon_key",
+      "sortIndex": 54
+    },
+    {
+      "hrid": "/items/white_key_fragment",
+      "name": "White Key Fragment",
+      "categoryHrid": "/item_categories/dungeon_key",
+      "sortIndex": 55
+    },
+    {
+      "hrid": "/items/orange_key_fragment",
+      "name": "Orange Key Fragment",
+      "categoryHrid": "/item_categories/dungeon_key",
+      "sortIndex": 56
+    },
+    {
+      "hrid": "/items/brown_key_fragment",
+      "name": "Brown Key Fragment",
+      "categoryHrid": "/item_categories/dungeon_key",
+      "sortIndex": 57
+    },
+    {
+      "hrid": "/items/stone_key_fragment",
+      "name": "Stone Key Fragment",
+      "categoryHrid": "/item_categories/dungeon_key",
+      "sortIndex": 58
+    },
+    {
+      "hrid": "/items/dark_key_fragment",
+      "name": "Dark Key Fragment",
+      "categoryHrid": "/item_categories/dungeon_key",
+      "sortIndex": 59
+    },
+    {
+      "hrid": "/items/burning_key_fragment",
+      "name": "Burning Key Fragment",
+      "categoryHrid": "/item_categories/dungeon_key",
+      "sortIndex": 60
+    },
+    {
+      "hrid": "/items/chimerical_entry_key",
+      "name": "Chimerical Entry Key",
+      "categoryHrid": "/item_categories/dungeon_key",
+      "sortIndex": 61
+    },
+    {
+      "hrid": "/items/chimerical_chest_key",
+      "name": "Chimerical Chest Key",
+      "categoryHrid": "/item_categories/dungeon_key",
+      "sortIndex": 62
+    },
+    {
+      "hrid": "/items/sinister_entry_key",
+      "name": "Sinister Entry Key",
+      "categoryHrid": "/item_categories/dungeon_key",
+      "sortIndex": 63
+    },
+    {
+      "hrid": "/items/sinister_chest_key",
+      "name": "Sinister Chest Key",
+      "categoryHrid": "/item_categories/dungeon_key",
+      "sortIndex": 64
+    },
+    {
+      "hrid": "/items/enchanted_entry_key",
+      "name": "Enchanted Entry Key",
+      "categoryHrid": "/item_categories/dungeon_key",
+      "sortIndex": 65
+    },
+    {
+      "hrid": "/items/enchanted_chest_key",
+      "name": "Enchanted Chest Key",
+      "categoryHrid": "/item_categories/dungeon_key",
+      "sortIndex": 66
+    },
+    {
+      "hrid": "/items/pirate_entry_key",
+      "name": "Pirate Entry Key",
+      "categoryHrid": "/item_categories/dungeon_key",
+      "sortIndex": 67
+    },
+    {
+      "hrid": "/items/pirate_chest_key",
+      "name": "Pirate Chest Key",
+      "categoryHrid": "/item_categories/dungeon_key",
+      "sortIndex": 68
+    },
+    {
+      "hrid": "/items/gobo_stabber",
+      "name": "Gobo Stabber",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 217
+    },
+    {
+      "hrid": "/items/gobo_slasher",
+      "name": "Gobo Slasher",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 218
+    },
+    {
+      "hrid": "/items/gobo_smasher",
+      "name": "Gobo Smasher",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 219
+    },
+    {
+      "hrid": "/items/spiked_bulwark",
+      "name": "Spiked Bulwark",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 220
+    },
+    {
+      "hrid": "/items/werewolf_slasher",
+      "name": "Werewolf Slasher",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 221
+    },
+    {
+      "hrid": "/items/griffin_bulwark",
+      "name": "Griffin Bulwark",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 222
+    },
+    {
+      "hrid": "/items/griffin_bulwark_refined",
+      "name": "Griffin Bulwark ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 223
+    },
+    {
+      "hrid": "/items/gobo_shooter",
+      "name": "Gobo Shooter",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 224
+    },
+    {
+      "hrid": "/items/vampiric_bow",
+      "name": "Vampiric Bow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 225
+    },
+    {
+      "hrid": "/items/cursed_bow",
+      "name": "Cursed Bow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 226
+    },
+    {
+      "hrid": "/items/cursed_bow_refined",
+      "name": "Cursed Bow ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 227
+    },
+    {
+      "hrid": "/items/gobo_boomstick",
+      "name": "Gobo Boomstick",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 228
+    },
+    {
+      "hrid": "/items/cheese_bulwark",
+      "name": "Cheese Bulwark",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 229
+    },
+    {
+      "hrid": "/items/verdant_bulwark",
+      "name": "Verdant Bulwark",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 230
+    },
+    {
+      "hrid": "/items/azure_bulwark",
+      "name": "Azure Bulwark",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 231
+    },
+    {
+      "hrid": "/items/burble_bulwark",
+      "name": "Burble Bulwark",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 232
+    },
+    {
+      "hrid": "/items/crimson_bulwark",
+      "name": "Crimson Bulwark",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 233
+    },
+    {
+      "hrid": "/items/rainbow_bulwark",
+      "name": "Rainbow Bulwark",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 234
+    },
+    {
+      "hrid": "/items/holy_bulwark",
+      "name": "Holy Bulwark",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 235
+    },
+    {
+      "hrid": "/items/wooden_bow",
+      "name": "Wooden Bow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 236
+    },
+    {
+      "hrid": "/items/birch_bow",
+      "name": "Birch Bow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 237
+    },
+    {
+      "hrid": "/items/cedar_bow",
+      "name": "Cedar Bow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 238
+    },
+    {
+      "hrid": "/items/purpleheart_bow",
+      "name": "Purpleheart Bow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 239
+    },
+    {
+      "hrid": "/items/ginkgo_bow",
+      "name": "Ginkgo Bow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 240
+    },
+    {
+      "hrid": "/items/redwood_bow",
+      "name": "Redwood Bow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 241
+    },
+    {
+      "hrid": "/items/arcane_bow",
+      "name": "Arcane Bow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 242
+    },
+    {
+      "hrid": "/items/stalactite_spear",
+      "name": "Stalactite Spear",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 243
+    },
+    {
+      "hrid": "/items/granite_bludgeon",
+      "name": "Granite Bludgeon",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 244
+    },
+    {
+      "hrid": "/items/furious_spear",
+      "name": "Furious Spear",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 245
+    },
+    {
+      "hrid": "/items/furious_spear_refined",
+      "name": "Furious Spear ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 246
+    },
+    {
+      "hrid": "/items/regal_sword",
+      "name": "Regal Sword",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 247
+    },
+    {
+      "hrid": "/items/regal_sword_refined",
+      "name": "Regal Sword ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 248
+    },
+    {
+      "hrid": "/items/chaotic_flail",
+      "name": "Chaotic Flail",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 249
+    },
+    {
+      "hrid": "/items/chaotic_flail_refined",
+      "name": "Chaotic Flail ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 250
+    },
+    {
+      "hrid": "/items/soul_hunter_crossbow",
+      "name": "Soul Hunter Crossbow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 251
+    },
+    {
+      "hrid": "/items/sundering_crossbow",
+      "name": "Sundering Crossbow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 252
+    },
+    {
+      "hrid": "/items/sundering_crossbow_refined",
+      "name": "Sundering Crossbow ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 253
+    },
+    {
+      "hrid": "/items/frost_staff",
+      "name": "Frost Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 254
+    },
+    {
+      "hrid": "/items/infernal_battlestaff",
+      "name": "Infernal Battlestaff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 255
+    },
+    {
+      "hrid": "/items/jackalope_staff",
+      "name": "Jackalope Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 256
+    },
+    {
+      "hrid": "/items/rippling_trident",
+      "name": "Rippling Trident",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 257
+    },
+    {
+      "hrid": "/items/rippling_trident_refined",
+      "name": "Rippling Trident ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 258
+    },
+    {
+      "hrid": "/items/blooming_trident",
+      "name": "Blooming Trident",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 259
+    },
+    {
+      "hrid": "/items/blooming_trident_refined",
+      "name": "Blooming Trident ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 260
+    },
+    {
+      "hrid": "/items/blazing_trident",
+      "name": "Blazing Trident",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 261
+    },
+    {
+      "hrid": "/items/blazing_trident_refined",
+      "name": "Blazing Trident ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 262
+    },
+    {
+      "hrid": "/items/cheese_sword",
+      "name": "Cheese Sword",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 263
+    },
+    {
+      "hrid": "/items/verdant_sword",
+      "name": "Verdant Sword",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 264
+    },
+    {
+      "hrid": "/items/azure_sword",
+      "name": "Azure Sword",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 265
+    },
+    {
+      "hrid": "/items/burble_sword",
+      "name": "Burble Sword",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 266
+    },
+    {
+      "hrid": "/items/crimson_sword",
+      "name": "Crimson Sword",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 267
+    },
+    {
+      "hrid": "/items/rainbow_sword",
+      "name": "Rainbow Sword",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 268
+    },
+    {
+      "hrid": "/items/holy_sword",
+      "name": "Holy Sword",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 269
+    },
+    {
+      "hrid": "/items/cheese_spear",
+      "name": "Cheese Spear",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 270
+    },
+    {
+      "hrid": "/items/verdant_spear",
+      "name": "Verdant Spear",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 271
+    },
+    {
+      "hrid": "/items/azure_spear",
+      "name": "Azure Spear",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 272
+    },
+    {
+      "hrid": "/items/burble_spear",
+      "name": "Burble Spear",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 273
+    },
+    {
+      "hrid": "/items/crimson_spear",
+      "name": "Crimson Spear",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 274
+    },
+    {
+      "hrid": "/items/rainbow_spear",
+      "name": "Rainbow Spear",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 275
+    },
+    {
+      "hrid": "/items/holy_spear",
+      "name": "Holy Spear",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 276
+    },
+    {
+      "hrid": "/items/cheese_mace",
+      "name": "Cheese Mace",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 277
+    },
+    {
+      "hrid": "/items/verdant_mace",
+      "name": "Verdant Mace",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 278
+    },
+    {
+      "hrid": "/items/azure_mace",
+      "name": "Azure Mace",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 279
+    },
+    {
+      "hrid": "/items/burble_mace",
+      "name": "Burble Mace",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 280
+    },
+    {
+      "hrid": "/items/crimson_mace",
+      "name": "Crimson Mace",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 281
+    },
+    {
+      "hrid": "/items/rainbow_mace",
+      "name": "Rainbow Mace",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 282
+    },
+    {
+      "hrid": "/items/holy_mace",
+      "name": "Holy Mace",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 283
+    },
+    {
+      "hrid": "/items/wooden_crossbow",
+      "name": "Wooden Crossbow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 284
+    },
+    {
+      "hrid": "/items/birch_crossbow",
+      "name": "Birch Crossbow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 285
+    },
+    {
+      "hrid": "/items/cedar_crossbow",
+      "name": "Cedar Crossbow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 286
+    },
+    {
+      "hrid": "/items/purpleheart_crossbow",
+      "name": "Purpleheart Crossbow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 287
+    },
+    {
+      "hrid": "/items/ginkgo_crossbow",
+      "name": "Ginkgo Crossbow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 288
+    },
+    {
+      "hrid": "/items/redwood_crossbow",
+      "name": "Redwood Crossbow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 289
+    },
+    {
+      "hrid": "/items/arcane_crossbow",
+      "name": "Arcane Crossbow",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 290
+    },
+    {
+      "hrid": "/items/wooden_water_staff",
+      "name": "Wooden Water Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 291
+    },
+    {
+      "hrid": "/items/birch_water_staff",
+      "name": "Birch Water Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 292
+    },
+    {
+      "hrid": "/items/cedar_water_staff",
+      "name": "Cedar Water Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 293
+    },
+    {
+      "hrid": "/items/purpleheart_water_staff",
+      "name": "Purpleheart Water Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 294
+    },
+    {
+      "hrid": "/items/ginkgo_water_staff",
+      "name": "Ginkgo Water Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 295
+    },
+    {
+      "hrid": "/items/redwood_water_staff",
+      "name": "Redwood Water Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 296
+    },
+    {
+      "hrid": "/items/arcane_water_staff",
+      "name": "Arcane Water Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 297
+    },
+    {
+      "hrid": "/items/wooden_nature_staff",
+      "name": "Wooden Nature Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 298
+    },
+    {
+      "hrid": "/items/birch_nature_staff",
+      "name": "Birch Nature Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 299
+    },
+    {
+      "hrid": "/items/cedar_nature_staff",
+      "name": "Cedar Nature Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 300
+    },
+    {
+      "hrid": "/items/purpleheart_nature_staff",
+      "name": "Purpleheart Nature Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 301
+    },
+    {
+      "hrid": "/items/ginkgo_nature_staff",
+      "name": "Ginkgo Nature Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 302
+    },
+    {
+      "hrid": "/items/redwood_nature_staff",
+      "name": "Redwood Nature Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 303
+    },
+    {
+      "hrid": "/items/arcane_nature_staff",
+      "name": "Arcane Nature Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 304
+    },
+    {
+      "hrid": "/items/wooden_fire_staff",
+      "name": "Wooden Fire Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 305
+    },
+    {
+      "hrid": "/items/birch_fire_staff",
+      "name": "Birch Fire Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 306
+    },
+    {
+      "hrid": "/items/cedar_fire_staff",
+      "name": "Cedar Fire Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 307
+    },
+    {
+      "hrid": "/items/purpleheart_fire_staff",
+      "name": "Purpleheart Fire Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 308
+    },
+    {
+      "hrid": "/items/ginkgo_fire_staff",
+      "name": "Ginkgo Fire Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 309
+    },
+    {
+      "hrid": "/items/redwood_fire_staff",
+      "name": "Redwood Fire Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 310
+    },
+    {
+      "hrid": "/items/arcane_fire_staff",
+      "name": "Arcane Fire Staff",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 311
+    },
+    {
+      "hrid": "/items/eye_watch",
+      "name": "Eye Watch",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 312
+    },
+    {
+      "hrid": "/items/snake_fang_dirk",
+      "name": "Snake Fang Dirk",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 313
+    },
+    {
+      "hrid": "/items/vision_shield",
+      "name": "Vision Shield",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 314
+    },
+    {
+      "hrid": "/items/gobo_defender",
+      "name": "Gobo Defender",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 315
+    },
+    {
+      "hrid": "/items/vampire_fang_dirk",
+      "name": "Vampire Fang Dirk",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 316
+    },
+    {
+      "hrid": "/items/knights_aegis",
+      "name": "Knight's Aegis",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 317
+    },
+    {
+      "hrid": "/items/knights_aegis_refined",
+      "name": "Knight's Aegis ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 318
+    },
+    {
+      "hrid": "/items/treant_shield",
+      "name": "Treant Shield",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 319
+    },
+    {
+      "hrid": "/items/manticore_shield",
+      "name": "Manticore Shield",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 320
+    },
+    {
+      "hrid": "/items/tome_of_healing",
+      "name": "Tome Of Healing",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 321
+    },
+    {
+      "hrid": "/items/tome_of_the_elements",
+      "name": "Tome Of The Elements",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 322
+    },
+    {
+      "hrid": "/items/watchful_relic",
+      "name": "Watchful Relic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 323
+    },
+    {
+      "hrid": "/items/bishops_codex",
+      "name": "Bishop's Codex",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 324
+    },
+    {
+      "hrid": "/items/bishops_codex_refined",
+      "name": "Bishop's Codex ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 325
+    },
+    {
+      "hrid": "/items/cheese_buckler",
+      "name": "Cheese Buckler",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 326
+    },
+    {
+      "hrid": "/items/verdant_buckler",
+      "name": "Verdant Buckler",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 327
+    },
+    {
+      "hrid": "/items/azure_buckler",
+      "name": "Azure Buckler",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 328
+    },
+    {
+      "hrid": "/items/burble_buckler",
+      "name": "Burble Buckler",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 329
+    },
+    {
+      "hrid": "/items/crimson_buckler",
+      "name": "Crimson Buckler",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 330
+    },
+    {
+      "hrid": "/items/rainbow_buckler",
+      "name": "Rainbow Buckler",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 331
+    },
+    {
+      "hrid": "/items/holy_buckler",
+      "name": "Holy Buckler",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 332
+    },
+    {
+      "hrid": "/items/wooden_shield",
+      "name": "Wooden Shield",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 333
+    },
+    {
+      "hrid": "/items/birch_shield",
+      "name": "Birch Shield",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 334
+    },
+    {
+      "hrid": "/items/cedar_shield",
+      "name": "Cedar Shield",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 335
+    },
+    {
+      "hrid": "/items/purpleheart_shield",
+      "name": "Purpleheart Shield",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 336
+    },
+    {
+      "hrid": "/items/ginkgo_shield",
+      "name": "Ginkgo Shield",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 337
+    },
+    {
+      "hrid": "/items/redwood_shield",
+      "name": "Redwood Shield",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 338
+    },
+    {
+      "hrid": "/items/arcane_shield",
+      "name": "Arcane Shield",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 339
+    },
+    {
+      "hrid": "/items/gatherer_cape",
+      "name": "Gatherer Cape",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 340
+    },
+    {
+      "hrid": "/items/gatherer_cape_refined",
+      "name": "Gatherer Cape ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 341
+    },
+    {
+      "hrid": "/items/artificer_cape",
+      "name": "Artificer Cape",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 342
+    },
+    {
+      "hrid": "/items/artificer_cape_refined",
+      "name": "Artificer Cape ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 343
+    },
+    {
+      "hrid": "/items/culinary_cape",
+      "name": "Culinary Cape",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 344
+    },
+    {
+      "hrid": "/items/culinary_cape_refined",
+      "name": "Culinary Cape ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 345
+    },
+    {
+      "hrid": "/items/chance_cape",
+      "name": "Chance Cape",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 346
+    },
+    {
+      "hrid": "/items/chance_cape_refined",
+      "name": "Chance Cape ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 347
+    },
+    {
+      "hrid": "/items/sinister_cape",
+      "name": "Sinister Cape",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 348
+    },
+    {
+      "hrid": "/items/sinister_cape_refined",
+      "name": "Sinister Cape ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 349
+    },
+    {
+      "hrid": "/items/chimerical_quiver",
+      "name": "Chimerical Quiver",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 350
+    },
+    {
+      "hrid": "/items/chimerical_quiver_refined",
+      "name": "Chimerical Quiver ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 351
+    },
+    {
+      "hrid": "/items/enchanted_cloak",
+      "name": "Enchanted Cloak",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 352
+    },
+    {
+      "hrid": "/items/enchanted_cloak_refined",
+      "name": "Enchanted Cloak ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 353
+    },
+    {
+      "hrid": "/items/red_culinary_hat",
+      "name": "Red Culinary Hat",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 354
+    },
+    {
+      "hrid": "/items/snail_shell_helmet",
+      "name": "Snail Shell Helmet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 355
+    },
+    {
+      "hrid": "/items/vision_helmet",
+      "name": "Vision Helmet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 356
+    },
+    {
+      "hrid": "/items/fluffy_red_hat",
+      "name": "Fluffy Red Hat",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 357
+    },
+    {
+      "hrid": "/items/corsair_helmet",
+      "name": "Corsair Helmet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 358
+    },
+    {
+      "hrid": "/items/corsair_helmet_refined",
+      "name": "Corsair Helmet ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 359
+    },
+    {
+      "hrid": "/items/acrobatic_hood",
+      "name": "Acrobatic Hood",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 360
+    },
+    {
+      "hrid": "/items/acrobatic_hood_refined",
+      "name": "Acrobatic Hood ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 361
+    },
+    {
+      "hrid": "/items/magicians_hat",
+      "name": "Magician's Hat",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 362
+    },
+    {
+      "hrid": "/items/magicians_hat_refined",
+      "name": "Magician's Hat ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 363
+    },
+    {
+      "hrid": "/items/cheese_helmet",
+      "name": "Cheese Helmet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 364
+    },
+    {
+      "hrid": "/items/verdant_helmet",
+      "name": "Verdant Helmet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 365
+    },
+    {
+      "hrid": "/items/azure_helmet",
+      "name": "Azure Helmet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 366
+    },
+    {
+      "hrid": "/items/burble_helmet",
+      "name": "Burble Helmet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 367
+    },
+    {
+      "hrid": "/items/crimson_helmet",
+      "name": "Crimson Helmet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 368
+    },
+    {
+      "hrid": "/items/rainbow_helmet",
+      "name": "Rainbow Helmet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 369
+    },
+    {
+      "hrid": "/items/holy_helmet",
+      "name": "Holy Helmet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 370
+    },
+    {
+      "hrid": "/items/rough_hood",
+      "name": "Rough Hood",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 371
+    },
+    {
+      "hrid": "/items/reptile_hood",
+      "name": "Reptile Hood",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 372
+    },
+    {
+      "hrid": "/items/gobo_hood",
+      "name": "Gobo Hood",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 373
+    },
+    {
+      "hrid": "/items/beast_hood",
+      "name": "Beast Hood",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 374
+    },
+    {
+      "hrid": "/items/umbral_hood",
+      "name": "Umbral Hood",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 375
+    },
+    {
+      "hrid": "/items/cotton_hat",
+      "name": "Cotton Hat",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 376
+    },
+    {
+      "hrid": "/items/linen_hat",
+      "name": "Linen Hat",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 377
+    },
+    {
+      "hrid": "/items/bamboo_hat",
+      "name": "Bamboo Hat",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 378
+    },
+    {
+      "hrid": "/items/silk_hat",
+      "name": "Silk Hat",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 379
+    },
+    {
+      "hrid": "/items/radiant_hat",
+      "name": "Radiant Hat",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 380
+    },
+    {
+      "hrid": "/items/dairyhands_top",
+      "name": "Dairyhand's Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 381
+    },
+    {
+      "hrid": "/items/foragers_top",
+      "name": "Forager's Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 382
+    },
+    {
+      "hrid": "/items/lumberjacks_top",
+      "name": "Lumberjack's Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 383
+    },
+    {
+      "hrid": "/items/cheesemakers_top",
+      "name": "Cheesemaker's Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 384
+    },
+    {
+      "hrid": "/items/crafters_top",
+      "name": "Crafter's Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 385
+    },
+    {
+      "hrid": "/items/tailors_top",
+      "name": "Tailor's Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 386
+    },
+    {
+      "hrid": "/items/chefs_top",
+      "name": "Chef's Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 387
+    },
+    {
+      "hrid": "/items/brewers_top",
+      "name": "Brewer's Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 388
+    },
+    {
+      "hrid": "/items/alchemists_top",
+      "name": "Alchemist's Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 389
+    },
+    {
+      "hrid": "/items/enhancers_top",
+      "name": "Enhancer's Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 390
+    },
+    {
+      "hrid": "/items/gator_vest",
+      "name": "Gator Vest",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 391
+    },
+    {
+      "hrid": "/items/turtle_shell_body",
+      "name": "Turtle Shell Body",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 392
+    },
+    {
+      "hrid": "/items/colossus_plate_body",
+      "name": "Colossus Plate Body",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 393
+    },
+    {
+      "hrid": "/items/demonic_plate_body",
+      "name": "Demonic Plate Body",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 394
+    },
+    {
+      "hrid": "/items/anchorbound_plate_body",
+      "name": "Anchorbound Plate Body",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 395
+    },
+    {
+      "hrid": "/items/anchorbound_plate_body_refined",
+      "name": "Anchorbound Plate Body ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 396
+    },
+    {
+      "hrid": "/items/maelstrom_plate_body",
+      "name": "Maelstrom Plate Body",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 397
+    },
+    {
+      "hrid": "/items/maelstrom_plate_body_refined",
+      "name": "Maelstrom Plate Body ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 398
+    },
+    {
+      "hrid": "/items/marine_tunic",
+      "name": "Marine Tunic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 399
+    },
+    {
+      "hrid": "/items/revenant_tunic",
+      "name": "Revenant Tunic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 400
+    },
+    {
+      "hrid": "/items/griffin_tunic",
+      "name": "Griffin Tunic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 401
+    },
+    {
+      "hrid": "/items/kraken_tunic",
+      "name": "Kraken Tunic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 402
+    },
+    {
+      "hrid": "/items/kraken_tunic_refined",
+      "name": "Kraken Tunic ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 403
+    },
+    {
+      "hrid": "/items/icy_robe_top",
+      "name": "Icy Robe Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 404
+    },
+    {
+      "hrid": "/items/flaming_robe_top",
+      "name": "Flaming Robe Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 405
+    },
+    {
+      "hrid": "/items/luna_robe_top",
+      "name": "Luna Robe Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 406
+    },
+    {
+      "hrid": "/items/royal_water_robe_top",
+      "name": "Royal Water Robe Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 407
+    },
+    {
+      "hrid": "/items/royal_water_robe_top_refined",
+      "name": "Royal Water Robe Top ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 408
+    },
+    {
+      "hrid": "/items/royal_nature_robe_top",
+      "name": "Royal Nature Robe Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 409
+    },
+    {
+      "hrid": "/items/royal_nature_robe_top_refined",
+      "name": "Royal Nature Robe Top ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 410
+    },
+    {
+      "hrid": "/items/royal_fire_robe_top",
+      "name": "Royal Fire Robe Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 411
+    },
+    {
+      "hrid": "/items/royal_fire_robe_top_refined",
+      "name": "Royal Fire Robe Top ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 412
+    },
+    {
+      "hrid": "/items/cheese_plate_body",
+      "name": "Cheese Plate Body",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 413
+    },
+    {
+      "hrid": "/items/verdant_plate_body",
+      "name": "Verdant Plate Body",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 414
+    },
+    {
+      "hrid": "/items/azure_plate_body",
+      "name": "Azure Plate Body",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 415
+    },
+    {
+      "hrid": "/items/burble_plate_body",
+      "name": "Burble Plate Body",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 416
+    },
+    {
+      "hrid": "/items/crimson_plate_body",
+      "name": "Crimson Plate Body",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 417
+    },
+    {
+      "hrid": "/items/rainbow_plate_body",
+      "name": "Rainbow Plate Body",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 418
+    },
+    {
+      "hrid": "/items/holy_plate_body",
+      "name": "Holy Plate Body",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 419
+    },
+    {
+      "hrid": "/items/rough_tunic",
+      "name": "Rough Tunic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 420
+    },
+    {
+      "hrid": "/items/reptile_tunic",
+      "name": "Reptile Tunic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 421
+    },
+    {
+      "hrid": "/items/gobo_tunic",
+      "name": "Gobo Tunic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 422
+    },
+    {
+      "hrid": "/items/beast_tunic",
+      "name": "Beast Tunic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 423
+    },
+    {
+      "hrid": "/items/umbral_tunic",
+      "name": "Umbral Tunic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 424
+    },
+    {
+      "hrid": "/items/cotton_robe_top",
+      "name": "Cotton Robe Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 425
+    },
+    {
+      "hrid": "/items/linen_robe_top",
+      "name": "Linen Robe Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 426
+    },
+    {
+      "hrid": "/items/bamboo_robe_top",
+      "name": "Bamboo Robe Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 427
+    },
+    {
+      "hrid": "/items/silk_robe_top",
+      "name": "Silk Robe Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 428
+    },
+    {
+      "hrid": "/items/radiant_robe_top",
+      "name": "Radiant Robe Top",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 429
+    },
+    {
+      "hrid": "/items/dairyhands_bottoms",
+      "name": "Dairyhand's Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 430
+    },
+    {
+      "hrid": "/items/foragers_bottoms",
+      "name": "Forager's Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 431
+    },
+    {
+      "hrid": "/items/lumberjacks_bottoms",
+      "name": "Lumberjack's Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 432
+    },
+    {
+      "hrid": "/items/cheesemakers_bottoms",
+      "name": "Cheesemaker's Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 433
+    },
+    {
+      "hrid": "/items/crafters_bottoms",
+      "name": "Crafter's Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 434
+    },
+    {
+      "hrid": "/items/tailors_bottoms",
+      "name": "Tailor's Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 435
+    },
+    {
+      "hrid": "/items/chefs_bottoms",
+      "name": "Chef's Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 436
+    },
+    {
+      "hrid": "/items/brewers_bottoms",
+      "name": "Brewer's Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 437
+    },
+    {
+      "hrid": "/items/alchemists_bottoms",
+      "name": "Alchemist's Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 438
+    },
+    {
+      "hrid": "/items/enhancers_bottoms",
+      "name": "Enhancer's Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 439
+    },
+    {
+      "hrid": "/items/turtle_shell_legs",
+      "name": "Turtle Shell Legs",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 440
+    },
+    {
+      "hrid": "/items/colossus_plate_legs",
+      "name": "Colossus Plate Legs",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 441
+    },
+    {
+      "hrid": "/items/demonic_plate_legs",
+      "name": "Demonic Plate Legs",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 442
+    },
+    {
+      "hrid": "/items/anchorbound_plate_legs",
+      "name": "Anchorbound Plate Legs",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 443
+    },
+    {
+      "hrid": "/items/anchorbound_plate_legs_refined",
+      "name": "Anchorbound Plate Legs ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 444
+    },
+    {
+      "hrid": "/items/maelstrom_plate_legs",
+      "name": "Maelstrom Plate Legs",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 445
+    },
+    {
+      "hrid": "/items/maelstrom_plate_legs_refined",
+      "name": "Maelstrom Plate Legs ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 446
+    },
+    {
+      "hrid": "/items/marine_chaps",
+      "name": "Marine Chaps",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 447
+    },
+    {
+      "hrid": "/items/revenant_chaps",
+      "name": "Revenant Chaps",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 448
+    },
+    {
+      "hrid": "/items/griffin_chaps",
+      "name": "Griffin Chaps",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 449
+    },
+    {
+      "hrid": "/items/kraken_chaps",
+      "name": "Kraken Chaps",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 450
+    },
+    {
+      "hrid": "/items/kraken_chaps_refined",
+      "name": "Kraken Chaps ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 451
+    },
+    {
+      "hrid": "/items/icy_robe_bottoms",
+      "name": "Icy Robe Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 452
+    },
+    {
+      "hrid": "/items/flaming_robe_bottoms",
+      "name": "Flaming Robe Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 453
+    },
+    {
+      "hrid": "/items/luna_robe_bottoms",
+      "name": "Luna Robe Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 454
+    },
+    {
+      "hrid": "/items/royal_water_robe_bottoms",
+      "name": "Royal Water Robe Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 455
+    },
+    {
+      "hrid": "/items/royal_water_robe_bottoms_refined",
+      "name": "Royal Water Robe Bottoms ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 456
+    },
+    {
+      "hrid": "/items/royal_nature_robe_bottoms",
+      "name": "Royal Nature Robe Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 457
+    },
+    {
+      "hrid": "/items/royal_nature_robe_bottoms_refined",
+      "name": "Royal Nature Robe Bottoms ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 458
+    },
+    {
+      "hrid": "/items/royal_fire_robe_bottoms",
+      "name": "Royal Fire Robe Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 459
+    },
+    {
+      "hrid": "/items/royal_fire_robe_bottoms_refined",
+      "name": "Royal Fire Robe Bottoms ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 460
+    },
+    {
+      "hrid": "/items/cheese_plate_legs",
+      "name": "Cheese Plate Legs",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 461
+    },
+    {
+      "hrid": "/items/verdant_plate_legs",
+      "name": "Verdant Plate Legs",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 462
+    },
+    {
+      "hrid": "/items/azure_plate_legs",
+      "name": "Azure Plate Legs",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 463
+    },
+    {
+      "hrid": "/items/burble_plate_legs",
+      "name": "Burble Plate Legs",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 464
+    },
+    {
+      "hrid": "/items/crimson_plate_legs",
+      "name": "Crimson Plate Legs",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 465
+    },
+    {
+      "hrid": "/items/rainbow_plate_legs",
+      "name": "Rainbow Plate Legs",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 466
+    },
+    {
+      "hrid": "/items/holy_plate_legs",
+      "name": "Holy Plate Legs",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 467
+    },
+    {
+      "hrid": "/items/rough_chaps",
+      "name": "Rough Chaps",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 468
+    },
+    {
+      "hrid": "/items/reptile_chaps",
+      "name": "Reptile Chaps",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 469
+    },
+    {
+      "hrid": "/items/gobo_chaps",
+      "name": "Gobo Chaps",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 470
+    },
+    {
+      "hrid": "/items/beast_chaps",
+      "name": "Beast Chaps",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 471
+    },
+    {
+      "hrid": "/items/umbral_chaps",
+      "name": "Umbral Chaps",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 472
+    },
+    {
+      "hrid": "/items/cotton_robe_bottoms",
+      "name": "Cotton Robe Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 473
+    },
+    {
+      "hrid": "/items/linen_robe_bottoms",
+      "name": "Linen Robe Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 474
+    },
+    {
+      "hrid": "/items/bamboo_robe_bottoms",
+      "name": "Bamboo Robe Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 475
+    },
+    {
+      "hrid": "/items/silk_robe_bottoms",
+      "name": "Silk Robe Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 476
+    },
+    {
+      "hrid": "/items/radiant_robe_bottoms",
+      "name": "Radiant Robe Bottoms",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 477
+    },
+    {
+      "hrid": "/items/enchanted_gloves",
+      "name": "Enchanted Gloves",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 478
+    },
+    {
+      "hrid": "/items/pincer_gloves",
+      "name": "Pincer Gloves",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 479
+    },
+    {
+      "hrid": "/items/panda_gloves",
+      "name": "Panda Gloves",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 480
+    },
+    {
+      "hrid": "/items/magnetic_gloves",
+      "name": "Magnetic Gloves",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 481
+    },
+    {
+      "hrid": "/items/dodocamel_gauntlets",
+      "name": "Dodocamel Gauntlets",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 482
+    },
+    {
+      "hrid": "/items/dodocamel_gauntlets_refined",
+      "name": "Dodocamel Gauntlets ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 483
+    },
+    {
+      "hrid": "/items/sighted_bracers",
+      "name": "Sighted Bracers",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 484
+    },
+    {
+      "hrid": "/items/marksman_bracers",
+      "name": "Marksman Bracers",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 485
+    },
+    {
+      "hrid": "/items/marksman_bracers_refined",
+      "name": "Marksman Bracers ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 486
+    },
+    {
+      "hrid": "/items/chrono_gloves",
+      "name": "Chrono Gloves",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 487
+    },
+    {
+      "hrid": "/items/cheese_gauntlets",
+      "name": "Cheese Gauntlets",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 488
+    },
+    {
+      "hrid": "/items/verdant_gauntlets",
+      "name": "Verdant Gauntlets",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 489
+    },
+    {
+      "hrid": "/items/azure_gauntlets",
+      "name": "Azure Gauntlets",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 490
+    },
+    {
+      "hrid": "/items/burble_gauntlets",
+      "name": "Burble Gauntlets",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 491
+    },
+    {
+      "hrid": "/items/crimson_gauntlets",
+      "name": "Crimson Gauntlets",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 492
+    },
+    {
+      "hrid": "/items/rainbow_gauntlets",
+      "name": "Rainbow Gauntlets",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 493
+    },
+    {
+      "hrid": "/items/holy_gauntlets",
+      "name": "Holy Gauntlets",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 494
+    },
+    {
+      "hrid": "/items/rough_bracers",
+      "name": "Rough Bracers",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 495
+    },
+    {
+      "hrid": "/items/reptile_bracers",
+      "name": "Reptile Bracers",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 496
+    },
+    {
+      "hrid": "/items/gobo_bracers",
+      "name": "Gobo Bracers",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 497
+    },
+    {
+      "hrid": "/items/beast_bracers",
+      "name": "Beast Bracers",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 498
+    },
+    {
+      "hrid": "/items/umbral_bracers",
+      "name": "Umbral Bracers",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 499
+    },
+    {
+      "hrid": "/items/cotton_gloves",
+      "name": "Cotton Gloves",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 500
+    },
+    {
+      "hrid": "/items/linen_gloves",
+      "name": "Linen Gloves",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 501
+    },
+    {
+      "hrid": "/items/bamboo_gloves",
+      "name": "Bamboo Gloves",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 502
+    },
+    {
+      "hrid": "/items/silk_gloves",
+      "name": "Silk Gloves",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 503
+    },
+    {
+      "hrid": "/items/radiant_gloves",
+      "name": "Radiant Gloves",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 504
+    },
+    {
+      "hrid": "/items/collectors_boots",
+      "name": "Collector's Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 505
+    },
+    {
+      "hrid": "/items/shoebill_shoes",
+      "name": "Shoebill Shoes",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 506
+    },
+    {
+      "hrid": "/items/black_bear_shoes",
+      "name": "Black Bear Shoes",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 507
+    },
+    {
+      "hrid": "/items/grizzly_bear_shoes",
+      "name": "Grizzly Bear Shoes",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 508
+    },
+    {
+      "hrid": "/items/polar_bear_shoes",
+      "name": "Polar Bear Shoes",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 509
+    },
+    {
+      "hrid": "/items/pathbreaker_boots",
+      "name": "Pathbreaker Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 510
+    },
+    {
+      "hrid": "/items/pathbreaker_boots_refined",
+      "name": "Pathbreaker Boots ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 511
+    },
+    {
+      "hrid": "/items/centaur_boots",
+      "name": "Centaur Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 512
+    },
+    {
+      "hrid": "/items/pathfinder_boots",
+      "name": "Pathfinder Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 513
+    },
+    {
+      "hrid": "/items/pathfinder_boots_refined",
+      "name": "Pathfinder Boots ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 514
+    },
+    {
+      "hrid": "/items/sorcerer_boots",
+      "name": "Sorcerer Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 515
+    },
+    {
+      "hrid": "/items/pathseeker_boots",
+      "name": "Pathseeker Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 516
+    },
+    {
+      "hrid": "/items/pathseeker_boots_refined",
+      "name": "Pathseeker Boots ★",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 517
+    },
+    {
+      "hrid": "/items/cheese_boots",
+      "name": "Cheese Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 518
+    },
+    {
+      "hrid": "/items/verdant_boots",
+      "name": "Verdant Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 519
+    },
+    {
+      "hrid": "/items/azure_boots",
+      "name": "Azure Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 520
+    },
+    {
+      "hrid": "/items/burble_boots",
+      "name": "Burble Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 521
+    },
+    {
+      "hrid": "/items/crimson_boots",
+      "name": "Crimson Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 522
+    },
+    {
+      "hrid": "/items/rainbow_boots",
+      "name": "Rainbow Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 523
+    },
+    {
+      "hrid": "/items/holy_boots",
+      "name": "Holy Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 524
+    },
+    {
+      "hrid": "/items/rough_boots",
+      "name": "Rough Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 525
+    },
+    {
+      "hrid": "/items/reptile_boots",
+      "name": "Reptile Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 526
+    },
+    {
+      "hrid": "/items/gobo_boots",
+      "name": "Gobo Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 527
+    },
+    {
+      "hrid": "/items/beast_boots",
+      "name": "Beast Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 528
+    },
+    {
+      "hrid": "/items/umbral_boots",
+      "name": "Umbral Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 529
+    },
+    {
+      "hrid": "/items/cotton_boots",
+      "name": "Cotton Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 530
+    },
+    {
+      "hrid": "/items/linen_boots",
+      "name": "Linen Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 531
+    },
+    {
+      "hrid": "/items/bamboo_boots",
+      "name": "Bamboo Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 532
+    },
+    {
+      "hrid": "/items/silk_boots",
+      "name": "Silk Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 533
+    },
+    {
+      "hrid": "/items/radiant_boots",
+      "name": "Radiant Boots",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 534
+    },
+    {
+      "hrid": "/items/small_pouch",
+      "name": "Small Pouch",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 535
+    },
+    {
+      "hrid": "/items/medium_pouch",
+      "name": "Medium Pouch",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 536
+    },
+    {
+      "hrid": "/items/large_pouch",
+      "name": "Large Pouch",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 537
+    },
+    {
+      "hrid": "/items/giant_pouch",
+      "name": "Giant Pouch",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 538
+    },
+    {
+      "hrid": "/items/gluttonous_pouch",
+      "name": "Gluttonous Pouch",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 539
+    },
+    {
+      "hrid": "/items/guzzling_pouch",
+      "name": "Guzzling Pouch",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 540
+    },
+    {
+      "hrid": "/items/necklace_of_efficiency",
+      "name": "Necklace Of Efficiency",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 541
+    },
+    {
+      "hrid": "/items/fighter_necklace",
+      "name": "Fighter Necklace",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 542
+    },
+    {
+      "hrid": "/items/ranger_necklace",
+      "name": "Ranger Necklace",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 543
+    },
+    {
+      "hrid": "/items/wizard_necklace",
+      "name": "Wizard Necklace",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 544
+    },
+    {
+      "hrid": "/items/necklace_of_wisdom",
+      "name": "Necklace Of Wisdom",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 545
+    },
+    {
+      "hrid": "/items/necklace_of_speed",
+      "name": "Necklace Of Speed",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 546
+    },
+    {
+      "hrid": "/items/philosophers_necklace",
+      "name": "Philosopher's Necklace",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 547
+    },
+    {
+      "hrid": "/items/earrings_of_gathering",
+      "name": "Earrings Of Gathering",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 548
+    },
+    {
+      "hrid": "/items/earrings_of_essence_find",
+      "name": "Earrings Of Essence Find",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 549
+    },
+    {
+      "hrid": "/items/earrings_of_armor",
+      "name": "Earrings Of Armor",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 550
+    },
+    {
+      "hrid": "/items/earrings_of_regeneration",
+      "name": "Earrings Of Regeneration",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 551
+    },
+    {
+      "hrid": "/items/earrings_of_resistance",
+      "name": "Earrings Of Resistance",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 552
+    },
+    {
+      "hrid": "/items/earrings_of_rare_find",
+      "name": "Earrings Of Rare Find",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 553
+    },
+    {
+      "hrid": "/items/earrings_of_critical_strike",
+      "name": "Earrings Of Critical Strike",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 554
+    },
+    {
+      "hrid": "/items/philosophers_earrings",
+      "name": "Philosopher's Earrings",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 555
+    },
+    {
+      "hrid": "/items/ring_of_gathering",
+      "name": "Ring Of Gathering",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 556
+    },
+    {
+      "hrid": "/items/ring_of_essence_find",
+      "name": "Ring Of Essence Find",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 557
+    },
+    {
+      "hrid": "/items/ring_of_armor",
+      "name": "Ring Of Armor",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 558
+    },
+    {
+      "hrid": "/items/ring_of_regeneration",
+      "name": "Ring Of Regeneration",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 559
+    },
+    {
+      "hrid": "/items/ring_of_resistance",
+      "name": "Ring Of Resistance",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 560
+    },
+    {
+      "hrid": "/items/ring_of_rare_find",
+      "name": "Ring Of Rare Find",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 561
+    },
+    {
+      "hrid": "/items/ring_of_critical_strike",
+      "name": "Ring Of Critical Strike",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 562
+    },
+    {
+      "hrid": "/items/philosophers_ring",
+      "name": "Philosopher's Ring",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 563
+    },
+    {
+      "hrid": "/items/trainee_milking_charm",
+      "name": "Trainee Milking Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 564
+    },
+    {
+      "hrid": "/items/basic_milking_charm",
+      "name": "Basic Milking Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 565
+    },
+    {
+      "hrid": "/items/advanced_milking_charm",
+      "name": "Advanced Milking Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 566
+    },
+    {
+      "hrid": "/items/expert_milking_charm",
+      "name": "Expert Milking Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 567
+    },
+    {
+      "hrid": "/items/master_milking_charm",
+      "name": "Master Milking Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 568
+    },
+    {
+      "hrid": "/items/grandmaster_milking_charm",
+      "name": "Grandmaster Milking Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 569
+    },
+    {
+      "hrid": "/items/trainee_foraging_charm",
+      "name": "Trainee Foraging Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 570
+    },
+    {
+      "hrid": "/items/basic_foraging_charm",
+      "name": "Basic Foraging Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 571
+    },
+    {
+      "hrid": "/items/advanced_foraging_charm",
+      "name": "Advanced Foraging Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 572
+    },
+    {
+      "hrid": "/items/expert_foraging_charm",
+      "name": "Expert Foraging Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 573
+    },
+    {
+      "hrid": "/items/master_foraging_charm",
+      "name": "Master Foraging Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 574
+    },
+    {
+      "hrid": "/items/grandmaster_foraging_charm",
+      "name": "Grandmaster Foraging Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 575
+    },
+    {
+      "hrid": "/items/trainee_woodcutting_charm",
+      "name": "Trainee Woodcutting Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 576
+    },
+    {
+      "hrid": "/items/basic_woodcutting_charm",
+      "name": "Basic Woodcutting Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 577
+    },
+    {
+      "hrid": "/items/advanced_woodcutting_charm",
+      "name": "Advanced Woodcutting Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 578
+    },
+    {
+      "hrid": "/items/expert_woodcutting_charm",
+      "name": "Expert Woodcutting Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 579
+    },
+    {
+      "hrid": "/items/master_woodcutting_charm",
+      "name": "Master Woodcutting Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 580
+    },
+    {
+      "hrid": "/items/grandmaster_woodcutting_charm",
+      "name": "Grandmaster Woodcutting Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 581
+    },
+    {
+      "hrid": "/items/trainee_cheesesmithing_charm",
+      "name": "Trainee Cheesesmithing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 582
+    },
+    {
+      "hrid": "/items/basic_cheesesmithing_charm",
+      "name": "Basic Cheesesmithing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 583
+    },
+    {
+      "hrid": "/items/advanced_cheesesmithing_charm",
+      "name": "Advanced Cheesesmithing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 584
+    },
+    {
+      "hrid": "/items/expert_cheesesmithing_charm",
+      "name": "Expert Cheesesmithing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 585
+    },
+    {
+      "hrid": "/items/master_cheesesmithing_charm",
+      "name": "Master Cheesesmithing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 586
+    },
+    {
+      "hrid": "/items/grandmaster_cheesesmithing_charm",
+      "name": "Grandmaster Cheesesmithing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 587
+    },
+    {
+      "hrid": "/items/trainee_crafting_charm",
+      "name": "Trainee Crafting Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 588
+    },
+    {
+      "hrid": "/items/basic_crafting_charm",
+      "name": "Basic Crafting Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 589
+    },
+    {
+      "hrid": "/items/advanced_crafting_charm",
+      "name": "Advanced Crafting Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 590
+    },
+    {
+      "hrid": "/items/expert_crafting_charm",
+      "name": "Expert Crafting Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 591
+    },
+    {
+      "hrid": "/items/master_crafting_charm",
+      "name": "Master Crafting Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 592
+    },
+    {
+      "hrid": "/items/grandmaster_crafting_charm",
+      "name": "Grandmaster Crafting Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 593
+    },
+    {
+      "hrid": "/items/trainee_tailoring_charm",
+      "name": "Trainee Tailoring Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 594
+    },
+    {
+      "hrid": "/items/basic_tailoring_charm",
+      "name": "Basic Tailoring Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 595
+    },
+    {
+      "hrid": "/items/advanced_tailoring_charm",
+      "name": "Advanced Tailoring Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 596
+    },
+    {
+      "hrid": "/items/expert_tailoring_charm",
+      "name": "Expert Tailoring Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 597
+    },
+    {
+      "hrid": "/items/master_tailoring_charm",
+      "name": "Master Tailoring Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 598
+    },
+    {
+      "hrid": "/items/grandmaster_tailoring_charm",
+      "name": "Grandmaster Tailoring Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 599
+    },
+    {
+      "hrid": "/items/trainee_cooking_charm",
+      "name": "Trainee Cooking Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 600
+    },
+    {
+      "hrid": "/items/basic_cooking_charm",
+      "name": "Basic Cooking Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 601
+    },
+    {
+      "hrid": "/items/advanced_cooking_charm",
+      "name": "Advanced Cooking Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 602
+    },
+    {
+      "hrid": "/items/expert_cooking_charm",
+      "name": "Expert Cooking Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 603
+    },
+    {
+      "hrid": "/items/master_cooking_charm",
+      "name": "Master Cooking Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 604
+    },
+    {
+      "hrid": "/items/grandmaster_cooking_charm",
+      "name": "Grandmaster Cooking Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 605
+    },
+    {
+      "hrid": "/items/trainee_brewing_charm",
+      "name": "Trainee Brewing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 606
+    },
+    {
+      "hrid": "/items/basic_brewing_charm",
+      "name": "Basic Brewing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 607
+    },
+    {
+      "hrid": "/items/advanced_brewing_charm",
+      "name": "Advanced Brewing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 608
+    },
+    {
+      "hrid": "/items/expert_brewing_charm",
+      "name": "Expert Brewing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 609
+    },
+    {
+      "hrid": "/items/master_brewing_charm",
+      "name": "Master Brewing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 610
+    },
+    {
+      "hrid": "/items/grandmaster_brewing_charm",
+      "name": "Grandmaster Brewing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 611
+    },
+    {
+      "hrid": "/items/trainee_alchemy_charm",
+      "name": "Trainee Alchemy Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 612
+    },
+    {
+      "hrid": "/items/basic_alchemy_charm",
+      "name": "Basic Alchemy Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 613
+    },
+    {
+      "hrid": "/items/advanced_alchemy_charm",
+      "name": "Advanced Alchemy Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 614
+    },
+    {
+      "hrid": "/items/expert_alchemy_charm",
+      "name": "Expert Alchemy Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 615
+    },
+    {
+      "hrid": "/items/master_alchemy_charm",
+      "name": "Master Alchemy Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 616
+    },
+    {
+      "hrid": "/items/grandmaster_alchemy_charm",
+      "name": "Grandmaster Alchemy Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 617
+    },
+    {
+      "hrid": "/items/trainee_enhancing_charm",
+      "name": "Trainee Enhancing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 618
+    },
+    {
+      "hrid": "/items/basic_enhancing_charm",
+      "name": "Basic Enhancing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 619
+    },
+    {
+      "hrid": "/items/advanced_enhancing_charm",
+      "name": "Advanced Enhancing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 620
+    },
+    {
+      "hrid": "/items/expert_enhancing_charm",
+      "name": "Expert Enhancing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 621
+    },
+    {
+      "hrid": "/items/master_enhancing_charm",
+      "name": "Master Enhancing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 622
+    },
+    {
+      "hrid": "/items/grandmaster_enhancing_charm",
+      "name": "Grandmaster Enhancing Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 623
+    },
+    {
+      "hrid": "/items/trainee_stamina_charm",
+      "name": "Trainee Stamina Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 624
+    },
+    {
+      "hrid": "/items/basic_stamina_charm",
+      "name": "Basic Stamina Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 625
+    },
+    {
+      "hrid": "/items/advanced_stamina_charm",
+      "name": "Advanced Stamina Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 626
+    },
+    {
+      "hrid": "/items/expert_stamina_charm",
+      "name": "Expert Stamina Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 627
+    },
+    {
+      "hrid": "/items/master_stamina_charm",
+      "name": "Master Stamina Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 628
+    },
+    {
+      "hrid": "/items/grandmaster_stamina_charm",
+      "name": "Grandmaster Stamina Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 629
+    },
+    {
+      "hrid": "/items/trainee_intelligence_charm",
+      "name": "Trainee Intelligence Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 630
+    },
+    {
+      "hrid": "/items/basic_intelligence_charm",
+      "name": "Basic Intelligence Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 631
+    },
+    {
+      "hrid": "/items/advanced_intelligence_charm",
+      "name": "Advanced Intelligence Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 632
+    },
+    {
+      "hrid": "/items/expert_intelligence_charm",
+      "name": "Expert Intelligence Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 633
+    },
+    {
+      "hrid": "/items/master_intelligence_charm",
+      "name": "Master Intelligence Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 634
+    },
+    {
+      "hrid": "/items/grandmaster_intelligence_charm",
+      "name": "Grandmaster Intelligence Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 635
+    },
+    {
+      "hrid": "/items/trainee_attack_charm",
+      "name": "Trainee Attack Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 636
+    },
+    {
+      "hrid": "/items/basic_attack_charm",
+      "name": "Basic Attack Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 637
+    },
+    {
+      "hrid": "/items/advanced_attack_charm",
+      "name": "Advanced Attack Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 638
+    },
+    {
+      "hrid": "/items/expert_attack_charm",
+      "name": "Expert Attack Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 639
+    },
+    {
+      "hrid": "/items/master_attack_charm",
+      "name": "Master Attack Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 640
+    },
+    {
+      "hrid": "/items/grandmaster_attack_charm",
+      "name": "Grandmaster Attack Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 641
+    },
+    {
+      "hrid": "/items/trainee_defense_charm",
+      "name": "Trainee Defense Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 642
+    },
+    {
+      "hrid": "/items/basic_defense_charm",
+      "name": "Basic Defense Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 643
+    },
+    {
+      "hrid": "/items/advanced_defense_charm",
+      "name": "Advanced Defense Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 644
+    },
+    {
+      "hrid": "/items/expert_defense_charm",
+      "name": "Expert Defense Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 645
+    },
+    {
+      "hrid": "/items/master_defense_charm",
+      "name": "Master Defense Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 646
+    },
+    {
+      "hrid": "/items/grandmaster_defense_charm",
+      "name": "Grandmaster Defense Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 647
+    },
+    {
+      "hrid": "/items/trainee_melee_charm",
+      "name": "Trainee Melee Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 648
+    },
+    {
+      "hrid": "/items/basic_melee_charm",
+      "name": "Basic Melee Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 649
+    },
+    {
+      "hrid": "/items/advanced_melee_charm",
+      "name": "Advanced Melee Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 650
+    },
+    {
+      "hrid": "/items/expert_melee_charm",
+      "name": "Expert Melee Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 651
+    },
+    {
+      "hrid": "/items/master_melee_charm",
+      "name": "Master Melee Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 652
+    },
+    {
+      "hrid": "/items/grandmaster_melee_charm",
+      "name": "Grandmaster Melee Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 653
+    },
+    {
+      "hrid": "/items/trainee_ranged_charm",
+      "name": "Trainee Ranged Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 654
+    },
+    {
+      "hrid": "/items/basic_ranged_charm",
+      "name": "Basic Ranged Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 655
+    },
+    {
+      "hrid": "/items/advanced_ranged_charm",
+      "name": "Advanced Ranged Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 656
+    },
+    {
+      "hrid": "/items/expert_ranged_charm",
+      "name": "Expert Ranged Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 657
+    },
+    {
+      "hrid": "/items/master_ranged_charm",
+      "name": "Master Ranged Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 658
+    },
+    {
+      "hrid": "/items/grandmaster_ranged_charm",
+      "name": "Grandmaster Ranged Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 659
+    },
+    {
+      "hrid": "/items/trainee_magic_charm",
+      "name": "Trainee Magic Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 660
+    },
+    {
+      "hrid": "/items/basic_magic_charm",
+      "name": "Basic Magic Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 661
+    },
+    {
+      "hrid": "/items/advanced_magic_charm",
+      "name": "Advanced Magic Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 662
+    },
+    {
+      "hrid": "/items/expert_magic_charm",
+      "name": "Expert Magic Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 663
+    },
+    {
+      "hrid": "/items/master_magic_charm",
+      "name": "Master Magic Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 664
+    },
+    {
+      "hrid": "/items/grandmaster_magic_charm",
+      "name": "Grandmaster Magic Charm",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 665
+    },
+    {
+      "hrid": "/items/basic_task_badge",
+      "name": "Basic Task Badge",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 666
+    },
+    {
+      "hrid": "/items/advanced_task_badge",
+      "name": "Advanced Task Badge",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 667
+    },
+    {
+      "hrid": "/items/expert_task_badge",
+      "name": "Expert Task Badge",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 668
+    },
+    {
+      "hrid": "/items/celestial_brush",
+      "name": "Celestial Brush",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 669
+    },
+    {
+      "hrid": "/items/cheese_brush",
+      "name": "Cheese Brush",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 670
+    },
+    {
+      "hrid": "/items/verdant_brush",
+      "name": "Verdant Brush",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 671
+    },
+    {
+      "hrid": "/items/azure_brush",
+      "name": "Azure Brush",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 672
+    },
+    {
+      "hrid": "/items/burble_brush",
+      "name": "Burble Brush",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 673
+    },
+    {
+      "hrid": "/items/crimson_brush",
+      "name": "Crimson Brush",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 674
+    },
+    {
+      "hrid": "/items/rainbow_brush",
+      "name": "Rainbow Brush",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 675
+    },
+    {
+      "hrid": "/items/holy_brush",
+      "name": "Holy Brush",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 676
+    },
+    {
+      "hrid": "/items/celestial_shears",
+      "name": "Celestial Shears",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 677
+    },
+    {
+      "hrid": "/items/cheese_shears",
+      "name": "Cheese Shears",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 678
+    },
+    {
+      "hrid": "/items/verdant_shears",
+      "name": "Verdant Shears",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 679
+    },
+    {
+      "hrid": "/items/azure_shears",
+      "name": "Azure Shears",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 680
+    },
+    {
+      "hrid": "/items/burble_shears",
+      "name": "Burble Shears",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 681
+    },
+    {
+      "hrid": "/items/crimson_shears",
+      "name": "Crimson Shears",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 682
+    },
+    {
+      "hrid": "/items/rainbow_shears",
+      "name": "Rainbow Shears",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 683
+    },
+    {
+      "hrid": "/items/holy_shears",
+      "name": "Holy Shears",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 684
+    },
+    {
+      "hrid": "/items/celestial_hatchet",
+      "name": "Celestial Hatchet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 685
+    },
+    {
+      "hrid": "/items/cheese_hatchet",
+      "name": "Cheese Hatchet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 686
+    },
+    {
+      "hrid": "/items/verdant_hatchet",
+      "name": "Verdant Hatchet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 687
+    },
+    {
+      "hrid": "/items/azure_hatchet",
+      "name": "Azure Hatchet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 688
+    },
+    {
+      "hrid": "/items/burble_hatchet",
+      "name": "Burble Hatchet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 689
+    },
+    {
+      "hrid": "/items/crimson_hatchet",
+      "name": "Crimson Hatchet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 690
+    },
+    {
+      "hrid": "/items/rainbow_hatchet",
+      "name": "Rainbow Hatchet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 691
+    },
+    {
+      "hrid": "/items/holy_hatchet",
+      "name": "Holy Hatchet",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 692
+    },
+    {
+      "hrid": "/items/celestial_hammer",
+      "name": "Celestial Hammer",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 693
+    },
+    {
+      "hrid": "/items/cheese_hammer",
+      "name": "Cheese Hammer",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 694
+    },
+    {
+      "hrid": "/items/verdant_hammer",
+      "name": "Verdant Hammer",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 695
+    },
+    {
+      "hrid": "/items/azure_hammer",
+      "name": "Azure Hammer",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 696
+    },
+    {
+      "hrid": "/items/burble_hammer",
+      "name": "Burble Hammer",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 697
+    },
+    {
+      "hrid": "/items/crimson_hammer",
+      "name": "Crimson Hammer",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 698
+    },
+    {
+      "hrid": "/items/rainbow_hammer",
+      "name": "Rainbow Hammer",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 699
+    },
+    {
+      "hrid": "/items/holy_hammer",
+      "name": "Holy Hammer",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 700
+    },
+    {
+      "hrid": "/items/celestial_chisel",
+      "name": "Celestial Chisel",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 701
+    },
+    {
+      "hrid": "/items/cheese_chisel",
+      "name": "Cheese Chisel",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 702
+    },
+    {
+      "hrid": "/items/verdant_chisel",
+      "name": "Verdant Chisel",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 703
+    },
+    {
+      "hrid": "/items/azure_chisel",
+      "name": "Azure Chisel",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 704
+    },
+    {
+      "hrid": "/items/burble_chisel",
+      "name": "Burble Chisel",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 705
+    },
+    {
+      "hrid": "/items/crimson_chisel",
+      "name": "Crimson Chisel",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 706
+    },
+    {
+      "hrid": "/items/rainbow_chisel",
+      "name": "Rainbow Chisel",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 707
+    },
+    {
+      "hrid": "/items/holy_chisel",
+      "name": "Holy Chisel",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 708
+    },
+    {
+      "hrid": "/items/celestial_needle",
+      "name": "Celestial Needle",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 709
+    },
+    {
+      "hrid": "/items/cheese_needle",
+      "name": "Cheese Needle",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 710
+    },
+    {
+      "hrid": "/items/verdant_needle",
+      "name": "Verdant Needle",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 711
+    },
+    {
+      "hrid": "/items/azure_needle",
+      "name": "Azure Needle",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 712
+    },
+    {
+      "hrid": "/items/burble_needle",
+      "name": "Burble Needle",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 713
+    },
+    {
+      "hrid": "/items/crimson_needle",
+      "name": "Crimson Needle",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 714
+    },
+    {
+      "hrid": "/items/rainbow_needle",
+      "name": "Rainbow Needle",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 715
+    },
+    {
+      "hrid": "/items/holy_needle",
+      "name": "Holy Needle",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 716
+    },
+    {
+      "hrid": "/items/celestial_spatula",
+      "name": "Celestial Spatula",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 717
+    },
+    {
+      "hrid": "/items/cheese_spatula",
+      "name": "Cheese Spatula",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 718
+    },
+    {
+      "hrid": "/items/verdant_spatula",
+      "name": "Verdant Spatula",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 719
+    },
+    {
+      "hrid": "/items/azure_spatula",
+      "name": "Azure Spatula",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 720
+    },
+    {
+      "hrid": "/items/burble_spatula",
+      "name": "Burble Spatula",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 721
+    },
+    {
+      "hrid": "/items/crimson_spatula",
+      "name": "Crimson Spatula",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 722
+    },
+    {
+      "hrid": "/items/rainbow_spatula",
+      "name": "Rainbow Spatula",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 723
+    },
+    {
+      "hrid": "/items/holy_spatula",
+      "name": "Holy Spatula",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 724
+    },
+    {
+      "hrid": "/items/celestial_pot",
+      "name": "Celestial Pot",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 725
+    },
+    {
+      "hrid": "/items/cheese_pot",
+      "name": "Cheese Pot",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 726
+    },
+    {
+      "hrid": "/items/verdant_pot",
+      "name": "Verdant Pot",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 727
+    },
+    {
+      "hrid": "/items/azure_pot",
+      "name": "Azure Pot",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 728
+    },
+    {
+      "hrid": "/items/burble_pot",
+      "name": "Burble Pot",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 729
+    },
+    {
+      "hrid": "/items/crimson_pot",
+      "name": "Crimson Pot",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 730
+    },
+    {
+      "hrid": "/items/rainbow_pot",
+      "name": "Rainbow Pot",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 731
+    },
+    {
+      "hrid": "/items/holy_pot",
+      "name": "Holy Pot",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 732
+    },
+    {
+      "hrid": "/items/celestial_alembic",
+      "name": "Celestial Alembic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 733
+    },
+    {
+      "hrid": "/items/cheese_alembic",
+      "name": "Cheese Alembic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 734
+    },
+    {
+      "hrid": "/items/verdant_alembic",
+      "name": "Verdant Alembic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 735
+    },
+    {
+      "hrid": "/items/azure_alembic",
+      "name": "Azure Alembic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 736
+    },
+    {
+      "hrid": "/items/burble_alembic",
+      "name": "Burble Alembic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 737
+    },
+    {
+      "hrid": "/items/crimson_alembic",
+      "name": "Crimson Alembic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 738
+    },
+    {
+      "hrid": "/items/rainbow_alembic",
+      "name": "Rainbow Alembic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 739
+    },
+    {
+      "hrid": "/items/holy_alembic",
+      "name": "Holy Alembic",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 740
+    },
+    {
+      "hrid": "/items/celestial_enhancer",
+      "name": "Celestial Enhancer",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 741
+    },
+    {
+      "hrid": "/items/cheese_enhancer",
+      "name": "Cheese Enhancer",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 742
+    },
+    {
+      "hrid": "/items/verdant_enhancer",
+      "name": "Verdant Enhancer",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 743
+    },
+    {
+      "hrid": "/items/azure_enhancer",
+      "name": "Azure Enhancer",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 744
+    },
+    {
+      "hrid": "/items/burble_enhancer",
+      "name": "Burble Enhancer",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 745
+    },
+    {
+      "hrid": "/items/crimson_enhancer",
+      "name": "Crimson Enhancer",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 746
+    },
+    {
+      "hrid": "/items/rainbow_enhancer",
+      "name": "Rainbow Enhancer",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 747
+    },
+    {
+      "hrid": "/items/holy_enhancer",
+      "name": "Holy Enhancer",
+      "categoryHrid": "/item_categories/equipment",
+      "sortIndex": 748
+    },
+    {
+      "hrid": "/items/donut",
+      "name": "Donut",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 69
+    },
+    {
+      "hrid": "/items/blueberry_donut",
+      "name": "Blueberry Donut",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 70
+    },
+    {
+      "hrid": "/items/blackberry_donut",
+      "name": "Blackberry Donut",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 71
+    },
+    {
+      "hrid": "/items/strawberry_donut",
+      "name": "Strawberry Donut",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 72
+    },
+    {
+      "hrid": "/items/mooberry_donut",
+      "name": "Mooberry Donut",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 73
+    },
+    {
+      "hrid": "/items/marsberry_donut",
+      "name": "Marsberry Donut",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 74
+    },
+    {
+      "hrid": "/items/spaceberry_donut",
+      "name": "Spaceberry Donut",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 75
+    },
+    {
+      "hrid": "/items/cupcake",
+      "name": "Cupcake",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 76
+    },
+    {
+      "hrid": "/items/blueberry_cake",
+      "name": "Blueberry Cake",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 77
+    },
+    {
+      "hrid": "/items/blackberry_cake",
+      "name": "Blackberry Cake",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 78
+    },
+    {
+      "hrid": "/items/strawberry_cake",
+      "name": "Strawberry Cake",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 79
+    },
+    {
+      "hrid": "/items/mooberry_cake",
+      "name": "Mooberry Cake",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 80
+    },
+    {
+      "hrid": "/items/marsberry_cake",
+      "name": "Marsberry Cake",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 81
+    },
+    {
+      "hrid": "/items/spaceberry_cake",
+      "name": "Spaceberry Cake",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 82
+    },
+    {
+      "hrid": "/items/gummy",
+      "name": "Gummy",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 83
+    },
+    {
+      "hrid": "/items/apple_gummy",
+      "name": "Apple Gummy",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 84
+    },
+    {
+      "hrid": "/items/orange_gummy",
+      "name": "Orange Gummy",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 85
+    },
+    {
+      "hrid": "/items/plum_gummy",
+      "name": "Plum Gummy",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 86
+    },
+    {
+      "hrid": "/items/peach_gummy",
+      "name": "Peach Gummy",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 87
+    },
+    {
+      "hrid": "/items/dragon_fruit_gummy",
+      "name": "Dragon Fruit Gummy",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 88
+    },
+    {
+      "hrid": "/items/star_fruit_gummy",
+      "name": "Star Fruit Gummy",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 89
+    },
+    {
+      "hrid": "/items/yogurt",
+      "name": "Yogurt",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 90
+    },
+    {
+      "hrid": "/items/apple_yogurt",
+      "name": "Apple Yogurt",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 91
+    },
+    {
+      "hrid": "/items/orange_yogurt",
+      "name": "Orange Yogurt",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 92
+    },
+    {
+      "hrid": "/items/plum_yogurt",
+      "name": "Plum Yogurt",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 93
+    },
+    {
+      "hrid": "/items/peach_yogurt",
+      "name": "Peach Yogurt",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 94
+    },
+    {
+      "hrid": "/items/dragon_fruit_yogurt",
+      "name": "Dragon Fruit Yogurt",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 95
+    },
+    {
+      "hrid": "/items/star_fruit_yogurt",
+      "name": "Star Fruit Yogurt",
+      "categoryHrid": "/item_categories/food",
+      "sortIndex": 96
+    },
+    {
+      "hrid": "/items/basic_torch",
+      "name": "Basic Torch",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 940
+    },
+    {
+      "hrid": "/items/advanced_torch",
+      "name": "Advanced Torch",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 941
+    },
+    {
+      "hrid": "/items/expert_torch",
+      "name": "Expert Torch",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 942
+    },
+    {
+      "hrid": "/items/basic_shroud",
+      "name": "Basic Shroud",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 943
+    },
+    {
+      "hrid": "/items/advanced_shroud",
+      "name": "Advanced Shroud",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 944
+    },
+    {
+      "hrid": "/items/expert_shroud",
+      "name": "Expert Shroud",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 945
+    },
+    {
+      "hrid": "/items/basic_beacon",
+      "name": "Basic Beacon",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 946
+    },
+    {
+      "hrid": "/items/advanced_beacon",
+      "name": "Advanced Beacon",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 947
+    },
+    {
+      "hrid": "/items/expert_beacon",
+      "name": "Expert Beacon",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 948
+    },
+    {
+      "hrid": "/items/basic_food_crate",
+      "name": "Basic Food Crate",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 949
+    },
+    {
+      "hrid": "/items/advanced_food_crate",
+      "name": "Advanced Food Crate",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 950
+    },
+    {
+      "hrid": "/items/expert_food_crate",
+      "name": "Expert Food Crate",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 951
+    },
+    {
+      "hrid": "/items/basic_tea_crate",
+      "name": "Basic Tea Crate",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 952
+    },
+    {
+      "hrid": "/items/advanced_tea_crate",
+      "name": "Advanced Tea Crate",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 953
+    },
+    {
+      "hrid": "/items/expert_tea_crate",
+      "name": "Expert Tea Crate",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 954
+    },
+    {
+      "hrid": "/items/basic_coffee_crate",
+      "name": "Basic Coffee Crate",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 955
+    },
+    {
+      "hrid": "/items/advanced_coffee_crate",
+      "name": "Advanced Coffee Crate",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 956
+    },
+    {
+      "hrid": "/items/expert_coffee_crate",
+      "name": "Expert Coffee Crate",
+      "categoryHrid": "/item_categories/labyrinth",
+      "sortIndex": 957
+    },
+    {
+      "hrid": "/items/bag_of_10_cowbells",
+      "name": "Bag Of 10 Cowbells",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 18
+    },
+    {
+      "hrid": "/items/purples_gift",
+      "name": "Purple's Gift",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 19
+    },
+    {
+      "hrid": "/items/small_meteorite_cache",
+      "name": "Small Meteorite Cache",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 20
+    },
+    {
+      "hrid": "/items/medium_meteorite_cache",
+      "name": "Medium Meteorite Cache",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 21
+    },
+    {
+      "hrid": "/items/large_meteorite_cache",
+      "name": "Large Meteorite Cache",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 22
+    },
+    {
+      "hrid": "/items/small_artisans_crate",
+      "name": "Small Artisan's Crate",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 23
+    },
+    {
+      "hrid": "/items/medium_artisans_crate",
+      "name": "Medium Artisan's Crate",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 24
+    },
+    {
+      "hrid": "/items/large_artisans_crate",
+      "name": "Large Artisan's Crate",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 25
+    },
+    {
+      "hrid": "/items/small_treasure_chest",
+      "name": "Small Treasure Chest",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 26
+    },
+    {
+      "hrid": "/items/medium_treasure_chest",
+      "name": "Medium Treasure Chest",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 27
+    },
+    {
+      "hrid": "/items/large_treasure_chest",
+      "name": "Large Treasure Chest",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 28
+    },
+    {
+      "hrid": "/items/chimerical_chest",
+      "name": "Chimerical Chest",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 29
+    },
+    {
+      "hrid": "/items/chimerical_refinement_chest",
+      "name": "Chimerical Refinement Chest",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 30
+    },
+    {
+      "hrid": "/items/sinister_chest",
+      "name": "Sinister Chest",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 31
+    },
+    {
+      "hrid": "/items/sinister_refinement_chest",
+      "name": "Sinister Refinement Chest",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 32
+    },
+    {
+      "hrid": "/items/enchanted_chest",
+      "name": "Enchanted Chest",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 33
+    },
+    {
+      "hrid": "/items/enchanted_refinement_chest",
+      "name": "Enchanted Refinement Chest",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 34
+    },
+    {
+      "hrid": "/items/pirate_chest",
+      "name": "Pirate Chest",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 35
+    },
+    {
+      "hrid": "/items/pirate_refinement_chest",
+      "name": "Pirate Refinement Chest",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 36
+    },
+    {
+      "hrid": "/items/purdoras_box_skilling",
+      "name": "Purdora's Box (Skilling)",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 37
+    },
+    {
+      "hrid": "/items/purdoras_box_combat",
+      "name": "Purdora's Box (Combat)",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 38
+    },
+    {
+      "hrid": "/items/labyrinth_refinement_chest",
+      "name": "Labyrinth Refinement Chest",
+      "categoryHrid": "/item_categories/loot",
+      "sortIndex": 39
+    },
+    {
+      "hrid": "/items/milk",
+      "name": "Milk",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 749
+    },
+    {
+      "hrid": "/items/verdant_milk",
+      "name": "Verdant Milk",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 750
+    },
+    {
+      "hrid": "/items/azure_milk",
+      "name": "Azure Milk",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 751
+    },
+    {
+      "hrid": "/items/burble_milk",
+      "name": "Burble Milk",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 752
+    },
+    {
+      "hrid": "/items/crimson_milk",
+      "name": "Crimson Milk",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 753
+    },
+    {
+      "hrid": "/items/rainbow_milk",
+      "name": "Rainbow Milk",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 754
+    },
+    {
+      "hrid": "/items/holy_milk",
+      "name": "Holy Milk",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 755
+    },
+    {
+      "hrid": "/items/cheese",
+      "name": "Cheese",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 756
+    },
+    {
+      "hrid": "/items/verdant_cheese",
+      "name": "Verdant Cheese",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 757
+    },
+    {
+      "hrid": "/items/azure_cheese",
+      "name": "Azure Cheese",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 758
+    },
+    {
+      "hrid": "/items/burble_cheese",
+      "name": "Burble Cheese",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 759
+    },
+    {
+      "hrid": "/items/crimson_cheese",
+      "name": "Crimson Cheese",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 760
+    },
+    {
+      "hrid": "/items/rainbow_cheese",
+      "name": "Rainbow Cheese",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 761
+    },
+    {
+      "hrid": "/items/holy_cheese",
+      "name": "Holy Cheese",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 762
+    },
+    {
+      "hrid": "/items/log",
+      "name": "Log",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 763
+    },
+    {
+      "hrid": "/items/birch_log",
+      "name": "Birch Log",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 764
+    },
+    {
+      "hrid": "/items/cedar_log",
+      "name": "Cedar Log",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 765
+    },
+    {
+      "hrid": "/items/purpleheart_log",
+      "name": "Purpleheart Log",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 766
+    },
+    {
+      "hrid": "/items/ginkgo_log",
+      "name": "Ginkgo Log",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 767
+    },
+    {
+      "hrid": "/items/redwood_log",
+      "name": "Redwood Log",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 768
+    },
+    {
+      "hrid": "/items/arcane_log",
+      "name": "Arcane Log",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 769
+    },
+    {
+      "hrid": "/items/lumber",
+      "name": "Lumber",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 770
+    },
+    {
+      "hrid": "/items/birch_lumber",
+      "name": "Birch Lumber",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 771
+    },
+    {
+      "hrid": "/items/cedar_lumber",
+      "name": "Cedar Lumber",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 772
+    },
+    {
+      "hrid": "/items/purpleheart_lumber",
+      "name": "Purpleheart Lumber",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 773
+    },
+    {
+      "hrid": "/items/ginkgo_lumber",
+      "name": "Ginkgo Lumber",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 774
+    },
+    {
+      "hrid": "/items/redwood_lumber",
+      "name": "Redwood Lumber",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 775
+    },
+    {
+      "hrid": "/items/arcane_lumber",
+      "name": "Arcane Lumber",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 776
+    },
+    {
+      "hrid": "/items/rough_hide",
+      "name": "Rough Hide",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 777
+    },
+    {
+      "hrid": "/items/reptile_hide",
+      "name": "Reptile Hide",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 778
+    },
+    {
+      "hrid": "/items/gobo_hide",
+      "name": "Gobo Hide",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 779
+    },
+    {
+      "hrid": "/items/beast_hide",
+      "name": "Beast Hide",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 780
+    },
+    {
+      "hrid": "/items/umbral_hide",
+      "name": "Umbral Hide",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 781
+    },
+    {
+      "hrid": "/items/rough_leather",
+      "name": "Rough Leather",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 782
+    },
+    {
+      "hrid": "/items/reptile_leather",
+      "name": "Reptile Leather",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 783
+    },
+    {
+      "hrid": "/items/gobo_leather",
+      "name": "Gobo Leather",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 784
+    },
+    {
+      "hrid": "/items/beast_leather",
+      "name": "Beast Leather",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 785
+    },
+    {
+      "hrid": "/items/umbral_leather",
+      "name": "Umbral Leather",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 786
+    },
+    {
+      "hrid": "/items/cotton",
+      "name": "Cotton",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 787
+    },
+    {
+      "hrid": "/items/flax",
+      "name": "Flax",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 788
+    },
+    {
+      "hrid": "/items/bamboo_branch",
+      "name": "Bamboo Branch",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 789
+    },
+    {
+      "hrid": "/items/cocoon",
+      "name": "Cocoon",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 790
+    },
+    {
+      "hrid": "/items/radiant_fiber",
+      "name": "Radiant Fiber",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 791
+    },
+    {
+      "hrid": "/items/cotton_fabric",
+      "name": "Cotton Fabric",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 792
+    },
+    {
+      "hrid": "/items/linen_fabric",
+      "name": "Linen Fabric",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 793
+    },
+    {
+      "hrid": "/items/bamboo_fabric",
+      "name": "Bamboo Fabric",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 794
+    },
+    {
+      "hrid": "/items/silk_fabric",
+      "name": "Silk Fabric",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 795
+    },
+    {
+      "hrid": "/items/radiant_fabric",
+      "name": "Radiant Fabric",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 796
+    },
+    {
+      "hrid": "/items/egg",
+      "name": "Egg",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 797
+    },
+    {
+      "hrid": "/items/wheat",
+      "name": "Wheat",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 798
+    },
+    {
+      "hrid": "/items/sugar",
+      "name": "Sugar",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 799
+    },
+    {
+      "hrid": "/items/blueberry",
+      "name": "Blueberry",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 800
+    },
+    {
+      "hrid": "/items/blackberry",
+      "name": "Blackberry",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 801
+    },
+    {
+      "hrid": "/items/strawberry",
+      "name": "Strawberry",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 802
+    },
+    {
+      "hrid": "/items/mooberry",
+      "name": "Mooberry",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 803
+    },
+    {
+      "hrid": "/items/marsberry",
+      "name": "Marsberry",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 804
+    },
+    {
+      "hrid": "/items/spaceberry",
+      "name": "Spaceberry",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 805
+    },
+    {
+      "hrid": "/items/apple",
+      "name": "Apple",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 806
+    },
+    {
+      "hrid": "/items/orange",
+      "name": "Orange",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 807
+    },
+    {
+      "hrid": "/items/plum",
+      "name": "Plum",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 808
+    },
+    {
+      "hrid": "/items/peach",
+      "name": "Peach",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 809
+    },
+    {
+      "hrid": "/items/dragon_fruit",
+      "name": "Dragon Fruit",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 810
+    },
+    {
+      "hrid": "/items/star_fruit",
+      "name": "Star Fruit",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 811
+    },
+    {
+      "hrid": "/items/arabica_coffee_bean",
+      "name": "Arabica Coffee Bean",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 812
+    },
+    {
+      "hrid": "/items/robusta_coffee_bean",
+      "name": "Robusta Coffee Bean",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 813
+    },
+    {
+      "hrid": "/items/liberica_coffee_bean",
+      "name": "Liberica Coffee Bean",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 814
+    },
+    {
+      "hrid": "/items/excelsa_coffee_bean",
+      "name": "Excelsa Coffee Bean",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 815
+    },
+    {
+      "hrid": "/items/fieriosa_coffee_bean",
+      "name": "Fieriosa Coffee Bean",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 816
+    },
+    {
+      "hrid": "/items/spacia_coffee_bean",
+      "name": "Spacia Coffee Bean",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 817
+    },
+    {
+      "hrid": "/items/green_tea_leaf",
+      "name": "Green Tea Leaf",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 818
+    },
+    {
+      "hrid": "/items/black_tea_leaf",
+      "name": "Black Tea Leaf",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 819
+    },
+    {
+      "hrid": "/items/burble_tea_leaf",
+      "name": "Burble Tea Leaf",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 820
+    },
+    {
+      "hrid": "/items/moolong_tea_leaf",
+      "name": "Moolong Tea Leaf",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 821
+    },
+    {
+      "hrid": "/items/red_tea_leaf",
+      "name": "Red Tea Leaf",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 822
+    },
+    {
+      "hrid": "/items/emp_tea_leaf",
+      "name": "Emp Tea Leaf",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 823
+    },
+    {
+      "hrid": "/items/catalyst_of_coinification",
+      "name": "Catalyst Of Coinification",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 824
+    },
+    {
+      "hrid": "/items/catalyst_of_decomposition",
+      "name": "Catalyst Of Decomposition",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 825
+    },
+    {
+      "hrid": "/items/catalyst_of_transmutation",
+      "name": "Catalyst Of Transmutation",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 826
+    },
+    {
+      "hrid": "/items/prime_catalyst",
+      "name": "Prime Catalyst",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 827
+    },
+    {
+      "hrid": "/items/snake_fang",
+      "name": "Snake Fang",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 828
+    },
+    {
+      "hrid": "/items/shoebill_feather",
+      "name": "Shoebill Feather",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 829
+    },
+    {
+      "hrid": "/items/snail_shell",
+      "name": "Snail Shell",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 830
+    },
+    {
+      "hrid": "/items/crab_pincer",
+      "name": "Crab Pincer",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 831
+    },
+    {
+      "hrid": "/items/turtle_shell",
+      "name": "Turtle Shell",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 832
+    },
+    {
+      "hrid": "/items/marine_scale",
+      "name": "Marine Scale",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 833
+    },
+    {
+      "hrid": "/items/treant_bark",
+      "name": "Treant Bark",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 834
+    },
+    {
+      "hrid": "/items/centaur_hoof",
+      "name": "Centaur Hoof",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 835
+    },
+    {
+      "hrid": "/items/luna_wing",
+      "name": "Luna Wing",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 836
+    },
+    {
+      "hrid": "/items/gobo_rag",
+      "name": "Gobo Rag",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 837
+    },
+    {
+      "hrid": "/items/goggles",
+      "name": "Goggles",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 838
+    },
+    {
+      "hrid": "/items/magnifying_glass",
+      "name": "Magnifying Glass",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 839
+    },
+    {
+      "hrid": "/items/eye_of_the_watcher",
+      "name": "Eye Of The Watcher",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 840
+    },
+    {
+      "hrid": "/items/icy_cloth",
+      "name": "Icy Cloth",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 841
+    },
+    {
+      "hrid": "/items/flaming_cloth",
+      "name": "Flaming Cloth",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 842
+    },
+    {
+      "hrid": "/items/sorcerers_sole",
+      "name": "Sorcerer's Sole",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 843
+    },
+    {
+      "hrid": "/items/chrono_sphere",
+      "name": "Chrono Sphere",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 844
+    },
+    {
+      "hrid": "/items/frost_sphere",
+      "name": "Frost Sphere",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 845
+    },
+    {
+      "hrid": "/items/panda_fluff",
+      "name": "Panda Fluff",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 846
+    },
+    {
+      "hrid": "/items/black_bear_fluff",
+      "name": "Black Bear Fluff",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 847
+    },
+    {
+      "hrid": "/items/grizzly_bear_fluff",
+      "name": "Grizzly Bear Fluff",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 848
+    },
+    {
+      "hrid": "/items/polar_bear_fluff",
+      "name": "Polar Bear Fluff",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 849
+    },
+    {
+      "hrid": "/items/red_panda_fluff",
+      "name": "Red Panda Fluff",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 850
+    },
+    {
+      "hrid": "/items/magnet",
+      "name": "Magnet",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 851
+    },
+    {
+      "hrid": "/items/stalactite_shard",
+      "name": "Stalactite Shard",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 852
+    },
+    {
+      "hrid": "/items/living_granite",
+      "name": "Living Granite",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 853
+    },
+    {
+      "hrid": "/items/colossus_core",
+      "name": "Colossus Core",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 854
+    },
+    {
+      "hrid": "/items/vampire_fang",
+      "name": "Vampire Fang",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 855
+    },
+    {
+      "hrid": "/items/werewolf_claw",
+      "name": "Werewolf Claw",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 856
+    },
+    {
+      "hrid": "/items/revenant_anima",
+      "name": "Revenant Anima",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 857
+    },
+    {
+      "hrid": "/items/soul_fragment",
+      "name": "Soul Fragment",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 858
+    },
+    {
+      "hrid": "/items/infernal_ember",
+      "name": "Infernal Ember",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 859
+    },
+    {
+      "hrid": "/items/demonic_core",
+      "name": "Demonic Core",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 860
+    },
+    {
+      "hrid": "/items/griffin_leather",
+      "name": "Griffin Leather",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 861
+    },
+    {
+      "hrid": "/items/manticore_sting",
+      "name": "Manticore Sting",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 862
+    },
+    {
+      "hrid": "/items/jackalope_antler",
+      "name": "Jackalope Antler",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 863
+    },
+    {
+      "hrid": "/items/dodocamel_plume",
+      "name": "Dodocamel Plume",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 864
+    },
+    {
+      "hrid": "/items/griffin_talon",
+      "name": "Griffin Talon",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 865
+    },
+    {
+      "hrid": "/items/chimerical_refinement_shard",
+      "name": "Chimerical Refinement Shard",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 866
+    },
+    {
+      "hrid": "/items/acrobats_ribbon",
+      "name": "Acrobat's Ribbon",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 867
+    },
+    {
+      "hrid": "/items/magicians_cloth",
+      "name": "Magician's Cloth",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 868
+    },
+    {
+      "hrid": "/items/chaotic_chain",
+      "name": "Chaotic Chain",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 869
+    },
+    {
+      "hrid": "/items/cursed_ball",
+      "name": "Cursed Ball",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 870
+    },
+    {
+      "hrid": "/items/sinister_refinement_shard",
+      "name": "Sinister Refinement Shard",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 871
+    },
+    {
+      "hrid": "/items/royal_cloth",
+      "name": "Royal Cloth",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 872
+    },
+    {
+      "hrid": "/items/knights_ingot",
+      "name": "Knight's Ingot",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 873
+    },
+    {
+      "hrid": "/items/bishops_scroll",
+      "name": "Bishop's Scroll",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 874
+    },
+    {
+      "hrid": "/items/regal_jewel",
+      "name": "Regal Jewel",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 875
+    },
+    {
+      "hrid": "/items/sundering_jewel",
+      "name": "Sundering Jewel",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 876
+    },
+    {
+      "hrid": "/items/enchanted_refinement_shard",
+      "name": "Enchanted Refinement Shard",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 877
+    },
+    {
+      "hrid": "/items/marksman_brooch",
+      "name": "Marksman Brooch",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 878
+    },
+    {
+      "hrid": "/items/corsair_crest",
+      "name": "Corsair Crest",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 879
+    },
+    {
+      "hrid": "/items/damaged_anchor",
+      "name": "Damaged Anchor",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 880
+    },
+    {
+      "hrid": "/items/maelstrom_plating",
+      "name": "Maelstrom Plating",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 881
+    },
+    {
+      "hrid": "/items/kraken_leather",
+      "name": "Kraken Leather",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 882
+    },
+    {
+      "hrid": "/items/kraken_fang",
+      "name": "Kraken Fang",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 883
+    },
+    {
+      "hrid": "/items/pirate_refinement_shard",
+      "name": "Pirate Refinement Shard",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 884
+    },
+    {
+      "hrid": "/items/pathbreaker_lodestone",
+      "name": "Pathbreaker Lodestone",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 885
+    },
+    {
+      "hrid": "/items/pathfinder_lodestone",
+      "name": "Pathfinder Lodestone",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 886
+    },
+    {
+      "hrid": "/items/pathseeker_lodestone",
+      "name": "Pathseeker Lodestone",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 887
+    },
+    {
+      "hrid": "/items/labyrinth_refinement_shard",
+      "name": "Labyrinth Refinement Shard",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 888
+    },
+    {
+      "hrid": "/items/butter_of_proficiency",
+      "name": "Butter Of Proficiency",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 889
+    },
+    {
+      "hrid": "/items/thread_of_expertise",
+      "name": "Thread Of Expertise",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 890
+    },
+    {
+      "hrid": "/items/branch_of_insight",
+      "name": "Branch Of Insight",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 891
+    },
+    {
+      "hrid": "/items/gluttonous_energy",
+      "name": "Gluttonous Energy",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 892
+    },
+    {
+      "hrid": "/items/guzzling_energy",
+      "name": "Guzzling Energy",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 893
+    },
+    {
+      "hrid": "/items/milking_essence",
+      "name": "Milking Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 894
+    },
+    {
+      "hrid": "/items/foraging_essence",
+      "name": "Foraging Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 895
+    },
+    {
+      "hrid": "/items/woodcutting_essence",
+      "name": "Woodcutting Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 896
+    },
+    {
+      "hrid": "/items/cheesesmithing_essence",
+      "name": "Cheesesmithing Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 897
+    },
+    {
+      "hrid": "/items/crafting_essence",
+      "name": "Crafting Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 898
+    },
+    {
+      "hrid": "/items/tailoring_essence",
+      "name": "Tailoring Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 899
+    },
+    {
+      "hrid": "/items/cooking_essence",
+      "name": "Cooking Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 900
+    },
+    {
+      "hrid": "/items/brewing_essence",
+      "name": "Brewing Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 901
+    },
+    {
+      "hrid": "/items/alchemy_essence",
+      "name": "Alchemy Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 902
+    },
+    {
+      "hrid": "/items/enhancing_essence",
+      "name": "Enhancing Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 903
+    },
+    {
+      "hrid": "/items/swamp_essence",
+      "name": "Swamp Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 904
+    },
+    {
+      "hrid": "/items/aqua_essence",
+      "name": "Aqua Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 905
+    },
+    {
+      "hrid": "/items/jungle_essence",
+      "name": "Jungle Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 906
+    },
+    {
+      "hrid": "/items/gobo_essence",
+      "name": "Gobo Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 907
+    },
+    {
+      "hrid": "/items/eyessence",
+      "name": "Eyessence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 908
+    },
+    {
+      "hrid": "/items/sorcerer_essence",
+      "name": "Sorcerer Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 909
+    },
+    {
+      "hrid": "/items/bear_essence",
+      "name": "Bear Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 910
+    },
+    {
+      "hrid": "/items/golem_essence",
+      "name": "Golem Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 911
+    },
+    {
+      "hrid": "/items/twilight_essence",
+      "name": "Twilight Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 912
+    },
+    {
+      "hrid": "/items/abyssal_essence",
+      "name": "Abyssal Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 913
+    },
+    {
+      "hrid": "/items/chimerical_essence",
+      "name": "Chimerical Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 914
+    },
+    {
+      "hrid": "/items/sinister_essence",
+      "name": "Sinister Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 915
+    },
+    {
+      "hrid": "/items/enchanted_essence",
+      "name": "Enchanted Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 916
+    },
+    {
+      "hrid": "/items/pirate_essence",
+      "name": "Pirate Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 917
+    },
+    {
+      "hrid": "/items/labyrinth_essence",
+      "name": "Labyrinth Essence",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 918
+    },
+    {
+      "hrid": "/items/task_crystal",
+      "name": "Task Crystal",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 919
+    },
+    {
+      "hrid": "/items/star_fragment",
+      "name": "Star Fragment",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 920
+    },
+    {
+      "hrid": "/items/pearl",
+      "name": "Pearl",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 921
+    },
+    {
+      "hrid": "/items/amber",
+      "name": "Amber",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 922
+    },
+    {
+      "hrid": "/items/garnet",
+      "name": "Garnet",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 923
+    },
+    {
+      "hrid": "/items/jade",
+      "name": "Jade",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 924
+    },
+    {
+      "hrid": "/items/amethyst",
+      "name": "Amethyst",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 925
+    },
+    {
+      "hrid": "/items/moonstone",
+      "name": "Moonstone",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 926
+    },
+    {
+      "hrid": "/items/sunstone",
+      "name": "Sunstone",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 927
+    },
+    {
+      "hrid": "/items/philosophers_stone",
+      "name": "Philosopher's Stone",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 928
+    },
+    {
+      "hrid": "/items/crushed_pearl",
+      "name": "Crushed Pearl",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 929
+    },
+    {
+      "hrid": "/items/crushed_amber",
+      "name": "Crushed Amber",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 930
+    },
+    {
+      "hrid": "/items/crushed_garnet",
+      "name": "Crushed Garnet",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 931
+    },
+    {
+      "hrid": "/items/crushed_jade",
+      "name": "Crushed Jade",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 932
+    },
+    {
+      "hrid": "/items/crushed_amethyst",
+      "name": "Crushed Amethyst",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 933
+    },
+    {
+      "hrid": "/items/crushed_moonstone",
+      "name": "Crushed Moonstone",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 934
+    },
+    {
+      "hrid": "/items/crushed_sunstone",
+      "name": "Crushed Sunstone",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 935
+    },
+    {
+      "hrid": "/items/crushed_philosophers_stone",
+      "name": "Crushed Philosopher's Stone",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 936
+    },
+    {
+      "hrid": "/items/shard_of_protection",
+      "name": "Shard Of Protection",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 937
+    },
+    {
+      "hrid": "/items/mirror_of_protection",
+      "name": "Mirror Of Protection",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 938
+    },
+    {
+      "hrid": "/items/philosophers_mirror",
+      "name": "Philosopher's Mirror",
+      "categoryHrid": "/item_categories/resource",
+      "sortIndex": 939
+    },
+    {
+      "hrid": "/items/seal_of_gathering",
+      "name": "Scroll Of Gathering",
+      "categoryHrid": "/item_categories/scroll",
+      "sortIndex": 40
+    },
+    {
+      "hrid": "/items/seal_of_gourmet",
+      "name": "Scroll Of Gourmet",
+      "categoryHrid": "/item_categories/scroll",
+      "sortIndex": 41
+    },
+    {
+      "hrid": "/items/seal_of_processing",
+      "name": "Scroll Of Processing",
+      "categoryHrid": "/item_categories/scroll",
+      "sortIndex": 42
+    },
+    {
+      "hrid": "/items/seal_of_efficiency",
+      "name": "Scroll Of Efficiency",
+      "categoryHrid": "/item_categories/scroll",
+      "sortIndex": 43
+    },
+    {
+      "hrid": "/items/seal_of_action_speed",
+      "name": "Scroll Of Action Speed",
+      "categoryHrid": "/item_categories/scroll",
+      "sortIndex": 44
+    },
+    {
+      "hrid": "/items/seal_of_combat_drop",
+      "name": "Scroll Of Combat Drop",
+      "categoryHrid": "/item_categories/scroll",
+      "sortIndex": 45
+    },
+    {
+      "hrid": "/items/seal_of_attack_speed",
+      "name": "Scroll Of Attack Speed",
+      "categoryHrid": "/item_categories/scroll",
+      "sortIndex": 46
+    },
+    {
+      "hrid": "/items/seal_of_cast_speed",
+      "name": "Scroll Of Cast Speed",
+      "categoryHrid": "/item_categories/scroll",
+      "sortIndex": 47
+    },
+    {
+      "hrid": "/items/seal_of_damage",
+      "name": "Scroll Of Damage",
+      "categoryHrid": "/item_categories/scroll",
+      "sortIndex": 48
+    },
+    {
+      "hrid": "/items/seal_of_critical_rate",
+      "name": "Scroll Of Critical Rate",
+      "categoryHrid": "/item_categories/scroll",
+      "sortIndex": 49
+    },
+    {
+      "hrid": "/items/seal_of_wisdom",
+      "name": "Scroll Of Wisdom",
+      "categoryHrid": "/item_categories/scroll",
+      "sortIndex": 50
+    },
+    {
+      "hrid": "/items/seal_of_rare_find",
+      "name": "Scroll Of Rare Find",
+      "categoryHrid": "/item_categories/scroll",
+      "sortIndex": 51
+    }
+  ]
+}
