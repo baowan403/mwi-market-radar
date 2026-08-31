@@ -23,7 +23,12 @@ import {
   type SortState,
 } from './dashboard/state';
 import { renderCollectorStatus, renderBridgeUnavailable } from './dashboard/status';
-import { renderMarketTable } from './dashboard/table';
+import { renderMarketTable, ITEM_SELECTED_EVENT } from './dashboard/table';
+import {
+  createItemDetailController,
+  type ItemChartFactory,
+  type ItemDetailController,
+} from './dashboard/item-detail';
 import {
   rankRowsForMode,
   renderRankingModeButtons,
@@ -103,6 +108,7 @@ export interface DashboardMountOptions {
   root?: HTMLElement | null;
   client?: DashboardClient;
   catalogLoader?: () => CatalogInput | Promise<CatalogInput>;
+  chartFactory?: ItemChartFactory;
 }
 
 export interface DashboardMountHandle {
@@ -356,17 +362,25 @@ function renderDashboard(
   client: DashboardClient,
   state: DashboardState,
   isActive: () => boolean,
-): void {
+  chartFactory?: ItemChartFactory,
+): { detailController: ItemDetailController; destroy(): void } | null {
   const nav = root.querySelector<HTMLElement>('#category-nav');
   const toolbar = root.querySelector<HTMLElement>('#toolbar');
   const content = root.querySelector<HTMLElement>('#content');
   const status = root.querySelector<HTMLElement>('#collector-status');
-  if (!nav || !toolbar || !content || !status) return;
+  const detailDialog = root.querySelector<HTMLDialogElement>('#item-detail');
+  if (!nav || !toolbar || !content || !status || !detailDialog) return null;
 
   let derivedCache: ReturnType<typeof deriveRows> | null = null;
   let mutationQueue: Promise<void> | null = null;
   let mutationRunning = false;
-  const pendingMutations: Array<(watchlist: readonly WatchItem[]) => WatchItem[]> = [];
+  type WatchlistOperation = (watchlist: readonly WatchItem[]) => WatchItem[];
+  interface PendingMutation {
+    operation: WatchlistOperation;
+    resolve: () => void;
+    reject: (reason?: unknown) => void;
+  }
+  const pendingMutations: PendingMutation[] = [];
 
   const invalidateDerived = (): void => {
     derivedCache = null;
@@ -426,15 +440,16 @@ function renderDashboard(
       },
       onTogglePin: (key) => {
         if (!isActive()) return;
-        enqueueWatchlistMutation((watchlist) => togglePin(watchlist, key as `${string}::${number}`));
+        void enqueueWatchlistMutation((watchlist) => togglePin(watchlist, key as `${string}::${number}`))
+          .catch(() => undefined);
       },
       onMoveWatchItem: (key, direction) => {
         if (!isActive()) return;
-        enqueueWatchlistMutation((watchlist) => {
+        void enqueueWatchlistMutation((watchlist) => {
           const currentIndex = watchlist.findIndex((item) => item.key === key);
           const destination = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
           return moveWatchItem(watchlist, currentIndex, destination);
-        });
+        }).catch(() => undefined);
       },
     });
   };
@@ -464,9 +479,7 @@ function renderDashboard(
       && left.every((item, index) => item.key === right[index]?.key && item.order === right[index]?.order);
   };
 
-  const runMutation = async (
-    operation: (watchlist: readonly WatchItem[]) => WatchItem[],
-  ): Promise<void> => {
+  const runMutation = async (operation: WatchlistOperation): Promise<void> => {
     if (!isActive()) {
       pendingMutations.length = 0;
       return;
@@ -489,7 +502,7 @@ function renderDashboard(
         state.statusError = '自選儲存失敗';
         renderStatus();
       }
-      return;
+      throw new Error('watchlist persistence failed');
     }
 
     if (!isActive()) {
@@ -505,10 +518,16 @@ function renderDashboard(
 
   const drainMutations = async (): Promise<void> => {
     while (pendingMutations.length > 0) {
-      const operation = pendingMutations.shift();
-      if (operation === undefined) continue;
-      await runMutation(operation);
+      const pending = pendingMutations.shift();
+      if (pending === undefined) continue;
+      try {
+        await runMutation(pending.operation);
+        pending.resolve();
+      } catch (error) {
+        pending.reject(error);
+      }
       if (!isActive()) {
+        for (const remaining of pendingMutations) remaining.resolve();
         pendingMutations.length = 0;
         break;
       }
@@ -525,11 +544,31 @@ function renderDashboard(
     });
   };
 
-  function enqueueWatchlistMutation(operation: (watchlist: readonly WatchItem[]) => WatchItem[]): void {
-    if (!isActive()) return;
-    pendingMutations.push(operation);
+  function enqueueWatchlistMutation(operation: WatchlistOperation): Promise<void> {
+    if (!isActive()) return Promise.resolve();
+    const result = new Promise<void>((resolve, reject) => {
+      pendingMutations.push({ operation, resolve, reject });
+    });
     startMutationDrain();
+    return result;
   }
+
+  const detailController = createItemDetailController({
+    dialog: detailDialog,
+    snapshots: () => state.snapshots,
+    catalog: () => state.catalog,
+    getWatchlist: () => state.watchlist,
+    onTogglePin: (key) => enqueueWatchlistMutation((watchlist) => togglePin(watchlist, key)),
+    chartFactory,
+    initialPeriod: state.period,
+  });
+  const onItemSelected = (event: Event): void => {
+    if (!isActive() || !(event instanceof CustomEvent)) return;
+    const key = event.detail as { key?: unknown };
+    if (typeof key?.key !== 'string') return;
+    detailController.open(key.key);
+  };
+  root.addEventListener(ITEM_SELECTED_EVENT, onItemSelected);
 
   renderNavigationOnly();
   renderToolbar(
@@ -584,6 +623,14 @@ function renderDashboard(
   );
   renderStatus();
   renderResultsOnly();
+  return {
+    detailController,
+    destroy(): void {
+      root.removeEventListener(ITEM_SELECTED_EVENT, onItemSelected);
+      pendingMutations.length = 0;
+      detailController.destroy();
+    },
+  };
 }
 
 export function renderApp(root: HTMLElement | null = document.querySelector<HTMLElement>('#app')): void {
@@ -611,6 +658,7 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
   const target = typeof window === 'undefined' ? new EventTarget() : window;
   const client = options.client ?? createDashboardClient(target);
   const catalogLoader = options.catalogLoader ?? defaultCatalogLoader;
+  let runtime: { detailController: ItemDetailController; destroy(): void } | null = null;
 
   try {
     const [bootstrap, snapshots, catalogInput] = await Promise.all([
@@ -638,7 +686,7 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       officialCategories: new Set(),
       statusError: null,
     };
-    renderDashboard(root, client, state, isActive);
+    runtime = renderDashboard(root, client, state, isActive, options.chartFactory);
   } catch {
     if (isActive()) {
       renderBridgeUnavailable(status);
@@ -652,6 +700,7 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       if (mountGenerations.get(root) === mountGeneration) {
         mountGenerations.set(root, mountGeneration + 1);
       }
+      runtime?.destroy();
     },
   };
 }

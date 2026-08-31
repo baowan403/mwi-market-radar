@@ -293,6 +293,7 @@ describe('mountDashboard', () => {
     ]);
     expect(rowByKey(root, '/items/gloves::10').querySelector('[data-pin]')?.getAttribute('aria-pressed')).toBe('true');
     expect(rowByKey(root, '/items/gloves::7').querySelector('[data-pin]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(root.querySelector('#item-detail')?.hasAttribute('open')).toBe(false);
 
     (client.setWatchlist as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('private write detail'));
     const pinUnsafe = rowByKey(root, '/items/unsafe::0').querySelector<HTMLButtonElement>('[data-pin]') as HTMLButtonElement;
@@ -348,9 +349,10 @@ describe('mountDashboard', () => {
     expect(root.textContent).toContain('<img src=x onerror=alert(1)>');
   });
 
-  it('dispatches item selection without opening a placeholder detail dialog', async () => {
+  it('opens item detail on row selection without changing the selection event contract', async () => {
     const root = createRoot();
-    await mountDashboard({ root, client: createClient(), catalogLoader: vi.fn().mockResolvedValue(catalog) });
+    const chartFactory = vi.fn(() => ({ destroy: vi.fn() }));
+    await mountDashboard({ root, client: createClient(), catalogLoader: vi.fn().mockResolvedValue(catalog), chartFactory });
     const selected = vi.fn();
     root.addEventListener('mwi-radar:item-selected', selected);
 
@@ -358,7 +360,8 @@ describe('mountDashboard', () => {
 
     expect(selected).toHaveBeenCalledTimes(1);
     expect((selected.mock.calls[0]?.[0] as CustomEvent<{ key: string }>).detail.key).toBe('/items/alpha::0');
-    expect(root.querySelector('dialog')?.hasAttribute('open')).toBe(false);
+    expect(root.querySelector('[data-detail-key]')?.getAttribute('data-detail-key')).toBe('/items/alpha::0');
+    expect(root.querySelector('dialog')?.hasAttribute('open')).toBe(true);
   });
 
   it('does not turn the all enhancement option into an accidental +0 filter', async () => {
