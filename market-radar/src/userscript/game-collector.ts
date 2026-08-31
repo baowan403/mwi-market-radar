@@ -2,24 +2,39 @@ import type { CollectorStatus, Snapshot } from '../core/types';
 import {
   DEFAULT_COLLECTOR_STATUS,
   STORAGE_PREFIX,
+  createGMKeyValueStore,
+  MarketStore,
   type KeyValueStore,
-  type MarketStore,
 } from '../collector/market-store';
-import { RETRY_DELAY_MS, nextHourlyRun, type CheckResult } from '../collector/scheduler';
-import type { CollectorLockResult } from '../collector/lock';
+import {
+  RETRY_DELAY_MS,
+  createScheduler,
+  nextHourlyRun,
+  type CheckResult,
+  type Scheduler,
+  type SchedulerCheck,
+  type SchedulerOptions,
+  type SchedulerTimerApi,
+} from '../collector/scheduler';
+import {
+  withCollectorLock,
+  type CollectorLockOptions,
+  type CollectorLockResult,
+} from '../collector/lock';
+import { fetchOfficialSnapshot } from '../collector/official-client';
 
 const HOUR_MS = 3_600_000;
 const LAST_CHECKED_SLOT_KEY = `${STORAGE_PREFIX}last-checked-slot`;
 
 type CollectorErrorCode = 'network' | 'schema' | 'storage' | 'unknown';
-type LockRunner = <T>(task: () => Promise<T>) => Promise<CollectorLockResult<T>>;
-type FetchSnapshot = () => Snapshot | PromiseLike<Snapshot>;
+export type LockRunner = <T>(task: () => Promise<T>) => Promise<CollectorLockResult<T>>;
+export type FetchSnapshot = () => Snapshot | PromiseLike<Snapshot>;
 
-interface CollectorCheckContext {
+export interface CollectorCheckContext {
   isRetry: boolean;
 }
 
-interface CollectorCheckOptions {
+export interface CollectorCheckOptions {
   storage: KeyValueStore;
   marketStore: MarketStore;
   fetchSnapshot: FetchSnapshot;
@@ -27,6 +42,39 @@ interface CollectorCheckOptions {
   /** Backwards-compatible alias for callers that named the injected wrapper `withLock`. */
   withLock?: LockRunner;
   now?: () => number;
+}
+
+export type CollectorCheckFactory = (options: CollectorCheckOptions) => SchedulerCheck;
+
+export type CollectorLockFactory = <T>(
+  options: CollectorLockOptions,
+  task: () => T | PromiseLike<T>,
+) => Promise<CollectorLockResult<T>>;
+
+export interface GameCollectorDependencies {
+  /** Prebuilt dependencies are useful for deterministic checks and tests. */
+  storage?: KeyValueStore;
+  marketStore?: MarketStore;
+  fetchSnapshot?: FetchSnapshot;
+  lockRunner?: LockRunner;
+  withLock?: LockRunner;
+  scheduler?: Scheduler;
+  now?: () => number;
+  timers?: SchedulerTimerApi;
+
+  /** Production factories and their narrow injection points. */
+  createGMKeyValueStore?: () => KeyValueStore;
+  createStorage?: () => KeyValueStore;
+  createMarketStore?: (storage: KeyValueStore) => MarketStore;
+  fetchOfficialSnapshot?: FetchSnapshot;
+  withCollectorLock?: CollectorLockFactory;
+  lockOptions?: Omit<CollectorLockOptions, 'storage'>;
+  createCollectorCheck?: CollectorCheckFactory;
+  createScheduler?: (options: SchedulerOptions) => Scheduler;
+}
+
+export interface GameCollectorHandle {
+  stop(): void;
 }
 
 interface LockedCheckResult {
@@ -223,3 +271,58 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
 
 export const slotId = slotIdForTimestamp;
 export const createCollectorCheck = createCollectorCheckInternal;
+
+/**
+ * Assemble and start the MWI-side collector with production defaults.
+ *
+ * Every boundary is injectable so startup can be exercised without GM APIs,
+ * network access, or real timers. A caller may provide either complete
+ * dependencies or factories; omitted pieces use the browser implementations.
+ */
+export function startGameCollector(
+  dependencies: GameCollectorDependencies = {},
+): GameCollectorHandle {
+  const storageFactory = dependencies.createGMKeyValueStore
+    ?? dependencies.createStorage
+    ?? createGMKeyValueStore;
+  const storage = dependencies.storage ?? storageFactory();
+
+  const marketStore = dependencies.marketStore
+    ?? (dependencies.createMarketStore ?? ((adapter: KeyValueStore) => new MarketStore(adapter)))(storage);
+  const fetchSnapshot = dependencies.fetchSnapshot
+    ?? dependencies.fetchOfficialSnapshot
+    ?? (() => fetchOfficialSnapshot());
+
+  const lockRunner: LockRunner = dependencies.lockRunner ?? dependencies.withLock ?? (<T>(task: () => Promise<T>) => {
+    const lockFactory = dependencies.withCollectorLock ?? withCollectorLock;
+    const lockOptions: CollectorLockOptions = {
+      ...dependencies.lockOptions,
+      storage,
+    };
+    if (dependencies.now !== undefined && dependencies.lockOptions?.now === undefined) {
+      lockOptions.now = dependencies.now;
+    }
+    return lockFactory(lockOptions, task);
+  });
+
+  const checkFactory = dependencies.createCollectorCheck ?? createCollectorCheck;
+  const checkOptions: CollectorCheckOptions = {
+    storage,
+    marketStore,
+    fetchSnapshot,
+    lockRunner,
+  };
+  if (dependencies.now !== undefined) checkOptions.now = dependencies.now;
+  const check = checkFactory(checkOptions);
+
+  const schedulerOptions: SchedulerOptions = { check };
+  if (dependencies.now !== undefined) schedulerOptions.now = dependencies.now;
+  if (dependencies.timers !== undefined) schedulerOptions.timers = dependencies.timers;
+  const scheduler = dependencies.scheduler
+    ?? (dependencies.createScheduler ?? createScheduler)(schedulerOptions);
+
+  scheduler.start();
+  return {
+    stop: () => scheduler.stop(),
+  };
+}

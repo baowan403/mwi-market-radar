@@ -1,4 +1,5 @@
 import { DEFAULT_DASHBOARD_ORIGINS } from './origins';
+import { startGameCollector as defaultStartGameCollector, type GameCollectorHandle } from './game-collector';
 
 declare const __MWI_RADAR_DASHBOARD_ORIGINS__: readonly string[];
 
@@ -9,6 +10,12 @@ const dashboardOrigins: readonly string[] =
     : __MWI_RADAR_DASHBOARD_ORIGINS__;
 
 export type OriginRoute = 'mwi' | 'dashboard' | 'none';
+
+export interface OriginStartupOptions {
+  allowedDashboardOrigins?: readonly string[];
+  /** Injected for tests; production uses the real MWI collector. */
+  startGameCollector?: () => GameCollectorHandle | void;
+}
 
 function isPathWithinDashboardBase(pathname: string, basePathname: string): boolean {
   const basePath = basePathname.replace(/\/+$/, '');
@@ -47,21 +54,21 @@ export function resolveOriginRoute(locationReference: string | URL, allowedDashb
   return 'none';
 }
 
-function startMwiRoute(): void {
-  // Reserved for the read-only MWI collector integration.
-}
-
 function startDashboardRoute(): void {
   // Reserved for the dashboard-side bridge.
 }
 
 export function startForCurrentOrigin(
   locationReference: string | URL = typeof window === 'undefined' ? '' : window.location.href,
+  options: OriginStartupOptions = {},
 ): OriginRoute {
-  const route = resolveOriginRoute(locationReference, dashboardOrigins);
+  const route = resolveOriginRoute(
+    locationReference,
+    options.allowedDashboardOrigins ?? dashboardOrigins,
+  );
 
   if (route === 'mwi') {
-    startMwiRoute();
+    (options.startGameCollector ?? defaultStartGameCollector)();
   } else if (route === 'dashboard') {
     startDashboardRoute();
   }
@@ -69,6 +76,10 @@ export function startForCurrentOrigin(
   return route;
 }
 
-if (typeof window !== 'undefined') {
+const autoStartDisabled = (globalThis as typeof globalThis & {
+  __MWI_RADAR_DISABLE_AUTO_START__?: boolean;
+}).__MWI_RADAR_DISABLE_AUTO_START__ === true;
+
+if (typeof window !== 'undefined' && !autoStartDisabled) {
   startForCurrentOrigin();
 }

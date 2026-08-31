@@ -2,8 +2,16 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CollectorStatus, Snapshot } from '../src/core/types';
 import type { KeyValueStore, MarketStore, SnapshotSaveResult } from '../src/collector/market-store';
 import { STORAGE_PREFIX } from '../src/collector/market-store';
-import { createCollectorCheck, slotId } from '../src/userscript/game-collector';
+import {
+  createCollectorCheck,
+  startGameCollector,
+  slotId,
+  type CollectorCheckOptions,
+  type GameCollectorDependencies,
+  type LockRunner,
+} from '../src/userscript/game-collector';
 import type { CollectorLockResult } from '../src/collector/lock';
+import type { Scheduler, SchedulerCheck } from '../src/collector/scheduler';
 
 const HOUR = 3_600_000;
 const TEN_MINUTES = 10 * 60_000;
@@ -249,5 +257,55 @@ describe('createCollectorCheck', () => {
     expect(harness.fetchSnapshot).not.toHaveBeenCalled();
     expect(harness.saveSnapshot).not.toHaveBeenCalled();
     expect(harness.statusWrites.at(-1)?.nextRunAt).toBeGreaterThan(NOW);
+  });
+});
+
+describe('startGameCollector', () => {
+  it('wires injected dependencies, starts the scheduler immediately, and delegates stop', async () => {
+    const storage = {} as KeyValueStore;
+    const marketStore = {} as MarketStore;
+    const fetchOfficialSnapshot = vi.fn(async () => snapshot());
+    const lockRunner: LockRunner = async <T>(task: () => Promise<T>): Promise<CollectorLockResult<T>> => ({
+      acquired: true,
+      value: await task(),
+    });
+    const check = vi.fn<SchedulerCheck>(async () => 'updated' as const);
+    let schedulerCheck: SchedulerCheck | undefined;
+    const scheduler: Scheduler = {
+      start: vi.fn(() => {
+        void schedulerCheck?.({ isRetry: false });
+      }),
+      stop: vi.fn(),
+    };
+    const createCollectorCheck = vi.fn((options: CollectorCheckOptions) => {
+      expect(options.storage).toBe(storage);
+      expect(options.marketStore).toBe(marketStore);
+      expect(options.fetchSnapshot).toBe(fetchOfficialSnapshot);
+      expect(options.lockRunner).toBe(lockRunner);
+      return check;
+    });
+    const createScheduler = vi.fn((options: { check: SchedulerCheck }): Scheduler => {
+      schedulerCheck = options.check;
+      return scheduler;
+    });
+    const dependencies: GameCollectorDependencies = {
+      createGMKeyValueStore: () => storage,
+      createMarketStore: () => marketStore,
+      fetchOfficialSnapshot,
+      lockRunner,
+      createCollectorCheck,
+      createScheduler,
+    };
+
+    const controller = startGameCollector(dependencies);
+    await Promise.resolve();
+
+    expect(createCollectorCheck).toHaveBeenCalledTimes(1);
+    expect(createScheduler).toHaveBeenCalledTimes(1);
+    expect(scheduler.start).toHaveBeenCalledTimes(1);
+    expect(check).toHaveBeenCalledWith({ isRetry: false });
+
+    controller.stop();
+    expect(scheduler.stop).toHaveBeenCalledTimes(1);
   });
 });
