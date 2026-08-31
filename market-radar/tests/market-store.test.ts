@@ -11,7 +11,7 @@ import {
   hourlyDayKey,
   type KeyValueStore,
 } from '../src/collector/market-store';
-import { encodeDayChunk, STORAGE_CODEC_GZIP_PREFIX } from '../src/core/storage-codec';
+import { decodeDayChunk, encodeDayChunk, STORAGE_CODEC_GZIP_PREFIX } from '../src/core/storage-codec';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -22,9 +22,16 @@ class MemoryKeyValueStore implements KeyValueStore {
   failSetFor: string | null = null;
   failSetOnAttempt: number | null = null;
   failDeleteFor: string | null = null;
+  failGetFor: string | null = null;
+  failKeysOnCall: number | null = null;
+  afterSet: ((storageKey: string, value: unknown) => void) | null = null;
   private setAttempts = 0;
+  private keysCalls = 0;
 
   async get<T>(storageKey: string, fallback: T): Promise<T> {
+    if (storageKey === this.failGetFor) {
+      throw new Error('get failed');
+    }
     return (this.values.has(storageKey) ? this.values.get(storageKey) : fallback) as T;
   }
 
@@ -34,6 +41,7 @@ class MemoryKeyValueStore implements KeyValueStore {
       throw new Error('quota exceeded');
     }
     this.values.set(storageKey, value);
+    this.afterSet?.(storageKey, value);
   }
 
   async delete(storageKey: string): Promise<void> {
@@ -44,6 +52,10 @@ class MemoryKeyValueStore implements KeyValueStore {
   }
 
   async keys(): Promise<string[]> {
+    this.keysCalls += 1;
+    if (this.failKeysOnCall === this.keysCalls) {
+      throw new Error('keys failed');
+    }
     return [...this.values.keys()];
   }
 }
@@ -188,6 +200,74 @@ describe('MarketStore snapshot history', () => {
     expect(result.inserted).toBe(true);
     expect(result.cleanupErrors).toContain(`set:${hourlyDayKey(latest.timestamp)}`);
     await expect(store.listSnapshots()).resolves.toEqual([latest]);
+  });
+
+  it('reports a cleanup keys failure without escaping or losing the current chunk', async () => {
+    const adapter = new MemoryKeyValueStore();
+    const store = createStore(adapter);
+    const old = snapshot(Date.parse('2026-08-20T12:08:00Z'), 50);
+    const latest = snapshot(Date.parse('2026-08-31T12:08:00Z'), 200);
+    const currentKey = hourlyDayKey(latest.timestamp);
+
+    await store.saveSnapshot(old);
+    adapter.failKeysOnCall = 4;
+
+    const result = await store.saveSnapshot(latest);
+
+    expect(result.inserted).toBe(true);
+    expect(result.cleanupErrors).toContain('keys');
+    adapter.failKeysOnCall = null;
+    const encodedCurrent = await adapter.get<string | null>(currentKey, null);
+    await expect(decodeDayChunk(encodedCurrent as string)).resolves.toEqual([latest]);
+    await expect(createStore(adapter).listSnapshots()).resolves.toEqual([old, latest]);
+  });
+
+  it('reports a cleanup get failure and continues with the remaining keys', async () => {
+    const adapter = new MemoryKeyValueStore();
+    const store = createStore(adapter);
+    const old = snapshot(Date.parse('2026-08-20T12:08:00Z'), 50);
+    const latest = snapshot(Date.parse('2026-08-31T12:08:00Z'), 200);
+    const oldKey = hourlyDayKey(old.timestamp);
+    const currentKey = hourlyDayKey(latest.timestamp);
+
+    await store.saveSnapshot(old);
+    adapter.afterSet = (storageKey) => {
+      if (storageKey === currentKey) adapter.failGetFor = oldKey;
+    };
+
+    const result = await store.saveSnapshot(latest);
+
+    expect(result.inserted).toBe(true);
+    expect(result.cleanupErrors).toContain(`get:${oldKey}`);
+    adapter.afterSet = null;
+    adapter.failGetFor = null;
+    const encodedCurrent = await adapter.get<string | null>(currentKey, null);
+    await expect(decodeDayChunk(encodedCurrent as string)).resolves.toEqual([latest]);
+  });
+
+  it('reports a cleanup decode failure while preserving the current chunk and listSnapshots behavior', async () => {
+    const adapter = new MemoryKeyValueStore();
+    const store = createStore(adapter);
+    const old = snapshot(Date.parse('2026-08-20T12:08:00Z'), 50);
+    const latest = snapshot(Date.parse('2026-08-31T12:08:00Z'), 200);
+    const oldKey = hourlyDayKey(old.timestamp);
+    const currentKey = hourlyDayKey(latest.timestamp);
+
+    await store.saveSnapshot(old);
+    adapter.afterSet = (storageKey) => {
+      if (storageKey === currentKey) {
+        adapter.values.set(oldKey, `${STORAGE_CODEC_GZIP_PREFIX}not-valid!`);
+      }
+    };
+
+    const result = await store.saveSnapshot(latest);
+
+    expect(result.inserted).toBe(true);
+    expect(result.cleanupErrors).toContain(`decode:${oldKey}`);
+    adapter.afterSet = null;
+    const encodedCurrent = await adapter.get<string | null>(currentKey, null);
+    await expect(decodeDayChunk(encodedCurrent as string)).resolves.toEqual([latest]);
+    await expect(createStore(adapter).listSnapshots()).rejects.toThrow(/base64/i);
   });
 
   it('deduplicates timestamps globally while listing every hourly chunk', async () => {

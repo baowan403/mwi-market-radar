@@ -248,16 +248,34 @@ export class MarketStore {
   }
 
   private async cleanup(cutoff: number, currentKey: string): Promise<string[]> {
-    const keys = new Set((await this.storage.keys()).filter(isHourlyKey));
+    let keys: Set<string>;
+    try {
+      keys = new Set((await this.storage.keys()).filter(isHourlyKey));
+    } catch {
+      return ['keys'];
+    }
+
     keys.add(currentKey);
     const cleanupErrors: string[] = [];
 
     for (const key of [...keys].sort()) {
-      const encoded = await this.storage.get<string | null>(key, null);
+      let encoded: string | null;
+      try {
+        encoded = await this.storage.get<string | null>(key, null);
+      } catch {
+        cleanupErrors.push(`get:${key}`);
+        continue;
+      }
       if (encoded === null || encoded === undefined) continue;
 
-      const chunk = await decodeDayChunk(encoded);
-      const retained = sortUniqueSnapshots(chunk.filter((entry) => entry.timestamp >= cutoff));
+      let retained: Snapshot[];
+      try {
+        const chunk = await decodeDayChunk(encoded);
+        retained = sortUniqueSnapshots(chunk.filter((entry) => entry.timestamp >= cutoff));
+      } catch {
+        cleanupErrors.push(`decode:${key}`);
+        continue;
+      }
 
       if (retained.length === 0) {
         try {
@@ -268,8 +286,16 @@ export class MarketStore {
         continue;
       }
 
+      let encodedRetained: string;
       try {
-        await this.storage.set(key, await encodeDayChunk(retained));
+        encodedRetained = await encodeDayChunk(retained);
+      } catch {
+        cleanupErrors.push(`encode:${key}`);
+        continue;
+      }
+
+      try {
+        await this.storage.set(key, encodedRetained);
       } catch {
         cleanupErrors.push(`set:${key}`);
       }
