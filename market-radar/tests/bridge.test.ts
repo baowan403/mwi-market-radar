@@ -5,6 +5,7 @@ import type {
   CollectorStatus,
   RadarSettings,
   Snapshot,
+  SnapshotPage,
   WatchItem,
 } from '../src/core/types';
 import {
@@ -62,15 +63,16 @@ async function dispatchRequest(
 ): Promise<BridgeResponse> {
   const response = new Promise<BridgeResponse>((resolve) => {
     const onResponse = (event: Event): void => {
-      if (!(event instanceof CustomEvent)) return;
-      const value = event.detail as { id?: unknown };
+      if (event.type !== BRIDGE_RESPONSE_EVENT) return;
+      if (typeof (event as CustomEvent<unknown>).detail !== 'string') return;
+      const value = JSON.parse((event as CustomEvent<string>).detail) as { id?: unknown };
       if (value?.id !== detail.id) return;
       target.removeEventListener(BRIDGE_RESPONSE_EVENT, onResponse);
-      resolve(event.detail as BridgeResponse);
+      resolve(value as BridgeResponse);
     };
     target.addEventListener(BRIDGE_RESPONSE_EVENT, onResponse);
   });
-  target.dispatchEvent(new CustomEvent(BRIDGE_REQUEST_EVENT, { detail }));
+  target.dispatchEvent(new CustomEvent(BRIDGE_REQUEST_EVENT, { detail: JSON.stringify(detail) }));
   return response;
 }
 
@@ -114,7 +116,7 @@ describe('installDashboardBridge', () => {
     cleanup();
   });
 
-  it('returns complete snapshots for the snapshots operation', async () => {
+  it('returns one newest-first snapshot page for the snapshots operation', async () => {
     const target = new EventTarget();
     const store = createStore();
     const cleanup = installDashboardBridge({
@@ -124,11 +126,63 @@ describe('installDashboardBridge', () => {
       store,
     });
 
-    await expect(dispatchRequest(target, { id: 'snapshots-1', type: 'snapshots' })).resolves.toEqual({
+    await expect(dispatchRequest(target, {
+      id: 'snapshots-1',
+      type: 'snapshots',
+      beforeTimestamp: null,
+      limit: 2,
+    })).resolves.toEqual({
       id: 'snapshots-1',
       ok: true,
-      value: snapshots,
+      value: {
+        items: [snapshots[1], snapshots[0]],
+        nextBeforeTimestamp: null,
+        hasMore: false,
+      },
     });
+    cleanup();
+  });
+
+  it('pages from the bootstrap cache without returning snapshots in bootstrap', async () => {
+    const target = new EventTarget();
+    const store = createStore();
+    const cleanup = installDashboardBridge({
+      target,
+      currentUrl: 'https://example.test/radar',
+      allowedBaseUrls: ['https://example.test/radar'],
+      store,
+    });
+
+    const summary = await dispatchRequest(target, { id: 'cache-bootstrap', type: 'bootstrap' });
+    expect((summary as { value: unknown }).value).toEqual({
+      watchlist,
+      settings,
+      collectorStatus,
+      latestTimestamp: 2_000,
+      snapshotCount: 2,
+    });
+
+    await expect(dispatchRequest(target, {
+      id: 'cache-page-1',
+      type: 'snapshots',
+      beforeTimestamp: null,
+      limit: 1,
+    })).resolves.toEqual({
+      id: 'cache-page-1',
+      ok: true,
+      value: { items: [snapshots[1]], nextBeforeTimestamp: 2_000, hasMore: true },
+    });
+    await expect(dispatchRequest(target, {
+      id: 'cache-page-2',
+      type: 'snapshots',
+      beforeTimestamp: 2_000,
+      limit: 1,
+    })).resolves.toEqual({
+      id: 'cache-page-2',
+      ok: true,
+      value: { items: [snapshots[0]], nextBeforeTimestamp: null, hasMore: false },
+    });
+    expect(store.listSnapshots).toHaveBeenCalledTimes(1);
     cleanup();
   });
 
@@ -181,7 +235,7 @@ describe('installDashboardBridge', () => {
     });
 
     target.dispatchEvent(new CustomEvent(BRIDGE_REQUEST_EVENT, {
-      detail: { id: 'denied-1', type: 'bootstrap' },
+      detail: JSON.stringify({ id: 'denied-1', type: 'bootstrap' }),
     }));
     await flushAsyncWork();
 
@@ -226,7 +280,72 @@ describe('installDashboardBridge', () => {
       ok: false,
       error: { code: 'invalid_request', message: 'Invalid bridge request' },
     });
+    await expect(dispatchRequest(target, {
+      id: 'invalid-3',
+      type: 'snapshots',
+      beforeTimestamp: null,
+      limit: 25,
+    })).resolves.toEqual({
+      id: 'invalid-3',
+      ok: false,
+      error: { code: 'invalid_request', message: 'Invalid bridge request' },
+    });
+    await expect(dispatchRequest(target, {
+      id: 'invalid-4',
+      type: 'set-watchlist',
+      value: { key: '/items/test::0' },
+    })).resolves.toEqual({
+      id: 'invalid-4',
+      ok: false,
+      error: { code: 'invalid_request', message: 'Invalid bridge request' },
+    });
+    await expect(dispatchRequest(target, {
+      id: 'invalid-5',
+      type: 'set-settings',
+      value: [],
+    })).resolves.toEqual({
+      id: 'invalid-5',
+      ok: false,
+      error: { code: 'invalid_request', message: 'Invalid bridge request' },
+    });
+    const responses = vi.fn();
+    target.addEventListener(BRIDGE_RESPONSE_EVENT, responses);
+    target.dispatchEvent(new CustomEvent(BRIDGE_REQUEST_EVENT, { detail: '{not-json' }));
+    await flushAsyncWork();
+    expect(responses).not.toHaveBeenCalled();
     cleanup();
+  });
+
+  it('accepts a foreign-realm CustomEvent carrying a serialized null-prototype payload', async () => {
+    const frame = document.createElement('iframe');
+    document.body.appendChild(frame);
+    const ForeignCustomEvent = (frame.contentWindow as (Window & typeof globalThis) | null)?.CustomEvent;
+    expect(ForeignCustomEvent).toBeDefined();
+    const target = new EventTarget();
+    const store = createStore();
+    const cleanup = installDashboardBridge({
+      target,
+      currentUrl: 'https://example.test/radar',
+      allowedBaseUrls: ['https://example.test/radar'],
+      store,
+    });
+    const response = new Promise<BridgeResponse>((resolve) => {
+      target.addEventListener(BRIDGE_RESPONSE_EVENT, (event) => {
+        expect(event.type).toBe(BRIDGE_RESPONSE_EVENT);
+        expect(typeof (event as CustomEvent<unknown>).detail).toBe('string');
+        resolve(JSON.parse((event as CustomEvent<string>).detail) as BridgeResponse);
+      });
+    });
+    const payload = Object.create(null) as Record<string, unknown>;
+    payload.id = 'foreign-1';
+    payload.type = 'bootstrap';
+    target.dispatchEvent(new ForeignCustomEvent!(BRIDGE_REQUEST_EVENT, {
+      detail: JSON.stringify(payload),
+    }));
+
+    await expect(response).resolves.toMatchObject({ id: 'foreign-1', ok: true });
+    cleanup();
+    frame.remove();
   });
 
   it('sanitizes storage failures without returning the original error or value', async () => {
@@ -242,7 +361,12 @@ describe('installDashboardBridge', () => {
       store,
     });
 
-    const response = await dispatchRequest(target, { id: 'storage-1', type: 'snapshots' });
+    const response = await dispatchRequest(target, {
+      id: 'storage-1',
+      type: 'snapshots',
+      beforeTimestamp: null,
+      limit: 12,
+    });
 
     expect(response).toEqual({
       id: 'storage-1',
@@ -266,7 +390,7 @@ describe('installDashboardBridge', () => {
 
     cleanup();
     target.dispatchEvent(new CustomEvent(BRIDGE_REQUEST_EVENT, {
-      detail: { id: 'after-cleanup', type: 'snapshots' },
+      detail: JSON.stringify({ id: 'after-cleanup', type: 'snapshots', beforeTimestamp: null, limit: 12 }),
     }));
     await flushAsyncWork();
 
@@ -292,7 +416,7 @@ describe('installDashboardBridge', () => {
     });
 
     target.dispatchEvent(new CustomEvent(BRIDGE_REQUEST_EVENT, {
-      detail: { id: 'inflight-1', type: 'snapshots' },
+      detail: JSON.stringify({ id: 'inflight-1', type: 'snapshots', beforeTimestamp: null, limit: 12 }),
     }));
     await flushAsyncWork();
     cleanup();

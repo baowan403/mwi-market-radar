@@ -2,6 +2,7 @@ import type {
   BridgeBootstrap,
   BridgeRequest,
   BridgeResponse,
+  BridgeSnapshotPage,
   RadarSettings,
   Snapshot,
   WatchItem,
@@ -10,14 +11,19 @@ import type {
 export const BRIDGE_REQUEST_EVENT = 'mwi-radar:request';
 export const BRIDGE_RESPONSE_EVENT = 'mwi-radar:response';
 
-// Short aliases keep the event names convenient for callers without changing
-// the wire protocol.
+// Keep the wire names available under concise aliases for callers that prefer
+// to import event constants without the bridge prefix.
 export const REQUEST_EVENT = BRIDGE_REQUEST_EVENT;
 export const RESPONSE_EVENT = BRIDGE_RESPONSE_EVENT;
+
+export const DEFAULT_SNAPSHOT_PAGE_SIZE = 12;
+export const MAX_SNAPSHOT_PAGES = 256;
 
 export interface DashboardClientOptions {
   timeoutMs?: number;
   idFactory?: () => string;
+  snapshotPageSize?: number;
+  maxSnapshotPages?: number;
 }
 
 export interface DashboardClient {
@@ -40,7 +46,7 @@ export class BridgeError extends Error {
 
 type BridgeRequestPayload =
   | { type: 'bootstrap' }
-  | { type: 'snapshots' }
+  | { type: 'snapshots'; beforeTimestamp: number | null; limit: number }
   | { type: 'set-watchlist'; value: WatchItem[] }
   | { type: 'set-settings'; value: RadarSettings };
 
@@ -60,7 +66,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function hasOwn(value: Record<string, unknown>, key: string): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key);
+  return Object.hasOwn(value, key);
 }
 
 function isBridgeResponse(value: unknown): value is BridgeResponse {
@@ -73,9 +79,52 @@ function isBridgeResponse(value: unknown): value is BridgeResponse {
   return typeof value.error.code === 'string' && typeof value.error.message === 'string';
 }
 
+function parseWireResponse(detail: unknown): BridgeResponse | null {
+  if (typeof detail !== 'string') return null;
+
+  try {
+    const parsed: unknown = JSON.parse(detail);
+    return isBridgeResponse(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function isSnapshot(value: unknown): value is Snapshot {
+  return isRecord(value)
+    && typeof value.timestamp === 'number'
+    && Number.isFinite(value.timestamp)
+    && isRecord(value.quotes);
+}
+
+function isSnapshotPage(value: unknown): value is BridgeSnapshotPage {
+  return isRecord(value)
+    && Array.isArray(value.items)
+    && value.items.every(isSnapshot)
+    && (value.nextBeforeTimestamp === null
+      || (typeof value.nextBeforeTimestamp === 'number' && Number.isFinite(value.nextBeforeTimestamp)))
+    && typeof value.hasMore === 'boolean';
+}
+
 function normalizedTimeout(timeoutMs: number | undefined): number {
   if (timeoutMs === undefined) return 2_000;
   return Number.isFinite(timeoutMs) && timeoutMs >= 0 ? timeoutMs : 2_000;
+}
+
+function normalizedPageSize(pageSize: number | undefined): number {
+  if (pageSize === undefined) return DEFAULT_SNAPSHOT_PAGE_SIZE;
+  return Number.isSafeInteger(pageSize) && pageSize >= 1 && pageSize <= 24
+    ? pageSize
+    : DEFAULT_SNAPSHOT_PAGE_SIZE;
+}
+
+function normalizedMaxPages(maxPages: number | undefined): number {
+  if (maxPages === undefined) return MAX_SNAPSHOT_PAGES;
+  return Number.isSafeInteger(maxPages) && maxPages >= 1 ? maxPages : MAX_SNAPSHOT_PAGES;
+}
+
+function invalidRequestError(): BridgeError {
+  return new BridgeError('invalid_request', 'Invalid bridge request');
 }
 
 export function createDashboardClient(
@@ -83,8 +132,10 @@ export function createDashboardClient(
   options: DashboardClientOptions = {},
 ): DashboardClient {
   const timeoutMs = normalizedTimeout(options.timeoutMs);
+  const pageSize = normalizedPageSize(options.snapshotPageSize);
+  const maxPages = normalizedMaxPages(options.maxSnapshotPages);
   const idFactory = options.idFactory ?? defaultIdFactory;
-  const usedIds = new Set<string>();
+  const activeIds = new Set<string>();
   let fallbackSequence = 0;
 
   function nextId(): string {
@@ -95,21 +146,31 @@ export function createDashboardClient(
 
     const original = candidate;
     let suffix = 1;
-    while (usedIds.has(candidate)) {
+    while (activeIds.has(candidate)) {
       candidate = `${original}-${suffix}`;
       suffix += 1;
     }
-    if (usedIds.has(candidate)) {
+    if (candidate === original && activeIds.has(candidate)) {
       candidate = `${original}-${Date.now()}-${fallbackSequence}`;
       fallbackSequence += 1;
     }
-    usedIds.add(candidate);
+    activeIds.add(candidate);
     return candidate;
   }
 
-  function request<T>(payload: BridgeRequestPayload): Promise<T> {
+  function request<T>(
+    payload: BridgeRequestPayload,
+    valueGuard?: (value: unknown) => value is T,
+  ): Promise<T> {
     const requestId = nextId();
     const detail = { id: requestId, ...payload } as BridgeRequest;
+    let wireDetail: string;
+    try {
+      wireDetail = JSON.stringify(detail);
+    } catch {
+      activeIds.delete(requestId);
+      return Promise.reject(invalidRequestError());
+    }
 
     return new Promise<T>((resolve, reject) => {
       let timer: ReturnType<typeof globalThis.setTimeout> | undefined;
@@ -118,14 +179,16 @@ export function createDashboardClient(
       const cleanup = (): void => {
         if (settled) return;
         settled = true;
+        activeIds.delete(requestId);
         target.removeEventListener(BRIDGE_RESPONSE_EVENT, onResponse);
         if (timer !== undefined) globalThis.clearTimeout(timer);
       };
 
       const onResponse = (event: Event): void => {
-        if (!(event instanceof CustomEvent)) return;
-        const response = event.detail;
-        if (!isBridgeResponse(response) || response.id !== requestId) return;
+        if (event.type !== BRIDGE_RESPONSE_EVENT) return;
+        const response = parseWireResponse((event as CustomEvent<unknown>).detail);
+        if (response === null || response.id !== requestId) return;
+        if (response.ok && valueGuard !== undefined && !valueGuard(response.value)) return;
 
         cleanup();
         if (response.ok) {
@@ -142,7 +205,7 @@ export function createDashboardClient(
       }, timeoutMs);
 
       try {
-        target.dispatchEvent(new CustomEvent(BRIDGE_REQUEST_EVENT, { detail }));
+        target.dispatchEvent(new CustomEvent(BRIDGE_REQUEST_EVENT, { detail: wireDetail }));
       } catch {
         cleanup();
         reject(new BridgeError('dispatch', 'Bridge request could not be dispatched'));
@@ -150,14 +213,55 @@ export function createDashboardClient(
     });
   }
 
+  async function listSnapshots(): Promise<Snapshot[]> {
+    const byTimestamp = new Map<number, Snapshot>();
+    let beforeTimestamp: number | null = null;
+
+    for (let pageNumber = 0; pageNumber < maxPages; pageNumber += 1) {
+      const page: BridgeSnapshotPage = await request<BridgeSnapshotPage>(
+        { type: 'snapshots', beforeTimestamp, limit: pageSize },
+        isSnapshotPage,
+      );
+
+      for (const snapshot of page.items) {
+        if (!byTimestamp.has(snapshot.timestamp)) byTimestamp.set(snapshot.timestamp, snapshot);
+      }
+
+      if (!page.hasMore) {
+        if (page.nextBeforeTimestamp !== null) {
+          throw new BridgeError('pagination', 'Snapshot page returned an invalid cursor');
+        }
+        return [...byTimestamp.values()].sort((left, right) => left.timestamp - right.timestamp);
+      }
+
+      const next: number | null = page.nextBeforeTimestamp;
+      if (
+        next === null
+        || !Number.isFinite(next)
+        || (beforeTimestamp !== null && next >= beforeTimestamp)
+      ) {
+        throw new BridgeError('pagination', 'Snapshot pagination cursor did not decrease');
+      }
+      beforeTimestamp = next;
+    }
+
+    throw new BridgeError('pagination', 'Snapshot pagination exceeded safety limit');
+  }
+
+  async function setWatchlist(value: WatchItem[]): Promise<void> {
+    if (!Array.isArray(value)) throw invalidRequestError();
+    await request<unknown>({ type: 'set-watchlist', value });
+  }
+
+  async function setSettings(value: RadarSettings): Promise<void> {
+    if (!isRecord(value)) throw invalidRequestError();
+    await request<unknown>({ type: 'set-settings', value });
+  }
+
   return {
     bootstrap: () => request<BridgeBootstrap>({ type: 'bootstrap' }),
-    listSnapshots: () => request<Snapshot[]>({ type: 'snapshots' }),
-    setWatchlist: async (value) => {
-      await request<unknown>({ type: 'set-watchlist', value });
-    },
-    setSettings: async (value) => {
-      await request<unknown>({ type: 'set-settings', value });
-    },
+    listSnapshots,
+    setWatchlist,
+    setSettings,
   };
 }

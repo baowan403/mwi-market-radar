@@ -48,9 +48,17 @@ export interface BridgeBootstrap {
 
 export type BridgeRequest =
   | { id: string; type: 'bootstrap' }
-  | { id: string; type: 'snapshots' }
+  | { id: string; type: 'snapshots'; beforeTimestamp: number | null; limit: number }
   | { id: string; type: 'set-watchlist'; value: WatchItem[] }
   | { id: string; type: 'set-settings'; value: RadarSettings };
+
+export interface BridgeSnapshotPage {
+  items: Snapshot[];
+  nextBeforeTimestamp: number | null;
+  hasMore: boolean;
+}
+
+export type SnapshotPage = BridgeSnapshotPage;
 
 export interface BridgeSuccessResponse<T = unknown> {
   id: string;
