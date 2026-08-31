@@ -247,6 +247,13 @@ h2 {
   font-size: 0.78rem;
 }
 
+.status-health {
+  flex-basis: 100%;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
 .status-dot-error {
   background: var(--color-up);
   box-shadow: 0 0 0 4px rgb(255 90 98 / 12%);

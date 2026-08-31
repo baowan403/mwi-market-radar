@@ -1,4 +1,4 @@
-import type { CollectorStatus } from '../core/types';
+import type { CollectorStatus, Snapshot } from '../core/types';
 
 const STATE_LABELS: Record<CollectorStatus['state'], string> = {
   idle: '待機',
@@ -9,6 +9,29 @@ const STATE_LABELS: Record<CollectorStatus['state'], string> = {
 };
 
 export const NO_BRIDGE_MESSAGE = '尚未偵測到 MWI Market Radar 腳本';
+export const NO_SNAPSHOTS_MESSAGE = '尚無市場快照，請保持 MWI 分頁開啟';
+export const STALE_COLLECTION_MESSAGE = '等待遊戲分頁／資料已停止更新';
+
+const GAP_THRESHOLD_HOURS = 1.75;
+const STALE_AFTER_HOURS = 2.5;
+const SAFE_TRANSIENT_ERRORS = new Set(['自選儲存失敗']);
+const UNKNOWN_ERROR_MESSAGE = '採集發生未知錯誤，保留舊資料';
+
+export interface SnapshotGap {
+  from: number;
+  to: number;
+  hours: number;
+}
+
+export interface CollectionHealthModel {
+  state: CollectorStatus['state'];
+  headline: string;
+  detail: string;
+  gaps: SnapshotGap[];
+  gapCount: number;
+  latestTimestamp: number | null;
+  stale: boolean;
+}
 
 export function formatTaipeiTime(timestamp: number | null): string {
   if (timestamp === null || !Number.isFinite(timestamp)) return '—';
@@ -24,6 +47,96 @@ export function formatTaipeiTime(timestamp: number | null): string {
     hour12: false,
   }).format(new Date(timestamp));
 }
+
+/** Return observed snapshot gaps without filling or interpolating missing data. */
+export function detectSnapshotGaps(snapshots: readonly Snapshot[]): SnapshotGap[] {
+  const timestamps = [...new Set(
+    snapshots
+      .map((snapshot) => snapshot.timestamp)
+      .filter((timestamp): timestamp is number => Number.isFinite(timestamp)),
+  )].sort((left, right) => left - right);
+  const gaps: SnapshotGap[] = [];
+  for (let index = 1; index < timestamps.length; index += 1) {
+    const from = timestamps[index - 1];
+    const to = timestamps[index];
+    if (from === undefined || to === undefined) continue;
+    const hours = (to - from) / 3_600_000;
+    if (hours > GAP_THRESHOLD_HOURS) gaps.push({ from, to, hours });
+  }
+  return gaps;
+}
+
+const ERROR_MESSAGES: Record<string, string> = {
+  network: '網路讀取失敗，保留舊資料',
+  schema: '官方資料格式異常，保留舊資料',
+  storage: '本機儲存失敗，保留舊資料',
+  lock: '無法取得採集鎖，等待下一次採集',
+  cancel: '採集已取消，等待下一次採集',
+  unknown: UNKNOWN_ERROR_MESSAGE,
+};
+
+function latestTimestamp(snapshots: readonly Snapshot[]): number | null {
+  return snapshots.reduce<number | null>((latest, snapshot) => {
+    if (!Number.isFinite(snapshot.timestamp)) return latest;
+    return latest === null || snapshot.timestamp > latest ? snapshot.timestamp : latest;
+  }, null);
+}
+
+function gapDetail(gaps: readonly SnapshotGap[]): string {
+  if (gaps.length === 0) return '沒有觀測到資料缺口';
+  const ranges = gaps.map((gap) => `${formatTaipeiTime(gap.from)} → ${formatTaipeiTime(gap.to)}（${gap.hours} 小時）`);
+  return `資料缺口 ${gaps.length} 段：${ranges.join('；')}`;
+}
+
+/** Build a safe, user-facing collection health model from persisted facts only. */
+export function buildHealthModel(
+  status: CollectorStatus,
+  snapshots: readonly Snapshot[],
+  now = Date.now(),
+): CollectionHealthModel {
+  const gaps = detectSnapshotGaps(snapshots);
+  const latest = latestTimestamp(snapshots);
+  const stale = status.lastSuccessAt === null
+    || !Number.isFinite(status.lastSuccessAt)
+    || (Number.isFinite(now) && now - status.lastSuccessAt > STALE_AFTER_HOURS * 3_600_000);
+
+  let headline: string;
+  let detail: string;
+  if (latest === null) {
+    headline = NO_SNAPSHOTS_MESSAGE;
+    detail = '請保持 MWI 分頁開啟，等待下一個官方快照。';
+  } else if (status.state === 'retrying') {
+    headline = '採集重試中';
+    detail = status.nextRunAt === null
+      ? '將在稍後重試。'
+      : `下次重試：${formatTaipeiTime(status.nextRunAt)}`;
+  } else if (status.state === 'error') {
+    headline = '採集發生問題';
+    detail = ERROR_MESSAGES[status.lastErrorCode ?? 'unknown'] ?? UNKNOWN_ERROR_MESSAGE;
+  } else if (stale) {
+    headline = STALE_COLLECTION_MESSAGE;
+    detail = '請確認遊戲分頁仍開啟，資料不會自動補齊。';
+  } else if (status.state === 'checking') {
+    headline = '正在採集市場資料';
+    detail = '等待官方快照完成。';
+  } else {
+    headline = '市場資料更新正常';
+    detail = '官方快照持續由本機採集器讀取。';
+  }
+
+  return {
+    state: status.state,
+    headline,
+    detail: `${detail} ${gapDetail(gaps)}`,
+    gaps,
+    gapCount: gaps.length,
+    latestTimestamp: latest,
+    stale,
+  };
+}
+
+export const deriveHealthModel = buildHealthModel;
+export const buildCollectionHealth = buildHealthModel;
 
 function field(label: string, key: string, value: string): HTMLElement {
   const wrapper = document.createElement('div');
@@ -46,6 +159,7 @@ export function renderCollectorStatus(
   target: HTMLElement,
   status: CollectorStatus,
   transientError: string | null = null,
+  health: CollectionHealthModel | null = null,
 ): void {
   target.replaceChildren();
   target.dataset.statusState = status.state;
@@ -58,7 +172,9 @@ export function renderCollectorStatus(
   const summary = document.createElement('span');
   summary.className = 'status-summary';
   summary.dataset.statusField = 'state';
-  summary.textContent = `採集${STATE_LABELS[status.state]} (${status.state})`;
+  summary.textContent = health === null
+    ? `採集${STATE_LABELS[status.state]} (${status.state})`
+    : `${health.headline} (${status.state})`;
   target.append(summary);
 
   const details = document.createElement('div');
@@ -68,7 +184,15 @@ export function renderCollectorStatus(
   details.append(field('下次採集', 'next', formatTaipeiTime(status.nextRunAt)));
   target.append(details);
 
-  if (transientError !== null) {
+  if (health !== null) {
+    const healthElement = document.createElement('span');
+    healthElement.className = 'status-health';
+    healthElement.dataset.statusHealth = 'true';
+    healthElement.textContent = health.detail;
+    target.append(healthElement);
+  }
+
+  if (transientError !== null && SAFE_TRANSIENT_ERRORS.has(transientError)) {
     const error = document.createElement('span');
     error.className = 'status-error';
     error.dataset.statusError = 'true';
@@ -89,6 +213,6 @@ export function renderBridgeUnavailable(target: HTMLElement, message = NO_BRIDGE
   const summary = document.createElement('span');
   summary.className = 'status-summary';
   summary.dataset.statusError = 'true';
-  summary.textContent = message;
+  summary.textContent = message === NO_BRIDGE_MESSAGE ? message : NO_BRIDGE_MESSAGE;
   target.append(summary);
 }

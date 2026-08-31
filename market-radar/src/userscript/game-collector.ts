@@ -21,13 +21,17 @@ import {
   type CollectorLockOptions,
   type CollectorLockResult,
 } from '../collector/lock';
-import { fetchOfficialSnapshot } from '../collector/official-client';
+import {
+  OFFICIAL_REQUEST_CANCELLED_MESSAGE,
+  OFFICIAL_REQUEST_TIMEOUT_MESSAGE,
+  fetchOfficialSnapshot,
+} from '../collector/official-client';
 
 const HOUR_MS = 3_600_000;
 const LAST_CHECKED_SLOT_KEY = `${STORAGE_PREFIX}last-checked-slot`;
 export const COLLECTOR_CHECK_CANCELLED_MESSAGE = 'Collector check cancelled';
 
-type CollectorErrorCode = 'network' | 'schema' | 'storage' | 'unknown';
+export type CollectorErrorCode = 'network' | 'schema' | 'storage' | 'lock' | 'cancel' | 'unknown';
 export type LockRunner = <T>(task: () => Promise<T>) => Promise<CollectorLockResult<T>>;
 export type FetchSnapshot = (signal: AbortSignal) => Snapshot | PromiseLike<Snapshot>;
 
@@ -91,7 +95,12 @@ function slotIdForTimestamp(timestamp: number): number {
 }
 
 function isCollectorErrorCode(value: unknown): value is CollectorErrorCode {
-  return value === 'network' || value === 'schema' || value === 'storage' || value === 'unknown';
+  return value === 'network'
+    || value === 'schema'
+    || value === 'storage'
+    || value === 'lock'
+    || value === 'cancel'
+    || value === 'unknown';
 }
 
 function errorProperty(error: unknown, key: string): unknown {
@@ -100,7 +109,7 @@ function errorProperty(error: unknown, key: string): unknown {
 }
 
 /** Classify an error without ever persisting its message or arbitrary properties. */
-function classifyError(error: unknown): CollectorErrorCode {
+export function classifyCollectorError(error: unknown): CollectorErrorCode {
   for (const key of ['code', 'kind', 'category', 'type']) {
     const value = errorProperty(error, key);
     if (isCollectorErrorCode(value)) return value;
@@ -109,14 +118,23 @@ function classifyError(error: unknown): CollectorErrorCode {
   const name = errorProperty(error, 'name');
   if (name === 'StorageWriteError' || name === 'QuotaExceededError') return 'storage';
   if (name === 'SyntaxError') return 'schema';
-  if (name === 'TypeError') return 'network';
+  if (name === 'AbortError') return 'cancel';
 
   const message = error instanceof Error ? error.message.toLowerCase() : '';
-  if (/storage|quota|persist|write|disk/.test(message)) return 'storage';
+  if (
+    message.includes(COLLECTOR_CHECK_CANCELLED_MESSAGE.toLowerCase())
+    || message.includes(OFFICIAL_REQUEST_CANCELLED_MESSAGE.toLowerCase())
+  ) return 'cancel';
+  if (message.includes('collector web lock api is unavailable')) return 'lock';
+  if (message === OFFICIAL_REQUEST_TIMEOUT_MESSAGE.toLowerCase() || /timed?\s*out|timeout/.test(message)) return 'network';
   if (/schema|payload|json|parse|invalid snapshot|invalid market/.test(message)) return 'schema';
+  if (name === 'TypeError') return 'network';
+  if (/storage|quota|persist|write|disk/.test(message)) return 'storage';
   if (/network|fetch|request|timeout|offline|abort|http|status|load/.test(message)) return 'network';
   return 'unknown';
 }
+
+const classifyError = classifyCollectorError;
 
 function copyStatus(status: CollectorStatus): CollectorStatus {
   return {
@@ -131,6 +149,10 @@ function copyStatus(status: CollectorStatus): CollectorStatus {
 
 function cancellationError(): Error {
   return new Error(COLLECTOR_CHECK_CANCELLED_MESSAGE);
+}
+
+function shouldCancel(error: unknown, signal: AbortSignal | undefined): boolean {
+  return signal?.aborted === true || classifyCollectorError(error) === 'cancel';
 }
 
 function throwIfCancelled(signal: AbortSignal | undefined): void {
@@ -173,7 +195,7 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
           lastCheckedSlot = await options.storage.get<number | null>(LAST_CHECKED_SLOT_KEY, null);
           throwIfCancelled(signal);
         } catch (error) {
-          if (signal?.aborted) throw cancellationError();
+          if (shouldCancel(error, signal)) throw cancellationError();
           failureCode = 'storage';
           throw error;
         }
@@ -191,7 +213,7 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
           : copyStatus(DEFAULT_COLLECTOR_STATUS);
         throwIfCancelled(signal);
       } catch (error) {
-        if (signal?.aborted) throw cancellationError();
+        if (shouldCancel(error, signal)) throw cancellationError();
         failureCode = classifyError(error);
         throw error;
       }
@@ -216,7 +238,7 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
           snapshot = await options.fetchSnapshot(signal);
           throwIfCancelled(signal);
         } catch (error) {
-          if (signal?.aborted) throw cancellationError();
+          if (shouldCancel(error, signal)) throw cancellationError();
           failureCode = classifyError(error);
           throw error;
         }
@@ -228,7 +250,7 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
           saved = await options.marketStore.saveSnapshot(snapshot);
           throwIfCancelled(signal);
         } catch (error) {
-          if (signal?.aborted) throw cancellationError();
+          if (shouldCancel(error, signal)) throw cancellationError();
           failureCode = 'storage';
           throw error;
         }
@@ -243,7 +265,7 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
           await options.storage.set(LAST_CHECKED_SLOT_KEY, slotIdForTimestamp(attemptAt));
           throwIfCancelled(signal);
         } catch (error) {
-          if (signal?.aborted) throw cancellationError();
+          if (shouldCancel(error, signal)) throw cancellationError();
           failureCode = 'storage';
           throw error;
         }
@@ -267,7 +289,7 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
         throwIfCancelled(signal);
         return { result, snapshot };
       } catch (error) {
-        if (signal?.aborted) throw cancellationError();
+        if (shouldCancel(error, signal)) throw cancellationError();
         if (failureCode === 'unknown') failureCode = classifyError(error);
         const failureStatus: CollectorStatus = {
           ...startedStatus,

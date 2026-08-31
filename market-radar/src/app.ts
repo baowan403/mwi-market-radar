@@ -22,7 +22,7 @@ import {
   type NormalizedCatalog,
   type SortState,
 } from './dashboard/state';
-import { renderCollectorStatus, renderBridgeUnavailable } from './dashboard/status';
+import { buildHealthModel, renderCollectorStatus, renderBridgeUnavailable } from './dashboard/status';
 import { renderMarketTable, ITEM_SELECTED_EVENT } from './dashboard/table';
 import {
   createItemDetailController,
@@ -133,7 +133,6 @@ function renderLoading(content: HTMLElement): void {
   content.replaceChildren();
   const empty = document.createElement('section');
   empty.className = 'empty-state is-loading';
-  empty.setAttribute('aria-live', 'polite');
   const eyebrow = document.createElement('p');
   eyebrow.className = 'eyebrow';
   eyebrow.textContent = 'Market feed';
@@ -422,7 +421,12 @@ function renderDashboard(
 
   const renderStatus = (): void => {
     if (!isActive()) return;
-    renderCollectorStatus(status, state.collectorStatus, state.statusError);
+    renderCollectorStatus(
+      status,
+      state.collectorStatus,
+      state.statusError,
+      buildHealthModel(state.collectorStatus, state.snapshots, Date.now()),
+    );
   };
 
   const renderResultsOnly = (): void => {
