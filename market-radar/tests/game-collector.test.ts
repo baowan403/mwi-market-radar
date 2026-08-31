@@ -61,7 +61,10 @@ function createHarness(options: HarnessOptions = {}) {
     ...options.initialStatus,
   };
   const statusWrites: CollectorStatus[] = [];
+  const lockState = { active: false };
+  const statusWriteInsideLock: boolean[] = [];
   const setCollectorStatus = vi.fn(async (nextStatus: CollectorStatus) => {
+    statusWriteInsideLock.push(lockState.active);
     status = { ...nextStatus };
     statusWrites.push({ ...nextStatus });
   });
@@ -78,7 +81,12 @@ function createHarness(options: HarnessOptions = {}) {
   const fetchSnapshot = options.fetchSnapshot ?? vi.fn(async () => snapshot());
   const lockRunner = vi.fn(async <T>(task: () => Promise<T>): Promise<CollectorLockResult<T>> => {
     if (options.lockResult === 'busy') return { acquired: false };
-    return { acquired: true, value: await task() };
+    lockState.active = true;
+    try {
+      return { acquired: true, value: await task() };
+    } finally {
+      lockState.active = false;
+    }
   }) as unknown as {
     <T>(task: () => Promise<T>): Promise<CollectorLockResult<T>>;
     mockImplementationOnce(
@@ -103,6 +111,8 @@ function createHarness(options: HarnessOptions = {}) {
     lockRunner,
     check,
     statusWrites,
+    statusWriteInsideLock,
+    lockState,
   };
 }
 
@@ -117,17 +127,8 @@ describe('slotId', () => {
 describe('createCollectorCheck', () => {
   it('saves an inserted snapshot inside the lock and marks a normal check updated', async () => {
     const harness = createHarness();
-    let inLock = false;
-    harness.lockRunner.mockImplementationOnce(async (task) => {
-      inLock = true;
-      try {
-        return { acquired: true, value: await task() };
-      } finally {
-        inLock = false;
-      }
-    });
     harness.saveSnapshot.mockImplementationOnce(async () => {
-      expect(inLock).toBe(true);
+      expect(harness.lockState.active).toBe(true);
       return { inserted: true, cleanupErrors: [] };
     });
 
@@ -135,6 +136,7 @@ describe('createCollectorCheck', () => {
 
     expect(harness.fetchSnapshot).toHaveBeenCalledTimes(1);
     expect(harness.saveSnapshot).toHaveBeenCalledWith(snapshot());
+    expect(harness.statusWriteInsideLock).toEqual([true, true]);
     expect(harness.values.get(LAST_CHECKED_SLOT_KEY)).toBe(slotId(NOW));
     expect(harness.statusWrites[0]).toMatchObject({ state: 'checking', lastAttemptAt: NOW });
     expect(harness.statusWrites.at(-1)).toMatchObject({
@@ -236,7 +238,8 @@ describe('createCollectorCheck', () => {
     expect(harness.lockRunner).toHaveBeenCalledTimes(1);
     expect(harness.fetchSnapshot).not.toHaveBeenCalled();
     expect(harness.saveSnapshot).not.toHaveBeenCalled();
-    expect(harness.statusWrites.at(-1)?.nextRunAt).toBeGreaterThan(NOW);
+    expect(harness.statusWrites).toEqual([]);
+    expect(harness.statusWriteInsideLock).toEqual([]);
   });
 
   it('bypasses slot de-duplication for a retry', async () => {
@@ -256,7 +259,31 @@ describe('createCollectorCheck', () => {
 
     expect(harness.fetchSnapshot).not.toHaveBeenCalled();
     expect(harness.saveSnapshot).not.toHaveBeenCalled();
-    expect(harness.statusWrites.at(-1)?.nextRunAt).toBeGreaterThan(NOW);
+    expect(harness.statusWrites).toEqual([]);
+    expect(harness.statusWriteInsideLock).toEqual([]);
+  });
+
+  it('does not let a busy loser overwrite the winner status', async () => {
+    const harness = createHarness();
+    const loser = createCollectorCheck({
+      storage: harness.storage,
+      marketStore: harness.marketStore,
+      fetchSnapshot: harness.fetchSnapshot,
+      lockRunner: harness.lockRunner,
+      now: () => NOW,
+    });
+    harness.lockRunner.mockImplementationOnce(async (task) => ({
+      acquired: true,
+      value: await task(),
+    }));
+    harness.lockRunner.mockImplementationOnce(async () => ({ acquired: false }));
+
+    await expect(harness.check({ isRetry: false })).resolves.toBe('updated');
+    const winnerStatus = harness.statusWrites.map((entry) => ({ ...entry }));
+
+    await expect(loser({ isRetry: false })).resolves.toBe('skipped');
+
+    expect(harness.statusWrites).toEqual(winnerStatus);
   });
 });
 

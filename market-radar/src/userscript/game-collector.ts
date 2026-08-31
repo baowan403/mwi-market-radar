@@ -147,42 +147,46 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
 
   return async ({ isRetry }: CollectorCheckContext): Promise<CheckResult> => {
     const attemptAt = clock();
-    let previousStatus: CollectorStatus;
-
-    try {
-      previousStatus = typeof options.marketStore.getCollectorStatus === 'function'
-        ? await options.marketStore.getCollectorStatus()
-        : copyStatus(DEFAULT_COLLECTOR_STATUS);
-    } catch (error) {
-      throw error;
-    }
-
-    const startedStatus: CollectorStatus = {
-      ...copyStatus(previousStatus),
-      state: isRetry ? 'retrying' : 'checking',
-      lastAttemptAt: attemptAt,
-      lastErrorCode: null,
-    };
-    await options.marketStore.setCollectorStatus(startedStatus);
-
     let failureCode: CollectorErrorCode = 'unknown';
-    let lockedResult: CollectorLockResult<LockedCheckResult>;
 
-    try {
-      lockedResult = await lockRunner(async (): Promise<LockedCheckResult> => {
-        if (!isRetry) {
-          let lastCheckedSlot: number | null;
-          try {
-            lastCheckedSlot = await options.storage.get<number | null>(LAST_CHECKED_SLOT_KEY, null);
-          } catch (error) {
-            failureCode = 'storage';
-            throw error;
-          }
-
-          if (lastCheckedSlot === slotIdForTimestamp(attemptAt)) {
-            return { result: 'skipped' };
-          }
+    const lockedResult = await lockRunner(async (): Promise<LockedCheckResult> => {
+      // A normal check must compare the slot after acquiring the lock. This
+      // keeps both de-duplication and the subsequent writes owner-authoritative.
+      let lastCheckedSlot: number | null = null;
+      if (!isRetry) {
+        try {
+          lastCheckedSlot = await options.storage.get<number | null>(LAST_CHECKED_SLOT_KEY, null);
+        } catch (error) {
+          failureCode = 'storage';
+          throw error;
         }
+
+        if (lastCheckedSlot === slotIdForTimestamp(attemptAt)) {
+          return { result: 'skipped' };
+        }
+      }
+
+      let previousStatus: CollectorStatus;
+      try {
+        previousStatus = typeof options.marketStore.getCollectorStatus === 'function'
+          ? await options.marketStore.getCollectorStatus()
+          : copyStatus(DEFAULT_COLLECTOR_STATUS);
+      } catch (error) {
+        failureCode = classifyError(error);
+        throw error;
+      }
+
+      const startedStatus: CollectorStatus = {
+        ...copyStatus(previousStatus),
+        state: isRetry ? 'retrying' : 'checking',
+        lastAttemptAt: attemptAt,
+        lastErrorCode: null,
+      };
+
+      try {
+        // Status writes stay in the lock so a busy loser cannot overwrite the
+        // status written by the tab that owns the collector lease.
+        await options.marketStore.setCollectorStatus(startedStatus);
 
         let snapshot: Snapshot;
         try {
@@ -213,59 +217,43 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
           throw error;
         }
 
-        return {
-          result: saved.inserted ? 'updated' : 'unchanged',
-          snapshot,
+        const result: CheckResult = saved.inserted ? 'updated' : 'unchanged';
+        const finalStatus: CollectorStatus = {
+          ...startedStatus,
+          state: result === 'updated' || isRetry ? 'ok' : 'retrying',
+          nextRunAt: result === 'updated' || isRetry
+            ? nextHourlyRun(attemptAt)
+            : attemptAt + RETRY_DELAY_MS,
+          lastErrorCode: null,
         };
-      });
-    } catch (error) {
-      if (failureCode === 'unknown') failureCode = classifyError(error);
-      const failureStatus: CollectorStatus = {
-        ...startedStatus,
-        state: isRetry ? 'error' : 'retrying',
-        nextRunAt: isRetry
-          ? nextHourlyRun(attemptAt)
-          : attemptAt + RETRY_DELAY_MS,
-        lastErrorCode: failureCode,
-      };
-      await options.marketStore.setCollectorStatus(failureStatus);
-      throw error;
-    }
+        if (result === 'updated') {
+          finalStatus.lastSuccessAt = attemptAt;
+          finalStatus.officialTimestamp = snapshot.timestamp;
+        }
+
+        await options.marketStore.setCollectorStatus(finalStatus);
+        return { result, snapshot };
+      } catch (error) {
+        if (failureCode === 'unknown') failureCode = classifyError(error);
+        const failureStatus: CollectorStatus = {
+          ...startedStatus,
+          state: isRetry ? 'error' : 'retrying',
+          nextRunAt: isRetry
+            ? nextHourlyRun(attemptAt)
+            : attemptAt + RETRY_DELAY_MS,
+          lastErrorCode: failureCode,
+        };
+        await options.marketStore.setCollectorStatus(failureStatus);
+        throw error;
+      }
+    });
 
     if (!lockedResult.acquired) {
-      const skippedStatus: CollectorStatus = {
-        ...startedStatus,
-        nextRunAt: nextHourlyRun(attemptAt),
-      };
-      await options.marketStore.setCollectorStatus(skippedStatus);
+      // Busy callers intentionally leave the persisted status untouched.
       return 'skipped';
     }
 
-    const value = lockedResult.value;
-    if (!value || value.result === 'skipped') {
-      const skippedStatus: CollectorStatus = {
-        ...startedStatus,
-        nextRunAt: nextHourlyRun(attemptAt),
-      };
-      await options.marketStore.setCollectorStatus(skippedStatus);
-      return 'skipped';
-    }
-
-    const finalStatus: CollectorStatus = {
-      ...startedStatus,
-      state: value.result === 'updated' || isRetry ? 'ok' : 'retrying',
-      nextRunAt: value.result === 'updated' || isRetry
-        ? nextHourlyRun(attemptAt)
-        : attemptAt + RETRY_DELAY_MS,
-      lastErrorCode: null,
-    };
-    if (value.result === 'updated') {
-      finalStatus.lastSuccessAt = attemptAt;
-      finalStatus.officialTimestamp = value.snapshot?.timestamp ?? null;
-    }
-
-    await options.marketStore.setCollectorStatus(finalStatus);
-    return value.result;
+    return lockedResult.value?.result ?? 'skipped';
   };
 }
 
