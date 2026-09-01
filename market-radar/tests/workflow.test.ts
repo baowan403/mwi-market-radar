@@ -128,6 +128,10 @@ describe('market radar Pages workflow', () => {
     );
     expect(rollback).toContain('test "$CURRENT_SHA" = "$DATA_COMMIT_SHA"');
     expect(rollback).toContain('git revert --no-edit "$DATA_COMMIT_SHA"');
+    expect(rollback).toContain(
+      'test "$(git rev-parse HEAD^{tree})" = "$(git rev-parse "$PREVIOUS_DATA_SHA^{tree}")"',
+    );
+    expect(rollback).not.toContain('test "$(git rev-parse HEAD)" = "$PREVIOUS_DATA_SHA"');
     expect(rollback).toContain('git push origin HEAD:market-data');
   });
 

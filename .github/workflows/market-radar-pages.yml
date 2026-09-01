@@ -199,5 +199,5 @@ jobs:
           test "$PREVIOUS_DATA_SHA" != ""
           git switch --detach "$CURRENT_SHA"
           git revert --no-edit "$DATA_COMMIT_SHA"
-          test "$(git rev-parse HEAD)" = "$PREVIOUS_DATA_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$(git rev-parse "$PREVIOUS_DATA_SHA^{tree}")"
           git push origin HEAD:market-data
