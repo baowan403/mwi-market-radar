@@ -64,7 +64,7 @@ export const bridgeFixtureSource = String.raw`
   const responsePrefix = 'mwi-radar:response:';
   const send = (id, ok, value, error) => {
     const response = ok ? { id, ok: true, value } : { id, ok: false, error };
-    window.postMessage(`${responsePrefix}${JSON.stringify(response)}`, window.location.origin);
+    window.postMessage(responsePrefix + JSON.stringify(response), window.location.origin);
   };
 
   window.addEventListener('message', (event) => {
