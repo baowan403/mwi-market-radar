@@ -22,7 +22,7 @@ export default defineConfig({
         channel: 'chrome',
         viewport: { width: 1280, height: 800 },
       },
-      testMatch: /dashboard\.spec\.ts/,
+      testMatch: /(^|[\\/])dashboard\.spec\.ts$/,
     },
     {
       name: 'chrome-mobile',
@@ -31,7 +31,25 @@ export default defineConfig({
         viewport: { width: 393, height: 851 },
         isMobile: false,
       },
-      testMatch: /dashboard\.spec\.ts/,
+      testMatch: /(^|[\\/])dashboard\.spec\.ts$/,
+    },
+    {
+      name: 'chrome-cloud-desktop',
+      use: {
+        ...devices['Desktop Chrome'],
+        channel: 'chrome',
+        viewport: { width: 1280, height: 800 },
+      },
+      testMatch: /(^|[\\/])cloud-dashboard\.spec\.ts$/,
+    },
+    {
+      name: 'chrome-cloud-mobile',
+      use: {
+        channel: 'chrome',
+        viewport: { width: 393, height: 851 },
+        isMobile: false,
+      },
+      testMatch: /(^|[\\/])cloud-dashboard\.spec\.ts$/,
     },
   ],
   webServer: {

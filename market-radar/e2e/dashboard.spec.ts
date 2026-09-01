@@ -38,7 +38,7 @@ test.describe('fixture-backed market radar journeys', () => {
     await expect(page.locator('[data-primary-view]')).toHaveCount(8);
     await expect(page.locator('[data-official-category]')).toHaveCount(10);
     await expect(page.locator('[data-ranking-mode]')).toHaveCount(8);
-    await expect(page.locator('[data-market-row]')).toHaveCount(4);
+    await expect(page.locator('[data-market-row]')).toHaveCount(6);
   });
 
   test('pins both enhancement levels independently and preserves them after reload', async ({ page }) => {
@@ -153,12 +153,12 @@ test('paginates a large market table without mounting every row', async ({ page 
   await loadFixture(page, '/?e2e-many');
 
   await expect(page.locator('[data-market-row]')).toHaveCount(100);
-  await expect(page.locator('[data-pagination-page]').first()).toHaveText('第 1 / 4 頁・共 304 筆');
+  await expect(page.locator('[data-pagination-page]').first()).toHaveText('第 1 / 4 頁・共 306 筆');
   await expect(page.locator('[data-pagination-next]').first()).toBeEnabled();
 
   await page.locator('[data-pagination-next]').first().click();
   await expect(page.locator('[data-market-row]')).toHaveCount(100);
-  await expect(page.locator('[data-pagination-page]').first()).toHaveText('第 2 / 4 頁・共 304 筆');
+  await expect(page.locator('[data-pagination-page]').first()).toHaveText('第 2 / 4 頁・共 306 筆');
 });
 
 test('bounds detail chart geometry on desktop and mobile', async ({ page }, testInfo) => {
