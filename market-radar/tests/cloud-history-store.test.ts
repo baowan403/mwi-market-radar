@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, readdir, rm, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -72,7 +73,7 @@ describe('updateCloudHistory', () => {
 
     const result = await updateCloudHistory({ dataDir, snapshot: current, generatedAt: GENERATED_AT });
 
-    expect(result).toMatchObject({ updated: true, cleanupErrors: [] });
+    expect(result).toMatchObject({ inserted: true, cleanupErrors: [] });
     const text = await snapshotFile(dataDir, LATEST);
     expect(text.startsWith(STORAGE_CODEC_PREFIX)).toBe(true);
     await expect(decodeDayChunk(text)).resolves.toEqual([current]);
@@ -98,25 +99,38 @@ describe('updateCloudHistory', () => {
       generatedAt: '2026-09-01T12:10:00.000Z',
     });
 
-    expect(result.updated).toBe(false);
+    expect(result.inserted).toBe(false);
     await expect(snapshotFile(dataDir, LATEST)).resolves.toBe(beforeFile);
     await expect(readFile(join(dataDir, 'manifest.json'), 'utf8')).resolves.toBe(beforeManifest);
   });
 
-  it('rejects an older timestamp without creating a file or changing the manifest', async () => {
+  it('ignores an older timestamp without touching files, manifest, or cleanup', async () => {
     await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST), generatedAt: GENERATED_AT });
     const beforeManifest = await readFile(join(dataDir, 'manifest.json'), 'utf8');
+    const beforeSnapshot = await snapshotFile(dataDir, LATEST);
+    const beforeManifestHash = createHash('sha256').update(beforeManifest).digest('hex');
+    const beforeFiles = await readdir(join(dataDir, 'snapshots'));
+    const unlink = vi.fn(async () => undefined);
 
-    const error = await updateCloudHistory({
+    const result = await updateCloudHistory({
       dataDir,
       snapshot: snapshot(LATEST - HOUR),
       generatedAt: GENERATED_AT,
-    }).catch((cause: unknown) => cause);
+      fileSystem: { unlink },
+    });
 
-    expect(error).toBeInstanceOf(CloudHistoryError);
-    expect((error as CloudHistoryError).code).toBe('older_snapshot');
+    expect(result).toMatchObject({
+      inserted: false,
+      latestTimestamp: LATEST,
+      snapshotCount: 1,
+      cleanupErrors: [],
+    });
+    expect(result.manifest.latestTimestamp).toBe(LATEST);
+    expect(createHash('sha256').update(await readFile(join(dataDir, 'manifest.json'), 'utf8')).digest('hex')).toBe(beforeManifestHash);
     await expect(readFile(join(dataDir, 'manifest.json'), 'utf8')).resolves.toBe(beforeManifest);
-    await expect(readdir(join(dataDir, 'snapshots'))).resolves.toHaveLength(1);
+    await expect(snapshotFile(dataDir, LATEST)).resolves.toBe(beforeSnapshot);
+    await expect(readdir(join(dataDir, 'snapshots'))).resolves.toEqual(beforeFiles);
+    expect(unlink).not.toHaveBeenCalled();
   });
 
   it('recovers an existing snapshot file when the manifest is missing it', async () => {
@@ -127,7 +141,7 @@ describe('updateCloudHistory', () => {
 
     const result = await updateCloudHistory({ dataDir, snapshot: current, generatedAt: GENERATED_AT });
 
-    expect(result.updated).toBe(true);
+    expect(result.inserted).toBe(true);
     await expect(snapshotFile(dataDir, LATEST)).resolves.toBe(text);
     await expect(readManifest(dataDir)).resolves.toMatchObject({ latestTimestamp: LATEST });
   });

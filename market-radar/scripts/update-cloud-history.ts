@@ -263,7 +263,7 @@ export async function run(
       snapshot,
       generatedAt: new Date(now()).toISOString(),
     });
-    console.log(result.updated ? 'Cloud history updated' : 'Cloud history unchanged');
+    console.log(result.inserted ? 'Cloud history updated' : 'Cloud history unchanged');
     if (result.cleanupErrors.length > 0) {
       console.error('Cloud history cleanup incomplete');
       return 1;

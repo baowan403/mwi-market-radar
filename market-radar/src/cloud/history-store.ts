@@ -66,9 +66,25 @@ export interface UpdateCloudHistoryOptions {
 }
 
 export interface CloudHistoryUpdateResult {
-  updated: boolean;
+  inserted: boolean;
+  latestTimestamp: number | null;
+  snapshotCount: number;
   manifest: CloudManifest;
   cleanupErrors: string[];
+}
+
+function updateResult(
+  inserted: boolean,
+  manifest: CloudManifest,
+  cleanupErrors: string[],
+): CloudHistoryUpdateResult {
+  return {
+    inserted,
+    latestTimestamp: manifest.latestTimestamp,
+    snapshotCount: manifest.snapshots.length,
+    manifest,
+    cleanupErrors,
+  };
 }
 
 function isNodeError(value: unknown, code: string): boolean {
@@ -283,7 +299,7 @@ export async function updateCloudHistory(
     previous.latestTimestamp !== null
     && options.snapshot.timestamp < previous.latestTimestamp
   ) {
-    throw new CloudHistoryError('older_snapshot', 'Cloud snapshot is older than the current history');
+    return updateResult(false, previous, []);
   }
 
   const existingEntry = previous.snapshots.find((entry) => entry.timestamp === options.snapshot.timestamp);
@@ -295,7 +311,7 @@ export async function updateCloudHistory(
   );
   if (existingEntry !== undefined) {
     if (existingEntry.bytes !== existingFile.bytes) throw mismatchError();
-    return { updated: false, manifest: previous, cleanupErrors: [] };
+    return updateResult(false, previous, []);
   }
 
   const next = createManifest(
@@ -308,7 +324,7 @@ export async function updateCloudHistory(
   );
   await publishManifest(options.dataDir, next, fileSystem);
   const cleanupErrors = await cleanupOldFiles(options.dataDir, previous, next, fileSystem);
-  return { updated: true, manifest: next, cleanupErrors };
+  return updateResult(true, next, cleanupErrors);
 }
 
 export const CLOUD_HISTORY_MANIFEST_FILE = MANIFEST_FILE;
