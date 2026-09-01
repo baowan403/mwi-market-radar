@@ -425,6 +425,7 @@ async function prepareCompletedDailyHistory(
   for (const values of byDate.values()) {
     next = upsertDailySummary(next, aggregateDailySummary(values), manifest.generatedAt);
   }
+  if (isDeepStrictEqual(next.summaries, current.pack.summaries)) return null;
   if (current.text === null && next.summaries.length === 0) return null;
   let encoded: string;
   try {
@@ -599,7 +600,8 @@ export async function mergeCloudHistory(
   if (newEntries.length === 0) {
     const dailyHistory = await prepareCompletedDailyHistory(options.dataDir, previous, fileSystem);
     if (dailyHistory !== null) await publishEncodedDailyHistory(options.dataDir, dailyHistory, fileSystem);
-    return { inserted: 0, manifest: previous, cleanupErrors: [] };
+    const cleanupErrors = await pruneSnapshotFiles(options.dataDir, previous, fileSystem);
+    return { inserted: 0, manifest: previous, cleanupErrors };
   }
 
   let next: CloudManifest;

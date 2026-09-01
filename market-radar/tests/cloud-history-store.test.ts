@@ -374,6 +374,26 @@ describe('mergeCloudHistory', () => {
     await expect(readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8')).resolves.toBe(repaired);
   });
 
+  it('preserves an unchanged daily pack when a same-day official update advances the manifest timestamp', async () => {
+    const backfill = [snapshot(LATEST - DAY, 80), snapshot(LATEST - DAY + HOUR, 90)];
+    await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST), generatedAt: GENERATED_AT });
+    await mergeCloudHistory({ dataDir, snapshots: backfill, generatedAt: '2026-09-01T12:11:00.000Z' });
+    await updateCloudHistory({
+      dataDir,
+      snapshot: snapshot(LATEST + HOUR, 110),
+      generatedAt: '2026-09-01T13:09:00.000Z',
+    });
+    const dailyBefore = await readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8');
+
+    await mergeCloudHistory({
+      dataDir,
+      snapshots: backfill,
+      generatedAt: '2026-09-01T13:10:00.000Z',
+    });
+
+    await expect(readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8')).resolves.toBe(dailyBefore);
+  });
+
   it('rejects an incoming snapshot that conflicts with an immutable manifest timestamp', async () => {
     await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST), generatedAt: GENERATED_AT });
     const manifestBefore = await readFile(join(dataDir, 'manifest.json'), 'utf8');
@@ -542,6 +562,37 @@ describe('mergeCloudHistory', () => {
     expect((error as CloudHistoryError).code).toBe('storage');
     expect(rename).not.toHaveBeenCalled();
     await expect(readFile(join(dataDir, 'manifest.json'), 'utf8')).resolves.toBe(before);
+  });
+
+  it('repairs daily history and prunes expired orphans after a post-manifest daily write failure', async () => {
+    const expired = snapshot(LATEST - 11 * DAY, 70);
+    const retained = snapshot(LATEST - 9 * DAY, 80);
+    await updateCloudHistory({ dataDir, snapshot: expired, generatedAt: '2026-08-21T12:09:00.000Z' });
+    await updateCloudHistory({ dataDir, snapshot: retained, generatedAt: '2026-08-23T12:09:00.000Z' });
+    await rm(join(dataDir, CLOUD_DAILY_HISTORY_FILE));
+    const current = snapshot(LATEST, 100);
+
+    const failed = await mergeCloudHistory({
+      dataDir,
+      snapshots: [current],
+      generatedAt: GENERATED_AT,
+      fileSystem: {
+        writeFile: async (path, data, options) => {
+          if (path.includes(`.${CLOUD_DAILY_HISTORY_FILE}.tmp-`)) throw new Error('private daily failure');
+          await writeFile(path, data, options);
+        },
+      },
+    }).catch((cause: unknown) => cause);
+
+    expect(failed).toBeInstanceOf(CloudHistoryError);
+    await expect(snapshotFile(dataDir, expired.timestamp)).resolves.toMatch(STORAGE_CODEC_PREFIX);
+
+    const recovered = await mergeCloudHistory({ dataDir, snapshots: [current], generatedAt: '2026-09-01T12:11:00.000Z' });
+
+    expect(recovered).toMatchObject({ inserted: 0, cleanupErrors: [] });
+    expect((await decodeDailyHistoryPack(await readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8'))).summaries)
+      .toHaveLength(1);
+    await expect(snapshotFile(dataDir, expired.timestamp)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('leaves the previous manifest untouched when publishing a merged batch fails', async () => {
