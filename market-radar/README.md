@@ -44,6 +44,12 @@ npm run preview -- --host 127.0.0.1
 
 MWI 分頁必須保持開啟，因為 v1 不在電腦關機或沒有遊戲分頁時補採集。預設在每小時 `xx:08` 檢查、啟動時立即檢查；正常失敗最多重試一次。缺少 Web Locks 的舊環境寧可不採集，以免多分頁假互斥。
 
+## 公開 cloud mode 與本機 fallback
+
+未來 Owner 確認 GitHub Pages URL 並完成 workflow 後，公開 cloud mode 可直接開啟 Pages 網址，不需要 MWI 分頁、Tampermonkey 或本機 server；網站會讀取同源 `data/manifest.json` 與公開 snapshot files。這個 repository 目前尚未建立 remote、repository 或 Pages URL，localhost 仍是本機驗證入口。
+
+Tampermonkey userscript 保留為可選的本機 fallback：若 cloud data 暫時不可用且 MWI bridge 已 ready，dashboard 會顯示本機備援；若兩者都不可用，顯示安全錯誤與零假資料。cloud 與本機資料以 timestamp 去重，cloud 優先；偏好設定只存於瀏覽器本機 IndexedDB。
+
 ## 本機資料、停用與移除
 
 市場歷史與偏好只在 Tampermonkey 的 userscript storage 中。資料 key 使用 `mwi-radar:v1:` namespace，概念上包括：

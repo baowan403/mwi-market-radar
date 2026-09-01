@@ -1,0 +1,146 @@
+name: MWI Market Radar Pages
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "13 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: market-radar-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source and data history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: market-radar/package-lock.json
+
+      - name: Install dependencies
+        working-directory: market-radar
+        run: npm ci
+
+      - name: Prepare market-data worktree
+        id: data-worktree
+        env:
+          RUNNER_TEMP: ${{ runner.temp }}
+          DATA_WT: ${{ runner.temp }}/market-data-${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          git ls-remote --exit-code origin refs/heads/market-data >/dev/null 2>&1 || true
+          git fetch origin market-data:refs/remotes/origin/market-data || true
+          if git show-ref --verify --quiet refs/remotes/origin/market-data; then
+            git worktree add --detach "$DATA_WT" refs/remotes/origin/market-data
+          else
+            git worktree add --detach "$DATA_WT" HEAD
+            git -C "$DATA_WT" switch --orphan market-data
+            git -C "$DATA_WT" rm -r --cached --ignore-unmatch .
+          fi
+          mkdir -p "$DATA_WT/data"
+          echo "path=$DATA_WT" >> "$GITHUB_OUTPUT"
+
+      - name: Collect the official snapshot when scheduled, manual, or bootstrapping
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || steps.data-worktree.outputs.path == ''
+        working-directory: market-radar
+        env:
+          DATA_WT: ${{ steps.data-worktree.outputs.path }}
+        run: |
+          set -euo pipefail
+          npm run cloud:update -- --data-dir "$DATA_WT/data" --source-url https://www.milkywayidle.com/game_data/marketplace.json --min-quotes 1000
+
+      - name: Bootstrap missing market-data history on source pushes
+        if: github.event_name == 'push'
+        working-directory: market-radar
+        env:
+          DATA_WT: ${{ steps.data-worktree.outputs.path }}
+        run: |
+          set -euo pipefail
+          if [ ! -f "$DATA_WT/data/manifest.json" ]; then
+            npm run cloud:update -- --data-dir "$DATA_WT/data" --source-url https://www.milkywayidle.com/game_data/marketplace.json --min-quotes 1000
+          fi
+
+      - name: Validate market-data history
+        working-directory: market-radar
+        env:
+          DATA_WT: ${{ steps.data-worktree.outputs.path }}
+        run: npm run cloud:validate -- --data-dir "$DATA_WT/data"
+
+      - name: Commit and publish data-only changes
+        env:
+          DATA_WT: ${{ steps.data-worktree.outputs.path }}
+        run: |
+          set -euo pipefail
+          # Equivalent to `git add -- data`, scoped to the explicit worktree.
+          git -C "$DATA_WT" add -- data
+          if git -C "$DATA_WT" diff --cached --name-only | grep -v '^data/'; then
+            echo "Only data/** may be committed"
+            exit 1
+          fi
+          if ! git -C "$DATA_WT" diff --cached --quiet; then
+            git -C "$DATA_WT" config user.name 'github-actions[bot]'
+            git -C "$DATA_WT" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git -C "$DATA_WT" commit -m 'chore: update public market data'
+            # Equivalent to `git push origin HEAD:market-data`, scoped to the worktree.
+            git -C "$DATA_WT" push origin HEAD:market-data
+          fi
+
+      - name: Copy validated market data into the site
+        env:
+          DATA_WT: ${{ steps.data-worktree.outputs.path }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/market-radar/public/data"
+          cp -R "$DATA_WT/data/." "$GITHUB_WORKSPACE/market-radar/public/data/"
+
+      - name: Validate the site data tree
+        working-directory: market-radar
+        run: |
+          set -euo pipefail
+          test -s public/data/manifest.json
+          npm run cloud:validate -- --data-dir "$GITHUB_WORKSPACE/market-radar/public/data"
+
+      - name: Run unit tests
+        working-directory: market-radar
+        run: npm test -- --run
+
+      - name: Build dashboard and userscript
+        working-directory: market-radar
+        run: npm run build
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: market-radar/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@v4
