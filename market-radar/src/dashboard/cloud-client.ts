@@ -1,5 +1,6 @@
 import { decodeDayChunkLimited, StorageDecodeError } from '../core/storage-codec';
 import { parseManifest, type CloudManifest, type CloudSnapshotEntry } from '../cloud/manifest';
+import { dailyHistorySnapshots, decodeDailyHistoryPack } from '../cloud/daily-history';
 import type { Snapshot } from '../core/types';
 
 export const CLOUD_REQUEST_TIMEOUT_MS = 15_000;
@@ -11,6 +12,7 @@ export const CLOUD_MAX_SNAPSHOT_BYTES = 2_000_000;
 export const CLOUD_MAX_TOTAL_SNAPSHOT_BYTES = 64_000_000;
 export const CLOUD_MAX_DECODED_SNAPSHOT_BYTES = 16_000_000;
 export const CLOUD_MAX_QUOTE_KEYS = 10_000;
+export const CLOUD_MAX_DAILY_HISTORY_BYTES = 64_000_000;
 
 export type CloudMarketErrorCode =
   | 'cloud_unavailable'
@@ -151,6 +153,10 @@ function resolveManifestUrl(base: URL): URL {
   return new URL('manifest.json', base);
 }
 
+function resolveDailyHistoryUrl(base: URL): URL {
+  return new URL('daily-history.txt', base);
+}
+
 function resolveSnapshotUrl(base: URL, entry: CloudSnapshotEntry): URL {
   if (entry.file !== `snapshots/${entry.timestamp}.txt`) throw invalidData();
   const url = new URL(entry.file, base);
@@ -205,7 +211,7 @@ export function createCloudClient(
   async function requestText(
     url: URL,
     signal: AbortSignal | undefined,
-    purpose: 'manifest' | 'snapshot',
+    purpose: 'manifest' | 'snapshot' | 'daily',
     maxBytes: number,
   ): Promise<string> {
     if (signal?.aborted) throw cancelled();
@@ -239,7 +245,8 @@ export function createCloudClient(
             return;
           }
           if (!response.ok) {
-            rejectWith(purpose === 'manifest' ? unavailable() : invalidData());
+            if (purpose === 'daily' && response.status === 404) resolveWith('');
+            else rejectWith(purpose === 'manifest' ? unavailable() : invalidData());
             return;
           }
           const contentLength = response.headers?.get?.('content-length') ?? null;
@@ -461,9 +468,25 @@ export function createCloudClient(
       const manifest = parseManifestText(manifestText);
       if (manifest.snapshots.length > CLOUD_MAX_SNAPSHOT_COUNT) throw invalidData();
       const signature = snapshotSignature(manifest);
-      const snapshots = cache?.signature === signature
-        ? cache.snapshots
-        : await downloadEntries(manifest.snapshots, controller.signal);
+      let snapshots: Snapshot[];
+      if (cache?.signature === signature) {
+        snapshots = cache.snapshots;
+      } else {
+        const hourly = await downloadEntries(manifest.snapshots, controller.signal);
+        const dailyText = await requestText(
+          resolveDailyHistoryUrl(base), controller.signal, 'daily', CLOUD_MAX_DAILY_HISTORY_BYTES,
+        );
+        let daily: Snapshot[] = [];
+        if (dailyText.trim().length > 0) {
+          try {
+            const pack = await decodeDailyHistoryPack(dailyText);
+            daily = dailyHistorySnapshots(pack, hourly[0]?.timestamp ?? Number.MAX_SAFE_INTEGER);
+          } catch {
+            throw invalidData();
+          }
+        }
+        snapshots = sortedUniqueSnapshots([...daily, ...hourly]);
+      }
       if (controller.signal.aborted) throw cancelled();
       cache = { signature, manifest, snapshots };
       sourceInfo = sourceFor(manifest);

@@ -4,7 +4,7 @@ import {
   CLOUD_RETENTION_MS,
   createManifest,
   parseManifest,
-  retainEightDays,
+  retainTenDays,
 } from '../src/cloud/manifest';
 
 const DAY = 24 * 60 * 60 * 1_000;
@@ -83,13 +83,13 @@ describe('cloud manifest parsing', () => {
     expect(parseManifest(manifest)).toEqual(manifest);
   });
 
-  it('retains the exact eight-day boundary and recomputes the final latest timestamp', () => {
+  it('retains the exact ten-day boundary and recomputes the final latest timestamp', () => {
     const boundary = LATEST - CLOUD_RETENTION_MS;
     const manifest = validManifest({
       snapshots: [entry(boundary - 1), entry(boundary), entry(LATEST)],
     });
 
-    const retained = retainEightDays(manifest);
+    const retained = retainTenDays(manifest);
 
     expect(retained).toEqual({
       schemaVersion: 1,
@@ -102,7 +102,7 @@ describe('cloud manifest parsing', () => {
   it('preserves an empty manifest while retaining no entries', () => {
     const manifest = validManifest({ latestTimestamp: null, snapshots: [] });
 
-    expect(retainEightDays(manifest)).toEqual(manifest);
+    expect(retainTenDays(manifest)).toEqual(manifest);
   });
 
   it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(

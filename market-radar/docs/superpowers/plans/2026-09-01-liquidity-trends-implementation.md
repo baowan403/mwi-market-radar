@@ -81,14 +81,14 @@ interface RealizableStrategy {
 
 **Files:** `src/strategy/backtest.ts`, `tests/strategy-backtest.test.ts`, `src/cloud/history-store.ts`, `scripts/update-cloud-history.ts`, cloud tests/docs`
 
-- [ ] Keep 10 days of hourly snapshots and aggregate up to 180 days of daily OHLCV/quality summaries.
-- [ ] Backtest each signal using only data available at signal time; measure 3D/7D hit rate, average change, and maximum adverse change.
-- [ ] Never label a signal high confidence without minimum sample evidence.
-- [ ] Commit `feat: backtest strategy trend signals`.
+- [x] Keep 10 days of hourly snapshots and aggregate up to 180 days of daily OHLCV/quality summaries.
+- [x] Backtest each signal using only data available at signal time; measure 3D/7D hit rate, average change, and maximum adverse change.
+- [x] Never label a signal high confidence without minimum sample evidence.
+- [x] Commit `feat: backtest strategy trend signals`.
 
 ### Task 7: Full public acceptance and deploy
 
-- [ ] Unit full suite, build, all E2E.
-- [ ] Public journey proves one long-run strategy, one limited strategy, one rejected fake-high-profit strategy, and one trend signal with reasons/invalidation.
-- [ ] Update README and acceptance evidence.
-- [ ] Push `HEAD:main`, wait for Pages success, and verify the live dashboard.
+- [x] Unit full suite, build, all E2E.
+- [x] Public journey proves one long-run strategy, one limited strategy, one rejected fake-high-profit strategy, and one trend signal with reasons/invalidation.
+- [x] Update README and acceptance evidence.
+- [x] Push `HEAD:main`, wait for Pages success, and verify the live dashboard.

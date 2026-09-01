@@ -154,7 +154,7 @@ export const parseCloudManifest = parseManifest;
 
 /**
  * Build a deterministic manifest from entries in any order. Entries older than
- * the latest timestamp's eight-day retention boundary are omitted.
+ * the latest timestamp's ten-day retention boundary are omitted.
  */
 export function createManifest(
   entries: readonly CloudSnapshotEntry[],
@@ -193,8 +193,8 @@ export function createManifest(
   });
 }
 
-/** Keep only the latest eight days while preserving the manifest metadata. */
-export function retainEightDays(manifest: CloudManifest): CloudManifest {
+/** Keep only the latest ten days while preserving the manifest metadata. */
+export function retainTenDays(manifest: CloudManifest): CloudManifest {
   const validated = validateManifest(manifest, false);
   const latestTimestamp = validated.latestTimestamp;
   if (latestTimestamp === null) return validated;
@@ -209,7 +209,10 @@ export function retainEightDays(manifest: CloudManifest): CloudManifest {
   });
 }
 
-/** Return sorted entries inside the eight-day window for a known latest time. */
+/** @deprecated Use retainTenDays; kept for stored callers during the retention migration. */
+export const retainEightDays = retainTenDays;
+
+/** Return sorted entries inside the ten-day window for a known latest time. */
 export function retainSnapshots(
   entries: readonly CloudSnapshotEntry[],
   latestTimestamp: number,

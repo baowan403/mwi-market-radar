@@ -5,6 +5,14 @@ import { isDeepStrictEqual } from 'node:util';
 import type { Snapshot } from '../core/types';
 import { decodeDayChunk, encodeDayChunk } from '../core/storage-codec';
 import {
+  createDailyHistoryPack,
+  decodeDailyHistoryPack,
+  encodeDailyHistoryPack,
+  upsertDailySummary,
+  type DailyHistoryPack,
+} from './daily-history';
+import { aggregateDailySummary } from './daily-summary';
+import {
   CLOUD_RETENTION_MS,
   createManifest,
   parseManifest,
@@ -14,6 +22,7 @@ import type { CloudManifest } from './types';
 
 const MANIFEST_FILE = 'manifest.json';
 const SNAPSHOT_DIRECTORY = 'snapshots';
+const DAILY_HISTORY_FILE = 'daily-history.txt';
 
 export type CloudHistoryErrorCode =
   | 'invalid_snapshot'
@@ -253,6 +262,75 @@ async function publishManifest(
   }
 }
 
+async function readDailyHistory(
+  dataDir: string,
+  generatedAt: string,
+  fileSystem: CloudFileSystem,
+): Promise<DailyHistoryPack> {
+  try {
+    return await decodeDailyHistoryPack(await fileSystem.readFile(join(dataDir, DAILY_HISTORY_FILE), 'utf8'));
+  } catch (cause) {
+    if (isNodeError(cause, 'ENOENT')) return createDailyHistoryPack([], generatedAt);
+    throw storageError();
+  }
+}
+
+async function publishDailyHistory(
+  dataDir: string,
+  pack: DailyHistoryPack,
+  fileSystem: CloudFileSystem,
+): Promise<void> {
+  const finalPath = join(dataDir, DAILY_HISTORY_FILE);
+  const tempPath = join(dataDir, `.${DAILY_HISTORY_FILE}.tmp-${process.pid}-${randomUUID()}`);
+  try {
+    await fileSystem.writeFile(tempPath, await encodeDailyHistoryPack(pack), { encoding: 'utf8', flag: 'wx' });
+    await fileSystem.rename(tempPath, finalPath);
+  } catch {
+    try {
+      await fileSystem.unlink(tempPath);
+    } catch {
+      // Preserve the original safe storage failure.
+    }
+    throw storageError();
+  }
+}
+
+async function rebuildCurrentDailyHistory(
+  dataDir: string,
+  snapshot: Snapshot,
+  manifest: CloudManifest,
+  fileSystem: CloudFileSystem,
+): Promise<void> {
+  const date = new Date(snapshot.timestamp).toISOString().slice(0, 10);
+  const current = await readDailyHistory(dataDir, manifest.generatedAt, fileSystem);
+  const existingDates = new Set(current.summaries.map((summary) => summary.date));
+  const entries = manifest.snapshots.filter((entry) => {
+    const entryDate = new Date(entry.timestamp).toISOString().slice(0, 10);
+    return entryDate < date && !existingDates.has(entryDate);
+  });
+  if (entries.length === 0) return;
+  const byDate = new Map<string, Snapshot[]>();
+  for (const entry of entries) {
+    let decoded: Snapshot[];
+    try {
+      decoded = await decodeDayChunk(await fileSystem.readFile(join(dataDir, entry.file), 'utf8'));
+    } catch {
+      throw storageError();
+    }
+    if (decoded.length !== 1 || decoded[0]?.timestamp !== entry.timestamp) throw mismatchError();
+    const entryDate = new Date(entry.timestamp).toISOString().slice(0, 10);
+    const values = byDate.get(entryDate) ?? [];
+    values.push(decoded[0]);
+    byDate.set(entryDate, values);
+  }
+  if (byDate.size === 0) return;
+  let next = current;
+  for (const values of byDate.values()) {
+    next = upsertDailySummary(next, aggregateDailySummary(values), manifest.generatedAt);
+  }
+  await publishDailyHistory(dataDir, next, fileSystem);
+}
+
 async function pruneSnapshotFiles(
   dataDir: string,
   manifest: CloudManifest,
@@ -327,6 +405,7 @@ export async function updateCloudHistory(
   );
   if (existingEntry !== undefined) {
     if (existingEntry.bytes !== existingFile.bytes) throw mismatchError();
+    await rebuildCurrentDailyHistory(options.dataDir, options.snapshot, previous, fileSystem);
     const cleanupErrors = await pruneSnapshotFiles(options.dataDir, previous, fileSystem);
     return updateResult(false, previous, cleanupErrors);
   }
@@ -340,9 +419,11 @@ export async function updateCloudHistory(
     options.generatedAt,
   );
   await publishManifest(options.dataDir, next, fileSystem);
+  await rebuildCurrentDailyHistory(options.dataDir, options.snapshot, next, fileSystem);
   const cleanupErrors = await pruneSnapshotFiles(options.dataDir, next, fileSystem);
   return updateResult(true, next, cleanupErrors);
 }
 
 export const CLOUD_HISTORY_MANIFEST_FILE = MANIFEST_FILE;
 export const CLOUD_HISTORY_SNAPSHOT_DIRECTORY = SNAPSHOT_DIRECTORY;
+export const CLOUD_DAILY_HISTORY_FILE = DAILY_HISTORY_FILE;

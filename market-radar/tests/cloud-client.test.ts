@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CloudManifest, CloudSnapshotEntry } from '../src/cloud/types';
 import { createManifest } from '../src/cloud/manifest';
 import { encodeDayChunk } from '../src/core/storage-codec';
+import { aggregateDailySummary } from '../src/cloud/daily-summary';
+import { createDailyHistoryPack, encodeDailyHistoryPack } from '../src/cloud/daily-history';
 import type { Snapshot } from '../src/core/types';
 import {
   CloudMarketError,
@@ -50,6 +52,32 @@ afterEach(() => {
 });
 
 describe('cloud client', () => {
+  it('merges older daily closes with the ten-day hourly window without overlapping dates', async () => {
+    const hourly = [snapshot(LATEST - HOUR), snapshot(LATEST)];
+    const data = await manifestAndFiles(hourly);
+    const oldDaily = aggregateDailySummary([snapshot(LATEST - 11 * 24 * HOUR, 70)]);
+    const overlappingDaily = aggregateDailySummary([snapshot(LATEST - HOUR, 90)]);
+    const daily = await encodeDailyHistoryPack(createDailyHistoryPack(
+      [oldDaily, overlappingDaily], GENERATED_AT,
+    ));
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.endsWith('/manifest.json')) return response(data.manifest);
+      if (url.endsWith('/daily-history.txt')) return response(daily);
+      return response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+
+    const values = await client.listSnapshots();
+    expect(values.map((value) => value.timestamp)).toEqual([
+      oldDaily.timestamp,
+      LATEST - HOUR,
+      LATEST,
+    ]);
+    expect(values[0]?.quotes[KEY]?.p).toBe(70);
+    expect(fetcher.mock.calls.some(([input]) => String(input).endsWith('/daily-history.txt'))).toBe(true);
+  });
+
   it('fetches the manifest and snapshot text with safe GET options under the base URL', async () => {
     const data = await manifestAndFiles([snapshot(LATEST - HOUR), snapshot(LATEST)]);
     const calls: Array<{ url: string; init?: RequestInit }> = [];
@@ -63,7 +91,7 @@ describe('cloud client', () => {
     const client = createCloudClient(new URL('https://example.test/cloud/'), { fetcher });
 
     await expect(client.listSnapshots()).resolves.toEqual([snapshot(LATEST - HOUR), snapshot(LATEST)]);
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(4);
     for (const call of calls) {
       expect(call.init).toMatchObject({
         method: 'GET',
@@ -179,7 +207,7 @@ describe('cloud client', () => {
     await client.listSnapshots();
     await client.refresh({ force: true });
 
-    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(fetcher).toHaveBeenCalledTimes(4);
     expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/manifest.json'))).toHaveLength(2);
   });
 

@@ -182,6 +182,7 @@ describe('strategy recommendation view', () => {
     expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('12,000');
     expect(target.querySelector('[data-strategy-row="long"] [data-strategy-signal="wait"]')?.textContent).toContain('等待');
     expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('信心 低');
+    expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('回測 3D');
     expect(target.textContent).toContain('安全批量');
     expect(target.textContent).toContain('市場占比');
 

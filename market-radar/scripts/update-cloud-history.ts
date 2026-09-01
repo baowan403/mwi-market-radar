@@ -5,7 +5,8 @@ import type { Snapshot } from '../src/core/types';
 import { decodeDayChunk } from '../src/core/storage-codec';
 import { parseOfficialSnapshot } from '../src/core/market-schema';
 import { parseManifest } from '../src/cloud/manifest';
-import { updateCloudHistory } from '../src/cloud/history-store';
+import { decodeDailyHistoryPack } from '../src/cloud/daily-history';
+import { CLOUD_DAILY_HISTORY_FILE, updateCloudHistory } from '../src/cloud/history-store';
 import type { CloudManifest } from '../src/cloud/types';
 
 export const OFFICIAL_MARKETPLACE_URL = 'https://www.milkywayidle.com/game_data/marketplace.json';
@@ -231,6 +232,13 @@ async function validateCloudHistory(dataDir: string): Promise<CloudManifest> {
       throw new CloudCliError('validation', SAFE_ERROR_MESSAGES.validation);
     }
     if (snapshots.length !== 1 || snapshots[0]?.timestamp !== entry.timestamp) {
+      throw new CloudCliError('validation', SAFE_ERROR_MESSAGES.validation);
+    }
+  }
+  try {
+    await decodeDailyHistoryPack(await readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8'));
+  } catch (cause) {
+    if (!isNodeError(cause, 'ENOENT')) {
       throw new CloudCliError('validation', SAFE_ERROR_MESSAGES.validation);
     }
   }

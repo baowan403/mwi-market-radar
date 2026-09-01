@@ -1,6 +1,8 @@
 import type { Page } from '@playwright/test';
 import { createManifest, type CloudManifest, type CloudSnapshotEntry } from '../src/cloud/manifest';
 import { encodeDayChunk } from '../src/core/storage-codec';
+import { aggregateDailySummary } from '../src/cloud/daily-summary';
+import { createDailyHistoryPack, encodeDailyHistoryPack } from '../src/cloud/daily-history';
 import type { MarketKey, Quote, Snapshot } from '../src/core/types';
 
 const HOUR = 3_600_000;
@@ -12,6 +14,7 @@ export interface CloudFixtureOptions {
   stale?: boolean;
   strategyQuotes?: boolean;
   historyHours?: number;
+  dailyHistoryDays?: number;
 }
 
 export interface CloudFixture {
@@ -87,6 +90,9 @@ export async function createCloudFixture(options: CloudFixtureOptions = {}): Pro
   const historyHours = Number.isSafeInteger(options.historyHours) && (options.historyHours ?? 0) >= 1
     ? options.historyHours!
     : 24;
+  const dailyHistoryDays = Number.isSafeInteger(options.dailyHistoryDays) && (options.dailyHistoryDays ?? 0) > 0
+    ? options.dailyHistoryDays!
+    : 0;
 
   for (let index = historyHours; index >= 0; index -= 1) {
     const timestamp = latestTimestamp - index * HOUR;
@@ -98,6 +104,18 @@ export async function createCloudFixture(options: CloudFixtureOptions = {}): Pro
     entries.push({ timestamp, file, bytes: Buffer.byteLength(encoded, 'utf8') });
   }
   currentManifest = createManifest(entries, new Date(latestTimestamp + 60_000));
+  const hourlyStart = latestTimestamp - historyHours * HOUR;
+  const dailyHistoryText = dailyHistoryDays === 0
+    ? ''
+    : await encodeDailyHistoryPack(createDailyHistoryPack(
+      Array.from({ length: dailyHistoryDays }, (_, index) => {
+        const timestamp = hourlyStart - (dailyHistoryDays - index) * DAY;
+        return aggregateDailySummary([
+          createSnapshot(timestamp, index, false, options.strategyQuotes === true),
+        ]);
+      }),
+      new Date(latestTimestamp + 60_000).toISOString(),
+    ));
 
   const fulfillText = async (route: Parameters<Parameters<Page['route']>[1]>[0], body: string, contentType: string): Promise<void> => {
     const bytes = Buffer.byteLength(body, 'utf8');
@@ -128,6 +146,10 @@ export async function createCloudFixture(options: CloudFixtureOptions = {}): Pro
     async install(page: Page): Promise<void> {
       await page.route('**/data/**', async (route) => {
         const url = new URL(route.request().url());
+        if (url.pathname.endsWith('/daily-history.txt')) {
+          await route.fulfill({ status: 200, body: dailyHistoryText, contentType: 'text/plain' });
+          return;
+        }
         if (!url.pathname.endsWith('/manifest.json') && !url.pathname.includes('/data/snapshots/')) {
           await route.continue();
           return;

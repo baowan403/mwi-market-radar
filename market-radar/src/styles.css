@@ -1124,6 +1124,16 @@ summary:focus-visible {
   line-height: 1.45;
 }
 
+.strategy-backtest-summary {
+  display: grid;
+  min-width: 330px;
+  gap: 3px;
+  margin-top: 6px;
+  color: var(--color-info);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
 .strategy-signal-details .strategy-invalidation {
   color: var(--color-warning);
 }

@@ -1,5 +1,5 @@
-/** Milliseconds retained by the cloud snapshot index. */
-export const CLOUD_RETENTION_MS = 8 * 24 * 60 * 60 * 1_000;
+/** Ten days of hourly snapshots retained by the cloud snapshot index. */
+export const CLOUD_RETENTION_MS = 10 * 24 * 60 * 60 * 1_000;
 
 export const CLOUD_MANIFEST_SCHEMA = 1 as const;
 

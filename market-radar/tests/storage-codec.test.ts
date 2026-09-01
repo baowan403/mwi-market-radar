@@ -3,6 +3,8 @@ import type { Snapshot } from '../src/core/types';
 import {
   decodeDayChunk,
   decodeDayChunkLimited,
+  decodeCompressedJsonLimited,
+  encodeCompressedJson,
   encodeDayChunk,
   STORAGE_CODEC_GZIP_PREFIX,
   StorageDecodeError,
@@ -44,6 +46,12 @@ afterEach(() => {
 });
 
 describe('storage codec', () => {
+  it('round trips a generic bounded JSON payload for daily summaries', async () => {
+    const value = { schemaVersion: 1, days: [{ date: '2026-09-01', o: 1, c: 2 }] };
+    const encoded = await encodeCompressedJson(value);
+    await expect(decodeCompressedJsonLimited(encoded, 10_000)).resolves.toEqual(value);
+  });
+
   it('round trips a day chunk while preserving nulls, quotes, and timestamps', async () => {
     const input: Snapshot[] = [
       snapshot(1_788_000_000_000, null),

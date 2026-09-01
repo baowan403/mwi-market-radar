@@ -117,7 +117,7 @@ function isSnapshotArray(value: unknown): value is Snapshot[] {
   return Array.isArray(value) && value.every(isSnapshot);
 }
 
-export async function encodeDayChunk(value: Snapshot[]): Promise<string> {
+export async function encodeCompressedJson(value: unknown): Promise<string> {
   const CompressionStreamConstructor = requireCompressionStream();
   const json = JSON.stringify(value);
   const stream = new Blob([new TextEncoder().encode(json)])
@@ -127,11 +127,15 @@ export async function encodeDayChunk(value: Snapshot[]): Promise<string> {
   return `${STORAGE_CODEC_PREFIX}${bytesToBase64(bytes)}`;
 }
 
-export async function decodeDayChunkLimited(
+export async function encodeDayChunk(value: Snapshot[]): Promise<string> {
+  return encodeCompressedJson(value);
+}
+
+export async function decodeCompressedJsonLimited(
   value: string,
   maxDecodedBytes: number,
   signal?: AbortSignal,
-): Promise<Snapshot[]> {
+): Promise<unknown> {
   if (typeof value !== 'string' || !value.startsWith(STORAGE_CODEC_PREFIX)) {
     throw new StorageDecodeError('prefix', 'Storage day chunk has an unsupported codec prefix.');
   }
@@ -216,10 +220,18 @@ export async function decodeDayChunkLimited(
     throw new StorageDecodeError('json', 'Storage day chunk contains invalid JSON.');
   }
 
+  return decoded;
+}
+
+export async function decodeDayChunkLimited(
+  value: string,
+  maxDecodedBytes: number,
+  signal?: AbortSignal,
+): Promise<Snapshot[]> {
+  const decoded = await decodeCompressedJsonLimited(value, maxDecodedBytes, signal);
   if (!isSnapshotArray(decoded)) {
     throw new StorageDecodeError('schema', 'Storage day chunk does not match the snapshot schema.');
   }
-
   return decoded;
 }
 

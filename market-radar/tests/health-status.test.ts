@@ -32,6 +32,18 @@ const snapshots = (timestamps: number[]): Snapshot[] => timestamps.map((timestam
 }));
 
 describe('snapshot health', () => {
+  it('ignores older daily summary spacing when checking the ten-day hourly health window', () => {
+    const latest = 40 * 24 * HOUR;
+    const mixed = snapshots([
+      latest - 30 * 24 * HOUR,
+      latest - 29 * 24 * HOUR,
+      latest - 2 * HOUR,
+      latest - HOUR,
+      latest,
+    ]);
+    expect(detectSnapshotGaps(mixed)).toEqual([]);
+  });
+
   it('sorts/deduplicates snapshots and reports only gaps over 1.75 hours', () => {
     expect(detectSnapshotGaps(snapshots([3 * HOUR, 0, HOUR, HOUR, 4 * HOUR]))).toEqual([
       { from: HOUR, to: 3 * HOUR, hours: 2 },

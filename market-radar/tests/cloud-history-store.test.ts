@@ -5,7 +5,10 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { Snapshot } from '../src/core/types';
 import { decodeDayChunk, encodeDayChunk, STORAGE_CODEC_PREFIX } from '../src/core/storage-codec';
+import { decodeDailyHistoryPack } from '../src/cloud/daily-history';
+import { createManifest } from '../src/cloud/manifest';
 import {
+  CLOUD_DAILY_HISTORY_FILE,
   CloudHistoryError,
   updateCloudHistory,
   type CloudFileSystem,
@@ -68,6 +71,53 @@ afterEach(async () => {
 });
 
 describe('updateCloudHistory', () => {
+  it('finalizes one compressed daily OHLCV summary only after the UTC day closes', async () => {
+    await updateCloudHistory({
+      dataDir,
+      snapshot: snapshot(LATEST - HOUR, 90),
+      generatedAt: '2026-09-01T11:09:00.000Z',
+    });
+    await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST, 100), generatedAt: GENERATED_AT });
+    await expect(readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+    await updateCloudHistory({
+      dataDir,
+      snapshot: snapshot(LATEST + DAY, 110),
+      generatedAt: '2026-09-02T12:09:00.000Z',
+    });
+
+    const encoded = await readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8');
+    const pack = await decodeDailyHistoryPack(encoded);
+    expect(pack.summaries).toHaveLength(1);
+    expect(pack.summaries[0]?.quotes[KEY]).toMatchObject({
+      o: 90, h: 100, l: 90, c: 100, v: 20, samples: 2,
+    });
+  });
+
+  it('backfills retained hourly days when migrating a history without a daily pack', async () => {
+    await mkdir(join(dataDir, 'snapshots'), { recursive: true });
+    const existing = [snapshot(LATEST - 2 * DAY, 80), snapshot(LATEST - DAY, 90)];
+    const entries = [];
+    for (const value of existing) {
+      const text = await encodeDayChunk([value]);
+      await writeFile(join(dataDir, 'snapshots', `${value.timestamp}.txt`), text, 'utf8');
+      entries.push({
+        timestamp: value.timestamp,
+        file: `snapshots/${value.timestamp}.txt` as `snapshots/${number}.txt`,
+        bytes: Buffer.byteLength(text),
+      });
+    }
+    await writeFile(
+      join(dataDir, 'manifest.json'),
+      JSON.stringify(createManifest(entries, '2026-08-31T12:09:00.000Z')),
+      'utf8',
+    );
+
+    await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST, 100), generatedAt: GENERATED_AT });
+
+    const pack = await decodeDailyHistoryPack(await readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8'));
+    expect(pack.summaries.map((value) => value.quotes[KEY]?.c)).toEqual([80, 90]);
+  });
+
   it('writes a prefixed immutable snapshot file and atomically publishes its manifest', async () => {
     const current = snapshot(LATEST);
 
@@ -165,9 +215,9 @@ describe('updateCloudHistory', () => {
     await expect(readFile(join(dataDir, 'manifest.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
-  it('retains the eight-day boundary and commits the manifest before deleting old files', async () => {
-    const old = snapshot(LATEST - 9 * DAY);
-    const boundary = snapshot(LATEST - 8 * DAY, 101);
+  it('retains the ten-day boundary and commits the manifest before deleting old files', async () => {
+    const old = snapshot(LATEST - 11 * DAY);
+    const boundary = snapshot(LATEST - 10 * DAY, 101);
     await updateCloudHistory({ dataDir, snapshot: old, generatedAt: GENERATED_AT });
     await updateCloudHistory({ dataDir, snapshot: boundary, generatedAt: GENERATED_AT });
 
@@ -177,7 +227,7 @@ describe('updateCloudHistory', () => {
     await expect(readManifest(dataDir)).resolves.toMatchObject({
       latestTimestamp: LATEST,
       snapshots: [
-        { timestamp: LATEST - 8 * DAY },
+        { timestamp: LATEST - 10 * DAY },
         { timestamp: LATEST },
       ],
     });
@@ -185,7 +235,7 @@ describe('updateCloudHistory', () => {
   });
 
   it('reports a safe cleanup error while leaving the committed manifest valid', async () => {
-    const old = snapshot(LATEST - 9 * DAY);
+    const old = snapshot(LATEST - 11 * DAY);
     await updateCloudHistory({ dataDir, snapshot: old, generatedAt: GENERATED_AT });
     const failingFileSystem: Partial<CloudFileSystem> = {
       unlink: vi.fn(async () => {
@@ -211,7 +261,7 @@ describe('updateCloudHistory', () => {
   it('prunes only exact old orphan files on a same-timestamp no-op and preserves the manifest hash', async () => {
     const current = snapshot(LATEST);
     await updateCloudHistory({ dataDir, snapshot: current, generatedAt: GENERATED_AT });
-    const oldTimestamp = LATEST - 9 * DAY;
+    const oldTimestamp = LATEST - 11 * DAY;
     const withinWindowTimestamp = LATEST - 7 * DAY;
     const futureTimestamp = LATEST + DAY;
     const orphanText = await encodeDayChunk([snapshot(oldTimestamp)]);
@@ -327,5 +377,15 @@ describe('cloud history CLI', () => {
 
     await expect(run(['--data-dir', dataDir, '--validate-only'])).resolves.toBe(1);
     expect(JSON.stringify(consoleError.mock.calls)).not.toContain('corrupt private payload');
+  });
+
+  it('validates the compressed daily history pack without leaking corrupt content', async () => {
+    const fixture = await fixtureFile(dataDir);
+    await run(['--data-dir', dataDir, '--fixture', fixture, '--min-quotes', '1']);
+    await writeFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'private corrupt daily payload', 'utf8');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(run(['--data-dir', dataDir, '--validate-only'])).resolves.toBe(1);
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('private corrupt daily payload');
   });
 });

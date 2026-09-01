@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 import { createCloudFixture } from './cloud-fixture';
 
 test('imports a profile and persists personalized strategy recommendations without profile egress', async ({ page }) => {
-  const fixture = await createCloudFixture({ strategyQuotes: true, historyHours: 72 });
+  const fixture = await createCloudFixture({ strategyQuotes: true, historyHours: 72, dailyHistoryDays: 31 });
   await fixture.install(page);
   await page.route('**/favicon.ico', (route) => route.fulfill({ status: 204, body: '' }));
   const requestBodies: string[] = [];
@@ -29,12 +29,17 @@ test('imports a profile and persists personalized strategy recommendations witho
   await expect(page.locator('[data-strategy-row]')).not.toHaveCount(0);
   await expect(page.locator('[data-strategy-row][data-liquidity-classification="reject"]')).toHaveCount(0);
   await expect(page.locator('[data-strategy-row][data-liquidity-classification="insufficient"]')).toHaveCount(0);
+  expect(await page.locator('[data-strategy-row][data-liquidity-classification="long-run"]').count()).toBeGreaterThan(0);
+  expect(await page.locator('[data-strategy-row][data-liquidity-classification="limited"]').count()).toBeGreaterThan(0);
   await expect(page.getByRole('columnheader', { name: '理論日利' })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: '可實現日利' })).toBeVisible();
   await expect(page.locator('[data-strategy-row]').first()).toContainText('安全批量');
   await expect(page.locator('[data-strategy-row]').first()).toContainText('市場占比');
-  await expect(page.locator('[data-strategy-row]').first().locator('[data-strategy-signal="wait"]')).toContainText('等待');
-  await expect(page.locator('[data-strategy-row]').first()).toContainText('信心 無');
+  await expect(page.locator('[data-strategy-row]').first().locator('[data-strategy-signal]')).toBeVisible();
+  await expect(page.locator('[data-strategy-row]').first()).toContainText('信心 低');
+  await expect(page.locator('[data-strategy-row]').first()).toContainText('回測 3D');
+  await page.locator('[data-strategy-row]').first().locator('.strategy-signal-details > summary').click();
+  await expect(page.locator('[data-strategy-row]').first()).toContainText('失效：');
   const classificationStyle = await page.locator('.strategy-classification').first().evaluate((element) => ({
     background: getComputedStyle(element).backgroundColor,
     radius: Number.parseFloat(getComputedStyle(element).borderTopLeftRadius),
@@ -51,6 +56,7 @@ test('imports a profile and persists personalized strategy recommendations witho
 
   await page.locator('[data-strategy-scope="limited"]').click();
   await expect(page.locator('[data-strategy-row]')).not.toHaveCount(0);
+  expect(await page.locator('[data-strategy-row][data-liquidity-classification="reject"]').count()).toBeGreaterThan(0);
   await expect(page.locator('[data-strategy-row*="pirate_refinement_shard"]').first()).toBeVisible();
   await page.locator('[data-strategy-scope="actionable"]').click();
 

@@ -1,5 +1,6 @@
 import type { Snapshot } from '../core/types';
 import type { PlayerProfile } from '../profile/types';
+import { backtestStrategySignals, type StrategyBacktestResult } from './backtest';
 import { buildStrategyCandidates, type StrategyCandidate, type StrategyCandidateResult } from './candidates';
 import type { NormalizedStrategyGameData } from './game-data';
 import { buildStrategyMarginSeries, repriceFixedCandidate } from './margin-series';
@@ -92,6 +93,11 @@ interface AssessedStrategy {
   liquidity: RealizableStrategy;
 }
 
+interface AssessedSignal {
+  signal: StrategySignal;
+  backtest: StrategyBacktestResult;
+}
+
 function renderNoProfile(options: StrategyViewOptions): void {
   options.target.replaceChildren();
   const empty = element('section', 'strategy-empty');
@@ -110,11 +116,12 @@ function renderNoProfile(options: StrategyViewOptions): void {
 
 function strategyRow(
   assessed: AssessedStrategy,
-  signal: StrategySignal,
+  assessedSignal: AssessedSignal,
   pinned: Set<string>,
   options: StrategyViewOptions,
 ): HTMLTableRowElement {
   const { candidate, liquidity } = assessed;
+  const { signal, backtest } = assessedSignal;
   const row = element('tr');
   row.dataset.strategyRow = candidate.id;
   row.dataset.liquidityClassification = liquidity.classification;
@@ -164,6 +171,13 @@ function strategyRow(
   const signalDetails = element('details', 'strategy-signal-details');
   const signalSummary = element('summary');
   signalSummary.textContent = '理由與失效';
+  const backtestSummary = element('div', 'strategy-backtest-summary');
+  for (const horizon of ['3d', '7d'] as const) {
+    const value = backtest.byHorizon[horizon];
+    const line = element('span');
+    line.textContent = `回測 ${horizon.toUpperCase()} ${value.samples} 次・命中 ${metric(value.hitRate === null ? null : value.hitRate * 100, '%')}・平均 ${metric(value.averageChangePct, '%')}・最大逆向 ${metric(value.maximumAdversePct, '%')}`;
+    backtestSummary.append(line);
+  }
   const reasons = element('ul');
   for (const reason of signal.reasons) {
     const item = element('li');
@@ -176,7 +190,7 @@ function strategyRow(
     item.textContent = `失效：${condition}`;
     invalidation.append(item);
   }
-  signalDetails.append(signalSummary, reasons, invalidation);
+  signalDetails.append(signalSummary, backtestSummary, reasons, invalidation);
   signalCell.append(signalBadge, confidence, signalDetails);
   row.append(signalCell);
 
@@ -266,7 +280,7 @@ function renderResults(
   snapshots: readonly Snapshot[],
   data: NormalizedStrategyGameData,
   scope: StrategyScope = 'actionable',
-  signalCache = new Map<string, StrategySignal>(),
+  signalCache = new Map<string, AssessedSignal>(),
   priceBookCache = new Map<number, ReturnType<typeof createStrategyPriceBook>>(),
 ): void {
   options.target.replaceChildren();
@@ -350,8 +364,8 @@ function renderResults(
   head.append(headerRow);
   const body = element('tbody');
   for (const assessedCandidate of chosen.slice(0, 100)) {
-    let signal = signalCache.get(assessedCandidate.candidate.id);
-    if (!signal) {
+    let assessedSignal = signalCache.get(assessedCandidate.candidate.id);
+    if (!assessedSignal) {
       const series = buildStrategyMarginSeries({
         strategyId: assessedCandidate.candidate.id,
         snapshots,
@@ -364,10 +378,16 @@ function renderResults(
           return repriceFixedCandidate(assessedCandidate.candidate, prices);
         },
       });
-      signal = strategyTrendSignal(series);
-      signalCache.set(assessedCandidate.candidate.id, signal);
+      const backtest = backtestStrategySignals(series, {
+        signalAt: (prefix) => strategyTrendSignal(prefix),
+      });
+      assessedSignal = {
+        signal: strategyTrendSignal(series, { backtest: backtest.summary }),
+        backtest,
+      };
+      signalCache.set(assessedCandidate.candidate.id, assessedSignal);
     }
-    body.append(strategyRow(assessedCandidate, signal, pinned, options));
+    body.append(strategyRow(assessedCandidate, assessedSignal, pinned, options));
   }
   table.append(head, body);
   scroll.append(table);

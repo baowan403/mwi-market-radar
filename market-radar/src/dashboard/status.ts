@@ -1,4 +1,5 @@
 import type { CollectorStatus, Snapshot } from '../core/types';
+import { CLOUD_RETENTION_MS } from '../cloud/types';
 
 const STATE_LABELS: Record<CollectorStatus['state'], string> = {
   idle: '待機',
@@ -83,11 +84,15 @@ export function formatTaipeiTime(timestamp: number | null): string {
 
 /** Return observed snapshot gaps without filling or interpolating missing data. */
 export function detectSnapshotGaps(snapshots: readonly Snapshot[]): SnapshotGap[] {
-  const timestamps = [...new Set(
+  const allTimestamps = [...new Set(
     snapshots
       .map((snapshot) => snapshot.timestamp)
       .filter(isDateRepresentable),
   )].sort((left, right) => left - right);
+  const latest = allTimestamps.at(-1);
+  const timestamps = latest === undefined
+    ? allTimestamps
+    : allTimestamps.filter((timestamp) => timestamp >= latest - CLOUD_RETENTION_MS);
   const gaps: SnapshotGap[] = [];
   for (let index = 1; index < timestamps.length; index += 1) {
     const from = timestamps[index - 1];

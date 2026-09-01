@@ -2,9 +2,9 @@
 
 MWI Market Radar 是 Milky Way Idle 的市場看盤與策略推薦工具：它保存官方公開市場快照，並在獨立 dashboard 顯示價格、買一／賣一、價差、成交量、1D／3D／7D 變化、波動、排行榜、分類與自選名單。玩家可自願貼上 Milkonomy 快照，讓後續策略計算依角色技能與裝備個人化；角色資料只保存在瀏覽器本機。
 
-> 原市場採集 live acceptance 見 `docs/manual-acceptance.md`；角色匯入與策略計算基礎的最新驗收見 `docs/strategy-foundation-acceptance.md`。沒有執行交易操作。
+> 原市場採集 live acceptance 見 `docs/manual-acceptance.md`；角色匯入與策略計算基礎見 `docs/strategy-foundation-acceptance.md`；流動性、趨勢與回測驗收見 `docs/liquidity-trend-acceptance.md`。沒有執行交易操作。
 
-> 2026-09-01 personalized strategy verification：44 個 unit test files、433 tests 全部通過；正式 dashboard/userscript build 通過；Chrome E2E 34 passed、2 個 desktop-only expected skips。
+> 最新驗證數字以 GitHub Actions 與本輪交付紀錄為準；正式流程固定執行完整 unit、dashboard/userscript build 與桌面／手機 Chrome E2E。
 
 ## 功能與架構
 
@@ -14,7 +14,7 @@ MWI Market Radar 是 Milky Way Idle 的市場看盤與策略推薦工具：它�
 - collector 只讀取官方 `marketplace.json`，每小時約在 `xx:08` 檢查，啟動時立即檢查；失敗的正常檢查依規則在 10 分鐘後重試一次。市場資料是每小時快照，因此 dashboard 每 60 秒 polling 足夠更新狀態；bridge 是單向 MWI→Radar 唯讀資料流，不是雙向交易通道。
 - 跨分頁互斥只使用原生 Web Locks。瀏覽器沒有 Web Locks 時會 fail-closed、不採集；不使用 GM storage 假裝互斥。
 - dashboard 支援八個 primary view（自選、全市場、資源、消耗品、技能書、迷宮、裝備、其他）、十個官方分類、中文／英文／HRID 搜尋、強化等級、最低成交量、最大價差、排序、排行榜與物品圖表。
-- 歷史保留最近 8 日的逐時資料；缺口、缺價、單邊報價與低流動性會如實標示，不插值、不補零。
+- 公開雲端保留最近 10 日逐時資料，並壓縮保存最多 180 日的每日 OHLCV／報價品質摘要；缺口、缺價、單邊報價與低流動性會如實標示，不插值、不補零。
 
 ## 個人化策略推薦
 
@@ -29,10 +29,12 @@ MWI Market Radar 是 Milky Way Idle 的市場看盤與策略推薦工具：它�
 - 依角色等級與裝備掃描真實製造、裁縫、鍛造、烹飪及沖泡配方。
 - 產生 2–7 步工作流，依產能平衡各步工時並抵消內部中間品。
 - 支援分解、點金及分解→點金；包含專用／至高催化劑、硬幣費、茶與掉落 EV。
-- 「策略推薦」分頁顯示理論日利、每小時利潤、24h 流動資金、完整路徑與步驟。
+- 「策略推薦」分頁顯示理論／可實現日利、24h 流動資金、安全批量、可執行時數、出售估計、市場占比、瓶頸與完整假設。
+- 所有外部買入／賣出邊均受 3D／7D 成交量中位數與 5% 安全市占限制；超量或資料不足策略移至「觀察／排除」。
+- 固定策略會建立無未來洩漏的歷史利潤序列，輸出執行／準備／等待／出售／停止訊號、理由、失效門檻及 3D／7D walk-forward 回測。
 - 策略自選使用獨立 IndexedDB，與物品自選及角色快照隔離。
 
-策略頁目前明確標示為理論收益。尚未完成、不能提前宣稱可用的功能：流動性調整後日利、安全批量、售完天數、3D／7D 策略趨勢、回測與強化／轉化風險模型。
+不足 7 天不宣稱趨勢，7–29 天最多低信心；中／高信心需要至少 30 天與通過回測門檻。強化／轉化的波動及資金回撤模型仍不屬於這批穩定生活策略。
 
 ## 環境需求
 
@@ -66,7 +68,7 @@ MWI 分頁必須保持開啟，因為 v1 不在電腦關機或沒有遊戲分頁
 
 ## 公開 cloud mode 與本機 fallback
 
-公開 cloud mode 已部署於 [https://baowan403.github.io/mwi-market-radar/](https://baowan403.github.io/mwi-market-radar/)，不需要 MWI 分頁、Tampermonkey 或本機 server；網站讀取同源 `data/manifest.json` 與公開 snapshot files。GitHub Actions 每小時 UTC 第 13 分收集官方 `marketplace.json`，資料只提交到 data-only `market-data` branch。
+公開 cloud mode 已部署於 [https://baowan403.github.io/mwi-market-radar/](https://baowan403.github.io/mwi-market-radar/)，不需要 MWI 分頁、Tampermonkey 或本機 server；網站讀取同源 `data/manifest.json`、公開 snapshot files 與可選的 `data/daily-history.txt`。GitHub Actions 每小時 UTC 第 13 分收集官方 `marketplace.json`，資料只提交到 data-only `market-data` branch。
 
 Tampermonkey userscript 保留為可選的本機 fallback：若 cloud data 暫時不可用且 MWI bridge 已 ready，dashboard 會顯示本機備援；若兩者都不可用，顯示安全錯誤與零假資料。cloud 與本機資料以 timestamp 去重，cloud 優先；偏好設定只存於瀏覽器本機 IndexedDB。
 

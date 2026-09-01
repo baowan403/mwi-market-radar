@@ -18,9 +18,9 @@
 2. 對同一 data directory 再執行一次，輸出 `Cloud history unchanged`；manifest 與 snapshot SHA-256 必須與第一次完全相同。
 3. `cloud:validate --validate-only` 回傳 exit code 0，然後只清理該 temporary directory。
 
-2026-09-01 14:37（Asia/Taipei）的 evidence：fixture latest `1787645160000`（`2026-08-25T08:06:00.000Z`）、generatedAt `2026-09-01T06:37:26.560Z`、1 snapshot（`snapshots/1787645160000.txt`，235 bytes）；manifest SHA-256 `96C91D591EAE8AB5ED881A199759607FE282F7B0518EB429DD2DE304BAAA3521`，snapshot SHA-256 `764D4BCB1E64EBE6A1AD978335471C59565DC19FF293503F0745DD672B7D5CD6`，第二次執行兩者均不變。同期驗證為 unit 31 files／395 tests、build 雙 artifact、E2E 31 passed／1 skipped。8 日 retention boundary 與 synthetic newer snapshot 則由 `cloud-history-store` unit tests 覆蓋；這項 local evidence 不代表 remote、Pages 或 live MWI 已部署。
+2026-09-01 14:37（Asia/Taipei）的 evidence 是舊版 8 日 retention 實驗紀錄；目前權威保留規格已改為 10 日逐時＋180 日每日摘要。該紀錄只證明當時版本，不得用來驗收目前 retention。
 
-2026-09-01 retention smoke 另以 local `tsx` import 實測三個 synthetic timestamps：`1787529599999`（latest - 8d - 1ms）被移除，exact boundary `1787529600000` 與 latest `1788220800000` 保留；final manifest 2 snapshots、`cloud:validate` exit 0。manifest SHA-256 `FE8FB657301D92B1E23B4666E1FC221B198B064CDDD23D233D3C5861E6A59A1E`；`snapshots/1787529600000.txt` 159 bytes、SHA-256 `5B2435D51C3182B33AEB5EDDB013EC4CE5C66BE2992E168373180EF3FA5D070E`；`snapshots/1788220800000.txt` 159 bytes、SHA-256 `7DD8F3267E1A6787E360BA156B653F97C34FB7CF20E09BF7AE375DA4336A0DF5`；完整 retention 證據見 [`cloud-deployment-checklist.md`](cloud-deployment-checklist.md)。
+目前 retention 由 `cloud-manifest`、`cloud-history-store`、`cloud-daily-summary`、`cloud-daily-history` 與 `cloud-client` 測試共同驗證；舊版 8 日 smoke hash 保留在 deployment checklist 作歷史證據。
 
 Fresh artifact hash evidence（`npm run build`）：`dist/index.html` 484 bytes `59E44C96D5F28BF02418492F58DDB3AA6F63915953DA06DD99DC05A4EE85F3CB`；`dist/assets/index-C4MygJl6.js` 295135 bytes `A5DF89470917CF52AAA211F44C2860D9F43CA6D15B0FC77354EFC40F397BF5F1`；`dist/assets/index-CMPmJcvL.css` 13159 bytes `F1F5344BFD050C68401DD29B214165F469C55935991F526545811519A71F6A49`；`dist/mwi-market-radar.user.js` 59403 bytes `1DAA1C9BF295EAC429D776E4566759FA1484A6EE0766135CDC2E20973459B3CE`；`public/catalog.json` 222753 bytes `847354A0C867A09E53C3ED9898470897ECDA926600F9B351900368F4E25D3BF0`。
 
@@ -44,8 +44,9 @@ GitHub scheduled workflow 可能在 repository 長時間無活動後停用（常
 
 ## `market-data` 分支檢查
 
-- `data/manifest.json` 是唯一索引；`data/snapshots/<timestamp>.txt` 必須與 manifest timestamp、bytes 相符。
-- 只保留最新 8 日的逐時資料，邊界包含在內。Git 歷史可能保留舊 blob，但目前 tree 不應重新放回已裁剪檔案。
+- `data/manifest.json` 索引逐時檔；`data/snapshots/<timestamp>.txt` 必須與 manifest timestamp、bytes 相符。`data/daily-history.txt` 是獨立、可選但一旦存在就必須可驗證的壓縮每日封包。
+- `manifest.json` 只保留最新 10 日逐時資料，邊界包含在內；`daily-history.txt` 保存最多 180 日壓縮每日 OHLCV／報價品質摘要。
+- 當日由逐時資料提供；`daily-history.txt` 只在跨 UTC 日後封存已完成日期，避免每小時重寫整個壓縮 blob。
 - 不手動編輯 snapshot payload；若要修復，使用 workflow/CLI 重新驗證公開來源，再讓 updater 產生 deterministic manifest。
 
 ## 安全 rollback
@@ -54,11 +55,11 @@ GitHub scheduled workflow 可能在 repository 長時間無活動後停用（常
 - 若既有 `market-data` branch 的新資料已 push 但 deploy 失敗，`rollback-data` 會在 deploy failure 後執行：先確認遠端 branch head 仍等於本次 data commit，再以 `git revert --no-edit` 建立反向 commit 並正常 push，還原前一個資料樹；不接受 force-push。
 - 初次建立 branch 沒有 `previous_data_sha` 可還原；若該次 deploy 失敗，`market-data` 會保留已驗證的資料但不會有公開部署。先查看 Actions failure，再用 **Run workflow** 重新執行；不要把 branch 存在誤認成網站已上線。
 - 若自動 rollback 因 head guard、權限或 revert conflict 失敗，保留 workflow log 與 manifest 證據，經 Owner 審核後確認目前 branch head，再以正常 revert commit 還原 `data/**`，手動執行驗證與建置；不要 force-push 或刪除整個 repository。
-- rollback 後確認網站 source、latest timestamp、snapshot count 與 8 日 retention，再重新啟用排程。
+- rollback 後確認網站 source、latest timestamp、snapshot count、10 日逐時 retention 與每日封包可解碼，再重新啟用排程。
 
 ## 資料成長預估
 
-每小時最多新增一個 gzip/base64 snapshot，tree 只保留約 8 × 24 小時的檔案與一份 manifest；實際大小取決於公開 quote 數量。若 repository 成長超出預估，先停用新增排程並由 Owner 設計 archive/compaction；不要以第一版 workflow force-push 改寫 Git 歷史。
+每小時最多新增一個 gzip/base64 snapshot，tree 保留約 10 × 24 小時檔案、manifest 與一份最多 180 日的壓縮每日封包；實際大小取決於公開 quote 數量。若 repository 成長超出預估，先停用新增排程並由 Owner 設計 archive/compaction；不要 force-push 改寫 Git 歷史。
 
 ## 隱私與安全邊界
 

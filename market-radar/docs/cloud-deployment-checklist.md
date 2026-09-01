@@ -2,6 +2,8 @@
 
 這是 Owner 審核用的 local-to-Pages runbook與部署紀錄。2026-09-01 已由 Owner 核准建立公開 `baowan403/mwi-market-radar`、push `main`、建立 `market-data` 並發布 GitHub Pages。
 
+> Current retention authority：10 日逐時資料＋`daily-history.txt` 最多 180 日每日摘要。下方 8 日 hash 是早期 v1 部署的歷史證據，不再代表目前 retention gate。
+
 公開網址：[https://baowan403.github.io/mwi-market-radar/](https://baowan403.github.io/mwi-market-radar/)
 
 ## Owner 必須先提供／確認的輸入
