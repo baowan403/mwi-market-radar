@@ -255,9 +255,26 @@ describe('stockmarket backfill command', () => {
       skipped: false,
       inserted: 149,
       toTimestamp: BACKFILL_LATEST,
-      minimumQuoteKeys: 350,
+      minimumRequiredQuoteKeys: 350,
+      observedMinimumQuoteKeys: 1_000,
     });
     await expect(readFile(join(dataDir, HISTORY_PROVENANCE_FILE), 'utf8')).resolves.toContain(`"toTimestamp": ${BACKFILL_LATEST}`);
+  }, 30_000);
+
+  it('rejects a malformed downloaded row even when its negative timestamp is outside the approved interval', async () => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    const rows = stockmarketRows();
+    rows.get('item_0000')!.push({ ...row('item_0000', 0, BACKFILL_LATEST), timestamp: -1 });
+    const before = await dataBytes(dataDir);
+
+    await expect(runStockmarketBackfill({
+      dataDir,
+      generatedAt: BACKFILL_GENERATED,
+      client: { loadAll: async () => rows },
+      now: () => BACKFILL_NOW,
+    })).rejects.toThrow(/validation/i);
+    await expect(dataBytes(dataDir)).resolves.toEqual(before);
   }, 30_000);
 
   it('skips a valid completed backfill before calling the client and leaves published bytes untouched', async () => {

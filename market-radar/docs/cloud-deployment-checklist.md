@@ -39,7 +39,7 @@
 
 - [ ] Asia/Taipei 執行時間：
 - [ ] imported UTC range／snapshot count：
-- [ ] 最小 keys per snapshot：
+- [ ] required historical keys／observed minimum keys：`350`／`____`
 - [ ] latest official overlap comparisons／mismatch：`____`／`____`
 - [ ] `history-provenance.json` validation：
 - [ ] `market-data` commit SHA：

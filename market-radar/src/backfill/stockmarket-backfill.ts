@@ -61,6 +61,25 @@ function cloneSnapshot(snapshot: Snapshot): Snapshot {
   return { timestamp: snapshot.timestamp, quotes };
 }
 
+/** Strictly validate every downloaded history row before any caller filters it. */
+export function validateStockmarketHistoryRows(
+  rowsByItem: ReadonlyMap<string, readonly StockmarketHistoryPoint[]>,
+): void {
+  for (const [mapItem, rows] of rowsByItem.entries()) {
+    if (!SAFE_ITEM_NAME.test(mapItem) || !Array.isArray(rows)) fail('item rows are invalid');
+    for (const row of rows) {
+      if (row.itemName !== mapItem || !SAFE_ITEM_NAME.test(row.itemName)) fail('item name mismatch');
+      if (!validTimestamp(row.timestamp)) fail('row timestamp is invalid');
+      if (!Number.isSafeInteger(row.level) || row.level < 0) fail('row level is invalid');
+      for (const value of [row.a, row.b, row.p, row.v]) {
+        if (value !== null && (typeof value !== 'number' || !Number.isFinite(value) || value < 0)) {
+          fail('quote value is invalid');
+        }
+      }
+    }
+  }
+}
+
 export function buildBackfillSnapshots(
   rowsByItem: ReadonlyMap<string, readonly StockmarketHistoryPoint[]>,
   latestOfficialTimestamp: number,
@@ -68,19 +87,13 @@ export function buildBackfillSnapshots(
 ): Snapshot[] {
   if (!validTimestamp(latestOfficialTimestamp)) fail('latest official timestamp is invalid');
   validGates(gates);
+  validateStockmarketHistoryRows(rowsByItem);
   const cutoff = latestOfficialTimestamp - SEVEN_DAYS_MS;
   const byTimestamp = new Map<number, Map<MarketKey, Quote>>();
 
   for (const [mapItem, rows] of [...rowsByItem.entries()].sort(([a], [b]) => compareStrings(a, b))) {
-    if (!SAFE_ITEM_NAME.test(mapItem)) fail('item name is invalid');
     const copiedRows = [...rows].sort((left, right) => left.timestamp - right.timestamp || left.level - right.level);
     for (const row of copiedRows) {
-      if (row.itemName !== mapItem || !SAFE_ITEM_NAME.test(row.itemName)) fail('item name mismatch');
-      if (!validTimestamp(row.timestamp)) fail('row timestamp is invalid');
-      if (!Number.isSafeInteger(row.level) || row.level < 0) fail('row level is invalid');
-      for (const value of [row.a, row.b, row.p, row.v]) {
-        if (value !== null && (typeof value !== 'number' || !Number.isFinite(value) || value < 0)) fail('quote value is invalid');
-      }
       if (row.timestamp > latestOfficialTimestamp) fail('history contains future data');
       if (row.timestamp < cutoff) continue;
       const key = `/items/${mapItem}::${row.level}` as MarketKey;

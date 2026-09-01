@@ -7,6 +7,7 @@ import { decodeDayChunk } from '../src/core/storage-codec';
 import {
   buildBackfillSnapshots,
   PRODUCTION_HISTORICAL_MINIMUM_QUOTE_KEYS,
+  validateStockmarketHistoryRows,
   validateOfficialOverlap,
 } from '../src/backfill/stockmarket-backfill';
 import { createStockmarketClient } from '../src/backfill/stockmarket-client';
@@ -67,7 +68,8 @@ export type StockmarketBackfillResult =
     inserted: number;
     snapshotCount: number;
     overlapComparisons: number;
-    minimumQuoteKeys: number;
+    minimumRequiredQuoteKeys: number;
+    observedMinimumQuoteKeys: number;
     fromTimestamp: number;
     toTimestamp: number;
   };
@@ -322,6 +324,11 @@ export async function runStockmarketBackfill(options: StockmarketBackfillOptions
   } catch {
     throw safeError('Stockmarket backfill fetch failed');
   }
+  try {
+    validateStockmarketHistoryRows(rows);
+  } catch {
+    throw safeError('Stockmarket backfill validation failed');
+  }
   let approvedRows: Map<string, StockmarketHistoryPoint[]>;
   try {
     approvedRows = rowsInApprovedOfficialWindow(rows, latestOfficialTimestamp);
@@ -351,6 +358,7 @@ export async function runStockmarketBackfill(options: StockmarketBackfillOptions
   const fromTimestamp = imported[0]?.timestamp;
   const toTimestamp = imported.at(-1)?.timestamp;
   if (fromTimestamp === undefined || toTimestamp === undefined) throw safeError('Stockmarket backfill validation failed');
+  const observedMinimumQuoteKeys = Math.min(...imported.map((snapshot) => Object.keys(snapshot.quotes).length));
   let provenance: HistoryProvenance;
   try {
     provenance = createHistoryProvenance({ fetchedAt, fromTimestamp, toTimestamp, snapshotCount: imported.length, overlapComparisons });
@@ -379,7 +387,8 @@ export async function runStockmarketBackfill(options: StockmarketBackfillOptions
     inserted: merged.inserted,
     snapshotCount: imported.length,
     overlapComparisons,
-    minimumQuoteKeys: PRODUCTION_HISTORICAL_MINIMUM_QUOTE_KEYS,
+    minimumRequiredQuoteKeys: PRODUCTION_HISTORICAL_MINIMUM_QUOTE_KEYS,
+    observedMinimumQuoteKeys,
     fromTimestamp,
     toTimestamp,
   };
@@ -404,7 +413,7 @@ export async function run(
     if (result.skipped) {
       console.log('Stockmarket backfill skipped');
     } else {
-      console.log(`Stockmarket backfill complete: items=${result.itemCount} inserted=${result.inserted} snapshots=${result.snapshotCount} minKeys=${result.minimumQuoteKeys} overlaps=${result.overlapComparisons} range=${result.fromTimestamp}-${result.toTimestamp}`);
+      console.log(`Stockmarket backfill complete: items=${result.itemCount} inserted=${result.inserted} snapshots=${result.snapshotCount} minKeysRequired=${result.minimumRequiredQuoteKeys} minKeysObserved=${result.observedMinimumQuoteKeys} overlaps=${result.overlapComparisons} range=${result.fromTimestamp}-${result.toTimestamp}`);
     }
     return 0;
   } catch (error) {
