@@ -87,6 +87,7 @@ export function normalizeStrategyGameData(input: unknown): NormalizedStrategyGam
   const itemDetailMap = record(data?.itemDetailMap);
   const actionDetailMap = record(data?.actionDetailMap);
   const communityBuffTypeDetailMap = record(data?.communityBuffTypeDetailMap);
+  const achievementDetailMap = record(data?.achievementDetailMap);
   const achievementTierDetailMap = record(data?.achievementTierDetailMap);
   const personalBuffTypeDetailMap = record(data?.personalBuffTypeDetailMap);
   if (
@@ -98,6 +99,7 @@ export function normalizeStrategyGameData(input: unknown): NormalizedStrategyGam
     || !itemDetailMap
     || !actionDetailMap
     || !communityBuffTypeDetailMap
+    || !achievementDetailMap
     || !achievementTierDetailMap
     || !personalBuffTypeDetailMap
   ) {
@@ -113,6 +115,7 @@ export function normalizeStrategyGameData(input: unknown): NormalizedStrategyGam
     itemDetailMap: items,
     actionDetailMap: actions,
     communityBuffTypeDetailMap: { ...communityBuffTypeDetailMap },
+    achievementDetailMap: { ...achievementDetailMap },
     achievementTierDetailMap: { ...achievementTierDetailMap },
     personalBuffTypeDetailMap: { ...personalBuffTypeDetailMap },
     itemsByHrid: new Map(Object.entries(items)),

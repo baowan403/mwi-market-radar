@@ -27,6 +27,7 @@ describe('pinned Milkonomy reference artifacts', () => {
       itemDetailMap: expect.any(Object),
       actionDetailMap: expect.any(Object),
       communityBuffTypeDetailMap: expect.any(Object),
+      achievementDetailMap: expect.any(Object),
       achievementTierDetailMap: expect.any(Object),
       personalBuffTypeDetailMap: expect.any(Object),
     }));

@@ -38,6 +38,7 @@ export interface StrategyGameDataInput {
   itemDetailMap: Record<string, StrategyItemDetail>;
   actionDetailMap: Record<string, StrategyActionDetail>;
   communityBuffTypeDetailMap: Record<string, unknown>;
+  achievementDetailMap: Record<string, unknown>;
   achievementTierDetailMap: Record<string, unknown>;
   personalBuffTypeDetailMap: Record<string, unknown>;
 }

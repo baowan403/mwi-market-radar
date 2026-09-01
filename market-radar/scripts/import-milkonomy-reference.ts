@@ -46,6 +46,7 @@ const strategyData = {
   itemDetailMap: gameData.itemDetailMap,
   actionDetailMap: gameData.actionDetailMap,
   communityBuffTypeDetailMap: gameData.communityBuffTypeDetailMap,
+  achievementDetailMap: gameData.achievementDetailMap,
   achievementTierDetailMap: gameData.achievementTierDetailMap,
   personalBuffTypeDetailMap: gameData.personalBuffTypeDetailMap,
 };
