@@ -2,14 +2,14 @@
 
 MWI Market Radar 是 Milky Way Idle 的本機市場看盤工具：它保存官方公開市場快照，並在獨立 dashboard 顯示價格、買一／賣一、價差、成交量、1D／3D／7D 變化、波動、排行榜、分類與自選名單。
 
-> 目前只完成自動化 unit/build/E2E 驗證；本文不表示已完成真實 MWI live acceptance，也沒有建立 remote、發布網站或執行交易操作。
+> 截至 2026-09-01（Asia/Taipei），已完成一次真實 MWI read-only live acceptance；詳細證據見 `docs/manual-acceptance.md`。沒有建立 remote、發布網站或執行交易操作。
 
 ## 功能與架構
 
 - `dist/index.html` 與 `dist/assets/`：靜態 dashboard。
 - `dist/mwi-market-radar.user.js`：同一支 Tampermonkey userscript，依網址在 MWI 遊戲頁採集、在 localhost dashboard 頁提供唯讀 bridge。
 - dashboard 只透過 typed bridge 讀取本機資料；bridge request/response 使用 JSON string wire、request id 與分頁快照。
-- collector 只讀取官方 `marketplace.json`，每小時約在 `xx:08` 檢查，啟動時立即檢查；失敗的正常檢查依規則在 10 分鐘後重試一次。
+- collector 只讀取官方 `marketplace.json`，每小時約在 `xx:08` 檢查，啟動時立即檢查；失敗的正常檢查依規則在 10 分鐘後重試一次。市場資料是每小時快照，因此 dashboard 每 60 秒 polling 足夠更新狀態；bridge 是單向 MWI→Radar 唯讀資料流，不是雙向交易通道。
 - 跨分頁互斥只使用原生 Web Locks。瀏覽器沒有 Web Locks 時會 fail-closed、不採集；不使用 GM storage 假裝互斥。
 - dashboard 支援八個 primary view（自選、全市場、資源、消耗品、技能書、迷宮、裝備、其他）、十個官方分類、搜尋、強化等級、最低成交量、最大價差、排序、排行榜與物品圖表。
 - 歷史保留最近 8 日的逐時資料；缺口、缺價、單邊報價與低流動性會如實標示，不插值、不補零。
