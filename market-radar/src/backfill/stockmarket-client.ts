@@ -28,12 +28,14 @@ async function defaultSleep(milliseconds: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function requestJson(fetcher: Fetcher, sleep: Sleeper, url: string): Promise<unknown> {
+async function requestJson(fetcher: Fetcher, sleep: Sleeper, url: string, cancellation?: AbortSignal): Promise<unknown> {
   for (let attempt = 0; attempt < 4; attempt++) {
+    if (cancellation?.aborted) throw cancellation.reason ?? new DOMException('Request cancelled', 'AbortError');
     try {
+      const timeout = AbortSignal.timeout(10_000);
       const response = await fetcher(url, {
         headers: { 'User-Agent': USER_AGENT },
-        signal: AbortSignal.timeout(10_000),
+        signal: cancellation ? AbortSignal.any([timeout, cancellation]) : timeout,
       });
       if (!response.ok) {
         if (!RETRY_STATUSES.has(response.status) || attempt === 3) {
@@ -44,6 +46,7 @@ async function requestJson(fetcher: Fetcher, sleep: Sleeper, url: string): Promi
       }
       return await response.json();
     } catch (error) {
+      if (cancellation?.aborted) throw error;
       if (!isAbortError(error) || attempt === 3) throw error;
       await sleep(RETRY_DELAYS[attempt] ?? 1500);
     }
@@ -64,24 +67,36 @@ export function createStockmarketClient(options: StockmarketClientOptions = {}):
       const status = await requestJson(fetcher, sleep, `${ORIGIN}/api/latest-status`);
       const names = parseStockmarketItemNames(status);
       const result = new Map<string, StockmarketHistoryPoint[]>();
+      const cancellation = new AbortController();
+      let firstFailure: unknown;
+      let stopped = false;
       let nextIndex = 0;
 
       async function worker(): Promise<void> {
         while (true) {
+          if (stopped) return;
           const index = nextIndex++;
           if (index >= names.length) return;
           const name = names[index]!;
           const url = `${ORIGIN}/api/item/${encodeURIComponent(name)}/history?limit=200`;
           try {
-            const payload = await requestJson(fetcher, sleep, url);
+            const payload = await requestJson(fetcher, sleep, url, cancellation.signal);
             result.set(name, parseStockmarketHistory(payload, name));
+          } catch (error) {
+            if (!stopped) {
+              firstFailure = error;
+              stopped = true;
+              cancellation.abort(error);
+            }
+            throw error;
           } finally {
             await sleep(100);
           }
         }
       }
 
-      await Promise.all(Array.from({ length: Math.min(concurrency, names.length) }, () => worker()));
+      await Promise.allSettled(Array.from({ length: Math.min(concurrency, names.length) }, () => worker()));
+      if (firstFailure !== undefined) throw firstFailure;
       return new Map(names.map((name) => [name, result.get(name)!]));
     },
   };

@@ -9,18 +9,25 @@ const list = (...names: string[]) => ({ data: names.map((item_name) => ({ item_n
 
 describe('stockmarket client', () => {
   it('uses the fixed origin, exact paths, headers, and timeout signals', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
     const fetcher = vi.fn(async (input: string | URL, _init?: RequestInit) => String(input).endsWith('latest-status') ? response(list('iron_ore')) : response({ item: 'iron_ore', history: [point('iron_ore')] }));
     const client = createStockmarketClient({ fetcher });
-    await client.loadAll();
-    expect(fetcher).toHaveBeenCalledTimes(2);
-    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
-      'https://www.stockmarket.xin/api/latest-status',
-      'https://www.stockmarket.xin/api/item/iron_ore/history?limit=200',
-    ]);
-    for (const call of fetcher.mock.calls) {
-      const init = call[1] as RequestInit;
-      expect(init.headers).toEqual({ 'User-Agent': 'mwi-market-radar-authorized-backfill/1' });
-      expect(init.signal).toBeInstanceOf(AbortSignal);
+    try {
+      await client.loadAll();
+      expect(fetcher).toHaveBeenCalledTimes(2);
+      expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+        'https://www.stockmarket.xin/api/latest-status',
+        'https://www.stockmarket.xin/api/item/iron_ore/history?limit=200',
+      ]);
+      for (const call of fetcher.mock.calls) {
+        const init = call[1] as RequestInit;
+        expect(init.headers).toEqual({ 'User-Agent': 'mwi-market-radar-authorized-backfill/1' });
+        expect(init.signal).toBeInstanceOf(AbortSignal);
+      }
+      expect(timeout).toHaveBeenCalledTimes(2);
+      expect(timeout.mock.calls.every(([milliseconds]) => milliseconds === 10_000)).toBe(true);
+    } finally {
+      timeout.mockRestore();
     }
   });
 
@@ -105,6 +112,22 @@ describe('stockmarket client', () => {
     });
     await expect(createStockmarketClient({ fetcher: malformed, sleep: async () => undefined }).loadAll()).rejects.toThrow();
     expect(schemaAttempts).toBe(1);
+  });
+
+  it('stops workers from starting more item requests after the first failure', async () => {
+    const started: string[] = [];
+    const fetcher = vi.fn(async (input: string | URL, _init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('latest-status')) return response(list('alpha', 'beta', 'gamma', 'delta'));
+      started.push(url);
+      if (url.includes('/alpha/')) return response({}, 404);
+      if (url.includes('/beta/')) await new Promise((resolve) => setTimeout(resolve, 10));
+      return response({ item: 'unexpected', history: [] });
+    });
+    await expect(createStockmarketClient({ fetcher, concurrency: 2, sleep: async () => undefined }).loadAll()).rejects.toThrow('404');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(started).toHaveLength(2);
+    expect(started[0]).toContain('/alpha/');
   });
 
   it('rejects non-finite or non-positive concurrency and clamps larger values', async () => {
