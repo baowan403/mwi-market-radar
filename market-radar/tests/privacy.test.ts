@@ -55,8 +55,19 @@ describe('production privacy boundary', () => {
   it('authorizes only the fixed public stockmarket backfill origin and paths', () => {
     const source = readFileSync(resolve(sourceRoot, 'backfill/stockmarket-client.ts'), 'utf8');
     expect(source).toContain("const ORIGIN = 'https://www.stockmarket.xin';");
-    expect(source).toContain('`${ORIGIN}/api/latest-status`');
-    expect(source).toContain('`${ORIGIN}/api/item/${encodeURIComponent(name)}/history?limit=200`');
+    const requestCalls = source.split('\n').filter((line) => /\brequestJson\s*\(/.test(line) && !/function requestJson/.test(line));
+    expect(requestCalls).toHaveLength(2);
+    expect(requestCalls).toEqual(expect.arrayContaining([
+      expect.stringContaining('`${ORIGIN}/api/latest-status`'),
+      expect.stringContaining('url, cancellation.signal'),
+    ]));
+    const fetchCalls = source.split('\n').filter((line) => /\bfetcher\s*\(/.test(line));
+    expect(fetchCalls).toHaveLength(1);
+    expect(fetchCalls[0]).toContain('fetcher(url,');
+    expect(source.match(/`\$\{ORIGIN\}\/api\/[^`]+`/g)).toEqual([
+      '`${ORIGIN}/api/latest-status`',
+      '`${ORIGIN}/api/item/${encodeURIComponent(name)}/history?limit=200`',
+    ]);
     expect(source).not.toMatch(/options\.(?:origin|baseUrl|url)/);
     expect(source).not.toMatch(/fetcher\s*\(\s*options\./);
   });
@@ -66,7 +77,8 @@ describe('production privacy boundary', () => {
       resolve(sourceRoot, 'cloud'),
       resolve(sourceRoot, 'collector'),
       resolve(sourceRoot, 'userscript'),
-    ].flatMap(sourceFiles).map((path) => readFileSync(path, 'utf8')).join('\n');
+      resolve(sourceRoot, 'backfill/stockmarket-client.ts'),
+    ].flatMap((path) => path.endsWith('.ts') ? [path] : sourceFiles(path)).map((path) => readFileSync(path, 'utf8')).join('\n');
     const cloudUpdate = readFileSync(resolve(projectRoot, 'scripts/update-cloud-history.ts'), 'utf8');
     for (const token of ['PlayerProfile', 'active-profile-id', 'characterId', 'profile/import']) {
       expect(isolatedSources).not.toContain(token);
