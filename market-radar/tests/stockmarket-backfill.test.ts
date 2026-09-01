@@ -1,7 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { Quote, Snapshot } from '../src/core/types';
 import type { StockmarketHistoryPoint } from '../src/backfill/stockmarket-schema';
 import { buildBackfillSnapshots, validateOfficialOverlap } from '../src/backfill/stockmarket-backfill';
+import { updateCloudHistory, type CloudFileSystem } from '../src/cloud/history-store';
+import { parseManifest } from '../src/cloud/manifest';
+import { HISTORY_PROVENANCE_FILE } from '../src/cloud/provenance';
+import { decodeDayChunk } from '../src/core/storage-codec';
+import { parseBackfillArgs, run as runBackfillCli, runStockmarketBackfill } from '../scripts/backfill-stockmarket-history';
 
 const HOUR = 3_600_000;
 const latest = 1_000_000_000_000;
@@ -113,5 +121,205 @@ describe('official overlap validation', () => {
     expect(() => validateOfficialOverlap([{ timestamp: latest, quotes: poisonedQuotes as Snapshot['quotes'] }], [])).toThrow(/key|quotes/i);
     expect(() => validateOfficialOverlap([{ timestamp: latest, quotes: { '/items/a::0': { a: Infinity, b: 1, p: null, v: null } } }], [])).toThrow(/quote/i);
     expect(() => validateOfficialOverlap([snapshot(latest), snapshot(latest)], [])).toThrow(/duplicate.*timestamp/i);
+  });
+});
+
+const backfillDirs: string[] = [];
+const BACKFILL_LATEST = Date.parse('2026-09-01T12:00:00.000Z');
+const BACKFILL_GENERATED = '2026-09-01T12:10:00.000Z';
+const BACKFILL_NOW = Date.parse(BACKFILL_GENERATED);
+
+afterEach(async () => {
+  await Promise.all(backfillDirs.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+});
+
+async function backfillDataDir(): Promise<string> {
+  const path = await mkdtemp(join(tmpdir(), 'mwi-stockmarket-backfill-'));
+  backfillDirs.push(path);
+  return path;
+}
+
+function stockmarketRows(hours = 150, keys = 1_000): Map<string, StockmarketHistoryPoint[]> {
+  const start = BACKFILL_LATEST - (hours - 1) * HOUR;
+  return new Map(Array.from({ length: keys }, (_, key) => {
+    const itemName = `item_${String(key).padStart(4, '0')}`;
+    return [itemName, Array.from({ length: hours }, (_, hour) => row(itemName, 0, start + hour * HOUR))];
+  }));
+}
+
+function officialBackfillLatest(keys = 1_000): Snapshot {
+  return {
+    timestamp: BACKFILL_LATEST,
+    quotes: Object.fromEntries(Array.from({ length: keys }, (_, key) => [
+      `/items/item_${String(key).padStart(4, '0')}::0`,
+      { a: 10, b: 9, p: 80, v: 70 },
+    ])),
+  };
+}
+
+async function seedBackfillLatest(dataDir: string): Promise<void> {
+  await updateCloudHistory({
+    dataDir,
+    snapshot: officialBackfillLatest(),
+    generatedAt: BACKFILL_GENERATED,
+  });
+}
+
+async function dataBytes(dataDir: string): Promise<{ manifest: string; daily: string; provenance: string | null }> {
+  const provenance = await readFile(join(dataDir, HISTORY_PROVENANCE_FILE), 'utf8').catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  });
+  return {
+    manifest: await readFile(join(dataDir, 'manifest.json'), 'utf8'),
+    daily: await readFile(join(dataDir, 'daily-history.txt'), 'utf8'),
+    provenance,
+  };
+}
+
+describe('stockmarket backfill command', () => {
+  it('imports a fixed seven-day window, makes the existing latest official snapshot authoritative, and publishes provenance', async () => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    const client = { loadAll: vi.fn(async () => stockmarketRows()) };
+
+    const result = await runStockmarketBackfill({
+      dataDir,
+      generatedAt: BACKFILL_GENERATED,
+      client,
+      now: () => BACKFILL_NOW,
+    });
+
+    expect(result).toMatchObject({ skipped: false, itemCount: 1_000, snapshotCount: 150, inserted: 149, overlapComparisons: 2_000 });
+    expect(result.skipped).toBe(false);
+    if (result.skipped) throw new Error('unexpected skip');
+    expect(result.fromTimestamp).toBe(BACKFILL_LATEST - 149 * HOUR);
+    expect(result.toTimestamp).toBe(BACKFILL_LATEST);
+    expect(client.loadAll).toHaveBeenCalledTimes(1);
+    const manifest = parseManifest(JSON.parse(await readFile(join(dataDir, 'manifest.json'), 'utf8')));
+    expect(manifest.latestTimestamp).toBe(BACKFILL_LATEST);
+    expect(manifest.snapshots).toHaveLength(150);
+    const latestEntry = manifest.snapshots.at(-1);
+    expect(latestEntry).toBeDefined();
+    expect((await decodeDayChunk(await readFile(join(dataDir, latestEntry!.file), 'utf8')))[0]?.quotes['/items/item_0000::0'])
+      .toEqual({ a: 10, b: 9, p: 80, v: 70 });
+    expect(JSON.parse(await readFile(join(dataDir, HISTORY_PROVENANCE_FILE), 'utf8'))).toMatchObject({
+      fetchedAt: BACKFILL_GENERATED,
+      fromTimestamp: BACKFILL_LATEST - 149 * HOUR,
+      toTimestamp: BACKFILL_LATEST,
+      snapshotCount: 150,
+      overlapComparisons: 2_000,
+    });
+  }, 30_000);
+
+  it('skips a valid completed backfill before calling the client and leaves published bytes untouched', async () => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    await runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, client: { loadAll: async () => stockmarketRows() }, now: () => BACKFILL_NOW });
+    const before = await dataBytes(dataDir);
+    const client = { loadAll: vi.fn(async () => { throw new Error('must not fetch'); }) };
+    const createClient = vi.fn(() => client);
+
+    await expect(runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, createClient, now: () => BACKFILL_NOW }))
+      .resolves.toEqual({ skipped: true });
+    expect(createClient).not.toHaveBeenCalled();
+    expect(client.loadAll).not.toHaveBeenCalled();
+    await expect(dataBytes(dataDir)).resolves.toEqual(before);
+  }, 30_000);
+
+  it('reconciles a missing provenance file with an idempotent merge and writes provenance with zero inserted snapshots', async () => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    await runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, client: { loadAll: async () => stockmarketRows() }, now: () => BACKFILL_NOW });
+    await rm(join(dataDir, HISTORY_PROVENANCE_FILE));
+
+    const result = await runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, client: { loadAll: async () => stockmarketRows() }, now: () => BACKFILL_NOW });
+
+    expect(result).toMatchObject({ skipped: false, inserted: 0, snapshotCount: 150 });
+    await expect(readFile(join(dataDir, HISTORY_PROVENANCE_FILE), 'utf8')).resolves.toContain('stockmarket-xin');
+  }, 30_000);
+
+  it('force refetches only the fixed <=168-snapshot latest window', async () => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    await runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, client: { loadAll: async () => stockmarketRows(168) }, now: () => BACKFILL_NOW });
+    const client = { loadAll: vi.fn(async () => stockmarketRows(168)) };
+
+    const result = await runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, client, now: () => BACKFILL_NOW, force: true });
+
+    expect(client.loadAll).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ snapshotCount: 168, inserted: 0 });
+    expect(result.skipped).toBe(false);
+    if (result.skipped) throw new Error('unexpected skip');
+    expect(result.toTimestamp - result.fromTimestamp).toBeLessThanOrEqual(167 * HOUR);
+  }, 30_000);
+
+  it.each([
+    ['client', async () => { throw new Error('profile secret'); }],
+    ['schema', async () => {
+      const rows = stockmarketRows();
+      rows.get('item_0000')![0]!.timestamp = -1;
+      return rows;
+    }],
+    ['sparse', async () => stockmarketRows(149)],
+    ['overlap', async () => {
+      const rows = stockmarketRows();
+      rows.get('item_0000')![149]!.a = 999;
+      return rows;
+    }],
+  ])('preserves published files when %s validation fails without leaking payload details', async (_kind, loadAll) => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    await runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, client: { loadAll: async () => stockmarketRows() }, now: () => BACKFILL_NOW });
+    const before = await dataBytes(dataDir);
+    const client = { loadAll };
+
+    await expect(runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, client, now: () => BACKFILL_NOW, force: true }))
+      .rejects.toThrow(/backfill/i);
+    await expect(dataBytes(dataDir)).resolves.toEqual(before);
+  }, 30_000);
+
+  it('cleans an in-data-dir provenance temp when the atomic rename fails after merge publication', async () => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    const removed: string[] = [];
+    const fileSystem: Partial<CloudFileSystem> = {
+      rename: async (from, to) => {
+        if (to.endsWith(HISTORY_PROVENANCE_FILE)) throw new Error('private failure');
+        await rename(from, to);
+      },
+      unlink: async (path) => {
+        removed.push(path);
+        await rm(path, { force: true });
+      },
+    };
+
+    await expect(runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, client: { loadAll: async () => stockmarketRows() }, now: () => BACKFILL_NOW, fileSystem }))
+      .rejects.toThrow(/provenance/i);
+    expect((await dataBytes(dataDir)).provenance).toBeNull();
+    expect(removed.some((path) => path.startsWith(dataDir) && path.includes('.history-provenance.json.tmp-'))).toBe(true);
+  }, 30_000);
+
+  it('accepts only required data-dir and optional force with safe fixed errors', () => {
+    expect(parseBackfillArgs(['--data-dir', 'cloud-data'])).toEqual({ dataDir: 'cloud-data', force: false });
+    expect(parseBackfillArgs(['--data-dir', 'cloud-data', '--force'])).toEqual({ dataDir: 'cloud-data', force: true });
+    for (const args of [[], ['--data-dir'], ['--data-dir', ''], ['--data-dir', 'x', '--data-dir', 'y'], ['--force', '--force', '--data-dir', 'x'], ['--origin', 'x'], ['--start', 'x'], ['--end', 'x']]) {
+      expect(() => parseBackfillArgs(args)).toThrow(/Invalid stockmarket backfill arguments/);
+    }
+  });
+
+  it('prints only a fixed safe CLI error when a client failure contains a payload secret', async () => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(runBackfillCli(['--data-dir', dataDir], {
+      client: { loadAll: async () => { throw new Error('profile secret payload'); } },
+      now: () => BACKFILL_NOW,
+    })).resolves.toBe(1);
+
+    expect(error).toHaveBeenCalledWith('Stockmarket backfill fetch failed');
+    expect(error.mock.calls.flat().join(' ')).not.toMatch(/profile secret|payload/i);
+    error.mockRestore();
   });
 });
