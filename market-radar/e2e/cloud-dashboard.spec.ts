@@ -63,7 +63,7 @@ test.describe('cloud-only market radar', () => {
   test('persists cloud watchlist and settings through IndexedDB across reload', async ({ page }) => {
     await loadCloud(page);
     await page.locator('input[data-filter="search"]').fill('Chrono Gloves');
-    await page.getByRole('button', { name: '加入自選 Chrono Gloves +7' }).click();
+    await page.locator('[data-market-row="/items/chrono_gloves::7"] [data-pin]').click();
     await page.locator('[data-period="3d"]').click();
     await page.locator('input[data-filter="minimum-volume"]').fill('42');
     await expect(page.locator('[data-market-row="/items/chrono_gloves::7"] [data-pin]')).toHaveAttribute('aria-pressed', 'true');

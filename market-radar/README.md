@@ -1,8 +1,10 @@
 # MWI Market Radar
 
-MWI Market Radar 是 Milky Way Idle 的本機市場看盤工具：它保存官方公開市場快照，並在獨立 dashboard 顯示價格、買一／賣一、價差、成交量、1D／3D／7D 變化、波動、排行榜、分類與自選名單。
+MWI Market Radar 是 Milky Way Idle 的市場看盤與策略推薦工具：它保存官方公開市場快照，並在獨立 dashboard 顯示價格、買一／賣一、價差、成交量、1D／3D／7D 變化、波動、排行榜、分類與自選名單。玩家可自願貼上 Milkonomy 快照，讓後續策略計算依角色技能與裝備個人化；角色資料只保存在瀏覽器本機。
 
-> 截至 2026-09-01（Asia/Taipei），最終 userscript 0.1.5 已完成真實 MWI read-only live acceptance：marker `loaded/mwi/started/dom-event`，Radar official 10:06、local 10:08、next 11:08、無缺口，3072 targets（100/page、31 pages），thin badges visible；第二 MWI 分頁去重後 dashboard timestamp/status 不變。unit 290、build 與 E2E 17 passed／1 skipped，Radar deliverable tab 保留。詳細證據見 `docs/manual-acceptance.md`。沒有建立 remote、發布網站或執行交易操作。
+> 原市場採集 live acceptance 見 `docs/manual-acceptance.md`；角色匯入與策略計算基礎的最新驗收見 `docs/strategy-foundation-acceptance.md`。沒有執行交易操作。
+
+> 2026-09-01 Slice A fresh verification：37 個 unit test files、415 tests 全部通過；正式 dashboard/userscript build 通過；Chrome E2E 32 passed、1 個既有桌面 expected skip。
 
 ## 功能與架構
 
@@ -11,8 +13,21 @@ MWI Market Radar 是 Milky Way Idle 的本機市場看盤工具：它保存官�
 - dashboard 只透過 typed bridge 讀取本機資料；bridge request/response 使用 JSON string wire、request id 與分頁快照。
 - collector 只讀取官方 `marketplace.json`，每小時約在 `xx:08` 檢查，啟動時立即檢查；失敗的正常檢查依規則在 10 分鐘後重試一次。市場資料是每小時快照，因此 dashboard 每 60 秒 polling 足夠更新狀態；bridge 是單向 MWI→Radar 唯讀資料流，不是雙向交易通道。
 - 跨分頁互斥只使用原生 Web Locks。瀏覽器沒有 Web Locks 時會 fail-closed、不採集；不使用 GM storage 假裝互斥。
-- dashboard 支援八個 primary view（自選、全市場、資源、消耗品、技能書、迷宮、裝備、其他）、十個官方分類、搜尋、強化等級、最低成交量、最大價差、排序、排行榜與物品圖表。
+- dashboard 支援八個 primary view（自選、全市場、資源、消耗品、技能書、迷宮、裝備、其他）、十個官方分類、中文／英文／HRID 搜尋、強化等級、最低成交量、最大價差、排序、排行榜與物品圖表。
 - 歷史保留最近 8 日的逐時資料；缺口、缺價、單邊報價與低流動性會如實標示，不插值、不補零。
+
+## 策略推薦基礎（Slice A）
+
+目前已完成的是後續推薦引擎的可信基礎，不是假裝已完成的策略排行榜：
+
+- 957 個市場物品的中文優先目錄；中文、英文與 HRID 均可搜尋。
+- 支援 Milkonomy Exporter `version: 1` 與 Milkonomy preset JSON。
+- 可在同一瀏覽器保存、切換及刪除多名角色；角色資料使用獨立 IndexedDB。
+- Milkonomy 參考來源固定在已審閱的 MIT commit，正式執行不需要連線 Milkonomy。
+- 已建立純 TypeScript 的裝備、房屋、茶、社群增益、成就、封印與神龕計算。
+- 已建立單步製造 calculator，涵蓋買料賣一、出售買一、5% 市場稅、點金硬幣免稅、工匠／美食與精華／稀有 EV。
+
+尚未完成、不能提前宣稱可用的功能：多步工作流搜尋、分解後點金策略排行、流動性調整後日利、安全批量、3D／7D 策略趨勢與強化／轉化風險模型。
 
 ## 環境需求
 
@@ -61,17 +76,21 @@ Owner 若要啟用公開部署，請先依 [`docs/cloud-deployment-checklist.md`
 - `mwi-radar:v1:settings`：期間、流動性與異常門檻。
 - `mwi-radar:v1:collector-status`：採集狀態與安全錯誤代碼。
 
+角色快照另存於 dashboard 的 IndexedDB `mwi-market-radar-profiles`，不使用 Tampermonkey storage。可從「角色快照」介面逐名刪除；不得用清空整個瀏覽器資料的方式代替精確刪除。
+
 停用時可在 Tampermonkey 對本腳本關閉 enabled；移除時在 Tampermonkey 管理頁刪除本腳本。若要清除本工具資料，請只使用 Tampermonkey 管理介面中「本腳本」的 storage 檢視，逐一確認並刪除名稱以 `mwi-radar:v1:` 開頭的 key。不要在其他腳本或頁面 console 執行全域刪除、通配刪除或清空所有 userscript storage，以免誤傷其他資料。
 
 ## 隱私與安全邊界
 
-允許的資料流只有：
+允許的網路資料流只有：
 
 - 唯讀下載官方 `https://www.milkywayidle.com/game_data/marketplace.json`。
 - dashboard 載入本專案相對路徑 `./catalog.json`。
 - 將公開市場欄位與安全狀態保存到本機 Tampermonkey storage，透過 localhost bridge 唯讀提供 dashboard。
 
-本工具不讀取或保存 cookie、token、帳密、角色、背包、聊天、好友、訂單或其他私人狀態；不使用 WebSocket；不把資料上傳到第三方；不執行買入、賣出、下單、成交、取消訂單或任何交易 DOM 操作；正常採集與查看不發出 AI request，也不消耗 AI tokens。
+玩家可明確貼上 Milkonomy 角色快照；匯入器只保留計算所需的技能、裝備、房屋、茶、增益、成就、神龕與庫存數值，未知欄位、token、cookie 與帳密不會進入正規化 profile。Profile 只寫入本機 IndexedDB，不進 cloud、collector、userscript、GitHub Pages 或任何 request body。
+
+本工具不主動讀取 MWI 角色頁、cookie、token、帳密、聊天、好友或個人市場訂單；不使用 WebSocket；不把角色資料上傳到第三方；不執行買入、賣出、下單、成交、取消訂單或任何交易 DOM 操作；正常採集、查看與固定程式計算不發出 AI request，也不消耗 AI tokens。
 
 ## 離線與錯誤狀態
 

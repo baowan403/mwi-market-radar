@@ -42,8 +42,8 @@ test.describe('fixture-backed market radar journeys', () => {
   });
 
   test('pins both enhancement levels independently and preserves them after reload', async ({ page }) => {
-    await page.getByRole('button', { name: '加入自選 Chrono Gloves +7' }).click();
-    await page.getByRole('button', { name: '加入自選 Chrono Gloves +10' }).click();
+    await page.locator('[data-market-row="/items/chrono_gloves::7"] [data-pin]').click();
+    await page.locator('[data-market-row="/items/chrono_gloves::10"] [data-pin]').click();
     await expect(page.locator('[data-market-row="/items/chrono_gloves::7"] [data-pin]')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('[data-market-row="/items/chrono_gloves::10"] [data-pin]')).toHaveAttribute('aria-pressed', 'true');
 
@@ -67,7 +67,7 @@ test.describe('fixture-backed market radar journeys', () => {
 
     await page.locator('input[data-filter="search"]').fill('Apple');
     await expect(page.locator('[data-market-row]')).toHaveCount(1);
-    await expect(page.locator('[data-market-row]')).toContainText('Apple');
+    await expect(page.locator('[data-market-row="/items/apple::0"]')).toContainText('苹果');
 
     await page.locator('input[data-filter="search"]').fill('');
     await page.locator('[data-ranking-mode="market"]').click();
@@ -75,7 +75,7 @@ test.describe('fixture-backed market radar journeys', () => {
     const resource = page.locator('[data-official-category="/item_categories/resource"]');
     await resource.check();
     await expect(page.locator('[data-market-row]')).toHaveCount(1);
-    await expect(page.locator('[data-market-row]')).toContainText('Apple');
+    await expect(page.locator('[data-market-row="/items/apple::0"]')).toContainText('苹果');
 
     await resource.uncheck();
     await page.locator('[data-official-category="/item_categories/equipment"]').check();
@@ -107,7 +107,7 @@ test.describe('fixture-backed market radar journeys', () => {
     await detailCell.click();
     const dialog = page.locator('#item-detail');
     await expect(dialog).toHaveAttribute('open', '');
-    await expect(dialog.locator('[data-detail-name]')).toHaveText('Chrono Gloves');
+    await expect(dialog.locator('[data-detail-name]')).toHaveText('时空手套');
     await expect(dialog.locator('[data-detail-chart-summary]')).toContainText('圖表摘要');
 
     await dialog.locator('[data-detail-period="7d"]').click();

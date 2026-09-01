@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const sourceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../src');
+const projectRoot = resolve(sourceRoot, '..');
 
 function sourceFiles(directory: string): string[] {
   const files: string[] = [];
@@ -45,5 +46,21 @@ describe('production privacy boundary', () => {
         || (location.path.endsWith('app.ts') && location.line.includes("fetch('./catalog.json'"));
       expect(allowed, `${location.path}:${location.index}`).toBe(true);
     }
+  });
+
+  it('keeps local player profiles out of cloud, collector, userscript, and network calls', () => {
+    const isolatedSources = [
+      resolve(sourceRoot, 'cloud'),
+      resolve(sourceRoot, 'collector'),
+      resolve(sourceRoot, 'userscript'),
+    ].flatMap(sourceFiles).map((path) => readFileSync(path, 'utf8')).join('\n');
+    const cloudUpdate = readFileSync(resolve(projectRoot, 'scripts/update-cloud-history.ts'), 'utf8');
+    for (const token of ['PlayerProfile', 'active-profile-id', 'characterId', 'profile/import']) {
+      expect(isolatedSources).not.toContain(token);
+      expect(cloudUpdate).not.toContain(token);
+    }
+
+    const panelSource = readFileSync(resolve(sourceRoot, 'profile/panel.ts'), 'utf8');
+    expect(panelSource).not.toMatch(/\bfetch\s*\(|postMessage\s*\(|sendBeacon\s*\(/);
   });
 });

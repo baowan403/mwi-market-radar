@@ -181,11 +181,12 @@ const REPOSITORY = 'https://github.com/Polokikiki/Milkonomy.git';
 const milkonomyDirectory = process.env.MWI_MILKONOMY_DIR?.trim();
 if (!milkonomyDirectory) throw new Error('MWI_MILKONOMY_DIR is required');
 
-const head = execFileSync('git', ['rev-parse', 'HEAD'], {
+const safeDirectoryArgs = ['-c', `safe.directory=${absoluteMilkonomyDirectory}`];
+const head = execFileSync('git', [...safeDirectoryArgs, 'rev-parse', 'HEAD'], {
   cwd: milkonomyDirectory,
   encoding: 'utf8',
 }).trim();
-const status = execFileSync('git', ['status', '--porcelain'], {
+const status = execFileSync('git', [...safeDirectoryArgs, 'status', '--porcelain'], {
   cwd: milkonomyDirectory,
   encoding: 'utf8',
 }).trim();
@@ -221,7 +222,7 @@ function stable(value: unknown): unknown {
 }
 
 function json(value: unknown): string {
-  return `${JSON.stringify(stable(value), null, 2)}\n`;
+  return `${JSON.stringify(stable(value))}\n`;
 }
 
 function sha256(value: string): string {
@@ -257,7 +258,7 @@ Add to `package.json`:
 Run the importer against the reviewed local clone:
 
 ```powershell
-$env:MWI_MILKONOMY_DIR='..\..\work\milkonomy-source'
+$env:MWI_MILKONOMY_DIR='..\..\..\work\milkonomy-source'
 npm run reference:milkonomy
 Remove-Item Env:MWI_MILKONOMY_DIR
 ```
@@ -275,7 +276,7 @@ The Milkonomy reference is used for game-data normalization, Traditional Chinese
 Run the importer twice and verify no diff appears:
 
 ```powershell
-$env:MWI_MILKONOMY_DIR='..\..\work\milkonomy-source'
+$env:MWI_MILKONOMY_DIR='..\..\..\work\milkonomy-source'
 npm run reference:milkonomy
 $first = git diff -- scripts/vendor/milkonomy
 npm run reference:milkonomy
