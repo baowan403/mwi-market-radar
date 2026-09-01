@@ -358,46 +358,69 @@ function renderToolbar(
   searchLabel.append(search);
   target.append(searchLabel);
 
-  const enhancementLabel = createElement('label', 'filter-control');
+  const enhancementLabel = createElement('div', 'filter-control enhancement-control');
   const enhancementText = createElement('span', 'control-label');
   enhancementText.textContent = '強化等級';
   enhancementLabel.append(enhancementText);
   const enhancementHint = createElement('span', 'control-hint');
-  enhancementHint.textContent = '未選＝全部';
+  enhancementHint.textContent = '可複選';
   enhancementLabel.append(enhancementHint);
-  const enhancement = createElement('select');
-  enhancement.multiple = true;
+  const enhancement = createElement('details', 'enhancement-picker');
   enhancement.dataset.filter = 'enhancement';
-  enhancement.size = Math.min(4, Math.max(1, new Set(rows.map((row) => row.enhancementLevel)).size));
+  const enhancementSummary = createElement('summary', 'enhancement-summary');
+  enhancementSummary.dataset.enhancementSummary = 'true';
+  const selectedLevels = state.enhancementLevels === null ? [] : [...state.enhancementLevels].sort((left, right) => left - right);
+  const updateEnhancementSummary = (selected: readonly number[]): void => {
+    enhancementSummary.textContent = selected.length === 0
+      ? '全部等級'
+      : selected.length === 1
+        ? `+${selected[0]}`
+        : `已選 ${selected.length} 個`;
+  };
+  updateEnhancementSummary(selectedLevels);
+  enhancement.append(enhancementSummary);
+  const enhancementOptions = createElement('div', 'enhancement-options');
+  let clearEnhancement: HTMLButtonElement | null = null;
   const levels = [...new Set(rows.map((row) => row.enhancementLevel))].sort((left, right) => left - right);
   for (const level of levels) {
-    const option = createElement('option');
-    option.value = String(level);
-    option.textContent = `+${level}`;
-    option.selected = state.enhancementLevels?.has(level) ?? false;
-    enhancement.append(option);
+    const optionLabel = createElement('label', 'filter-check enhancement-option');
+    const option = createElement('input');
+    option.type = 'checkbox';
+    option.dataset.enhancementLevel = String(level);
+    option.checked = state.enhancementLevels?.has(level) ?? false;
+    option.addEventListener('change', () => {
+      const selected = [...enhancementOptions.querySelectorAll<HTMLInputElement>('input[data-enhancement-level]:checked')]
+        .map((input) => Number(input.dataset.enhancementLevel))
+        .filter((value) => Number.isSafeInteger(value));
+      updateEnhancementSummary(selected);
+      if (clearEnhancement) clearEnhancement.disabled = selected.length === 0;
+      onEnhancements(selected.length === 0 ? null : new Set(selected));
+    });
+    optionLabel.append(option);
+    const optionText = createElement('span');
+    optionText.textContent = `+${level}`;
+    optionLabel.append(optionText);
+    enhancementOptions.append(optionLabel);
   }
-  enhancement.addEventListener('change', () => {
-    const selected = [...enhancement.selectedOptions]
-      .map((option) => option.value)
-      .filter((value) => value !== '')
-      .map((value) => Number(value))
-      .filter((value) => Number.isSafeInteger(value));
-    onEnhancements(selected.length === 0 ? null : new Set(selected));
-  });
-  enhancementLabel.append(enhancement);
-  target.append(enhancementLabel);
 
-  const clearEnhancement = createElement('button', 'toolbar-button enhancement-reset');
+  clearEnhancement = createElement('button', 'enhancement-clear');
   clearEnhancement.type = 'button';
   clearEnhancement.dataset.enhancementReset = 'true';
-  clearEnhancement.setAttribute('aria-label', '清除等級篩選');
-  clearEnhancement.textContent = '全部等級';
+  clearEnhancement.textContent = '清除選擇';
+  clearEnhancement.disabled = selectedLevels.length === 0;
   clearEnhancement.addEventListener('click', () => {
-    for (const option of enhancement.options) option.selected = false;
+    for (const option of enhancementOptions.querySelectorAll<HTMLInputElement>('input[data-enhancement-level]')) {
+      option.checked = false;
+    }
+    updateEnhancementSummary([]);
+    clearEnhancement.disabled = true;
+    enhancement.open = false;
     onEnhancements(null);
   });
-  target.append(clearEnhancement);
+  enhancementOptions.append(clearEnhancement);
+  enhancement.append(enhancementOptions);
+  enhancementLabel.append(enhancement);
+  target.append(enhancementLabel);
 
   const minimumLabel = createElement('label', 'filter-control numeric-filter');
   const minimumText = createElement('span', 'control-label');

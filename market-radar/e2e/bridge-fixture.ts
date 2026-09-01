@@ -27,7 +27,7 @@ export const bridgeFixtureSource = String.raw`
     { timestamp: now - 24 * HOUR, quotes: { [chrono]: quote(100, 40), [chronoTen]: quote(95, 32), [cowbell]: quote(100, 10), [apple]: quote(36, 20), [coin]: quote(100, 20) } },
     { timestamp: now, quotes: {
       [chrono]: quote(120, 80, 132, 108),
-      [chronoTen]: quote(105, 30),
+      [chronoTen]: quote(90, 30),
       [cowbell]: quote(130, 2),
       [apple]: quote(null, 20, 40, null),
       [coin]: quote(100, 15, 130, 70),

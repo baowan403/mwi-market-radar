@@ -146,11 +146,16 @@ test('mobile status and filters stay inside compact rounded surfaces', async ({ 
   const geometry = await page.evaluate(() => {
     const status = document.querySelector<HTMLElement>('#collector-status');
     const source = document.querySelector<HTMLElement>('#data-source');
-    const enhancement = document.querySelector<HTMLSelectElement>('select[data-filter="enhancement"]');
+    const enhancement = document.querySelector<HTMLElement>('details[data-filter="enhancement"]');
+    const enhancementSummary = enhancement?.querySelector<HTMLElement>('[data-enhancement-summary]');
     const bid = document.querySelector<HTMLElement>('.bid-cell');
     const ask = document.querySelector<HTMLElement>('.ask-cell');
     const volume = document.querySelector<HTMLElement>('.volume-cell');
-    if (!status || !source || !enhancement || !bid || !ask || !volume) throw new Error('Responsive controls missing');
+    const up = document.querySelector<HTMLElement>('[data-trend="up"]');
+    const down = document.querySelector<HTMLElement>('[data-trend="down"]');
+    if (!status || !source || !enhancement || !enhancementSummary || !bid || !ask || !volume || !up || !down) {
+      throw new Error('Responsive controls missing');
+    }
     return {
       statusClientWidth: status.clientWidth,
       statusScrollWidth: status.scrollWidth,
@@ -158,10 +163,14 @@ test('mobile status and filters stay inside compact rounded surfaces', async ({ 
       sourceScrollWidth: source.scrollWidth,
       statusRadius: Number.parseFloat(getComputedStyle(status).borderTopLeftRadius),
       statusWhiteSpace: getComputedStyle(status).whiteSpace,
-      enhancementHeight: enhancement.getBoundingClientRect().height,
+      enhancementHeight: enhancementSummary.getBoundingClientRect().height,
+      enhancementClientWidth: enhancement.clientWidth,
+      enhancementScrollWidth: enhancement.scrollWidth,
       bidColor: getComputedStyle(bid).color,
       askColor: getComputedStyle(ask).color,
       volumeColor: getComputedStyle(volume).color,
+      upBackground: getComputedStyle(up).backgroundColor,
+      downBackground: getComputedStyle(down).backgroundColor,
     };
   });
 
@@ -170,9 +179,12 @@ test('mobile status and filters stay inside compact rounded surfaces', async ({ 
   expect(geometry.statusRadius).toBeLessThanOrEqual(16);
   expect(geometry.statusWhiteSpace).not.toBe('nowrap');
   expect(geometry.enhancementHeight).toBeLessThanOrEqual(48);
+  expect(geometry.enhancementScrollWidth).toBeLessThanOrEqual(geometry.enhancementClientWidth + 1);
   expect(geometry.bidColor).toBe('rgb(54, 201, 143)');
   expect(geometry.askColor).toBe('rgb(255, 90, 98)');
   expect(geometry.volumeColor).toBe('rgb(120, 169, 255)');
+  expect(geometry.upBackground).not.toBe('rgba(0, 0, 0, 0)');
+  expect(geometry.downBackground).not.toBe('rgba(0, 0, 0, 0)');
 });
 
 test('missing bridge shows installation guidance and zero fake rows', async ({ page }) => {
