@@ -1,0 +1,29 @@
+{
+  "source": {
+    "repository": "https://github.com/Polokikiki/Milkonomy.git",
+    "commit": "febe90f14f7ea1e51937cc888f6f6e1907c58fff",
+    "calculator": "ManufactureCalculator"
+  },
+  "case": {
+    "action": "crafting",
+    "actionHrid": "/actions/crafting/test_plank",
+    "playerLevel": 100,
+    "actionLevel": 90,
+    "baseTimeCost": 10000000000,
+    "inputs": [
+      { "itemHrid": "/items/test_log", "count": 2, "ask": 100 }
+    ],
+    "outputs": [
+      { "itemHrid": "/items/test_plank", "count": 1, "bid": 300 }
+    ]
+  },
+  "expected": {
+    "efficiency": 1.1,
+    "speed": 1,
+    "actionsPerHour": 396,
+    "costPerHour": 79200,
+    "incomePerHour": 112860,
+    "profitPerHour": 33660,
+    "profitPerDay": 807840
+  }
+}
