@@ -25,7 +25,10 @@ import type { CloudManifest } from '../src/cloud/types';
 
 const MINIMUM_SNAPSHOTS = 150;
 const MAXIMUM_SNAPSHOTS = 168;
+const MINIMUM_LATEST_OVERLAP_COMPARISONS = 1_000;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1_000;
+const HOUR_MS = 60 * 60 * 1_000;
+const MAX_DATE_MS = 8_640_000_000_000_000;
 
 export class StockmarketBackfillError extends Error {
   constructor(message: string) {
@@ -195,12 +198,17 @@ function provenanceMatchesRetainedHistory(provenance: HistoryProvenance, manifes
     || provenance.toTimestamp > latest
     || provenance.toTimestamp - provenance.fromTimestamp > SEVEN_DAYS_MS
   ) return false;
-  if (provenance.fromTimestamp < latest - CLOUD_RETENTION_MS) return true;
+  const cutoff = latest - CLOUD_RETENTION_MS;
+  if (provenance.toTimestamp < cutoff) return true;
   const timestamps = new Set(manifest.snapshots.map((entry) => entry.timestamp));
-  if (!timestamps.has(provenance.fromTimestamp) || !timestamps.has(provenance.toTimestamp)) return false;
+  if (!timestamps.has(provenance.toTimestamp)) return false;
+  if (provenance.fromTimestamp >= cutoff && !timestamps.has(provenance.fromTimestamp)) return false;
+  const maximumPrunedHourlyBuckets = Math.max(0, Math.ceil((cutoff - provenance.fromTimestamp) / HOUR_MS));
+  const minimumSurvivingSnapshots = Math.max(0, provenance.snapshotCount - maximumPrunedHourlyBuckets);
+  const survivingStart = Math.max(provenance.fromTimestamp, cutoff);
   return manifest.snapshots.filter((entry) => (
-    entry.timestamp >= provenance.fromTimestamp && entry.timestamp <= provenance.toTimestamp
-  )).length >= provenance.snapshotCount;
+    entry.timestamp >= survivingStart && entry.timestamp <= provenance.toTimestamp
+  )).length >= minimumSurvivingSnapshots;
 }
 
 async function publishProvenance(
@@ -227,11 +235,29 @@ async function publishProvenance(
 function isoNow(now: () => number): string {
   try {
     const value = now();
-    if (!Number.isSafeInteger(value)) throw new Error('invalid');
+    if (!Number.isSafeInteger(value) || value < 0 || value > MAX_DATE_MS) throw new Error('invalid');
     return new Date(value).toISOString();
   } catch {
     throw safeError('Stockmarket backfill validation failed');
   }
+}
+
+function latestOverlapComparisons(
+  candidates: readonly Snapshot[],
+  officialSnapshots: readonly Snapshot[],
+  latestTimestamp: number,
+): number {
+  const imported = candidates.find((snapshot) => snapshot.timestamp === latestTimestamp);
+  const official = officialSnapshots.find((snapshot) => snapshot.timestamp === latestTimestamp);
+  if (imported === undefined || official === undefined) return 0;
+  let comparisons = 0;
+  for (const [key, quote] of Object.entries(imported.quotes)) {
+    const expected = official.quotes[key as keyof typeof official.quotes];
+    if (expected === undefined) continue;
+    if (quote.a !== null && expected.a !== null) comparisons += 1;
+    if (quote.b !== null && expected.b !== null) comparisons += 1;
+  }
+  return comparisons;
 }
 
 function validateGeneratedAt(value: string): void {
@@ -259,6 +285,7 @@ export async function runStockmarketBackfill(options: StockmarketBackfillOptions
   }
   validateGeneratedAt(options.generatedAt);
   const fetchedAt = isoNow(options.now ?? (() => Date.now()));
+  validateGeneratedAt(fetchedAt);
   const fileSystem = fileSystemFor(options);
   const existing = await validateExistingHistory(options.dataDir, fileSystem);
   if (existing.provenance !== null && options.force !== true) return { skipped: true };
@@ -282,6 +309,9 @@ export async function runStockmarketBackfill(options: StockmarketBackfillOptions
     });
     if (candidates.length < MINIMUM_SNAPSHOTS || candidates.length > MAXIMUM_SNAPSHOTS) {
       throw new Error('invalid fixed history window');
+    }
+    if (latestOverlapComparisons(candidates, existing.officialSnapshots, latestOfficialTimestamp) < MINIMUM_LATEST_OVERLAP_COMPARISONS) {
+      throw new Error('insufficient latest official overlap');
     }
     const overlap = validateOfficialOverlap(candidates, existing.officialSnapshots);
     imported = overlap.snapshots;

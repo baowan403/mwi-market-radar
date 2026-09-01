@@ -128,6 +128,7 @@ const backfillDirs: string[] = [];
 const BACKFILL_LATEST = Date.parse('2026-09-01T12:00:00.000Z');
 const BACKFILL_GENERATED = '2026-09-01T12:10:00.000Z';
 const BACKFILL_NOW = Date.parse(BACKFILL_GENERATED);
+const MAX_DATE_MS = 8_640_000_000_000_000;
 
 afterEach(async () => {
   await Promise.all(backfillDirs.splice(0).map((path) => rm(path, { recursive: true, force: true })));
@@ -329,8 +330,49 @@ describe('stockmarket backfill command', () => {
   }, 30_000);
 
   it.each([
+    ['missing retained to endpoint', async (dataDir: string) => {
+      const manifest = JSON.parse(await readFile(join(dataDir, 'manifest.json'), 'utf8')) as { snapshots: Array<{ timestamp: number }> };
+      manifest.snapshots = manifest.snapshots.filter((entry) => entry.timestamp !== BACKFILL_LATEST);
+      await writeFile(join(dataDir, 'manifest.json'), JSON.stringify(manifest), 'utf8');
+    }],
+    ['corrupt marker count', async (dataDir: string) => {
+      await writeFile(join(dataDir, HISTORY_PROVENANCE_FILE), `${JSON.stringify(createHistoryProvenance({
+        fetchedAt: BACKFILL_GENERATED,
+        fromTimestamp: BACKFILL_LATEST - 149 * HOUR,
+        toTimestamp: BACKFILL_LATEST,
+        snapshotCount: 168,
+        overlapComparisons: 2_000,
+      }))}\n`, 'utf8');
+    }],
+    ['insufficient retained snapshots', async (dataDir: string) => {
+      const manifest = JSON.parse(await readFile(join(dataDir, 'manifest.json'), 'utf8')) as { snapshots: Array<{ timestamp: number }> };
+      manifest.snapshots = manifest.snapshots.filter((entry) => entry.timestamp !== BACKFILL_LATEST - HOUR);
+      await writeFile(join(dataDir, 'manifest.json'), JSON.stringify(manifest), 'utf8');
+    }],
+  ])('rejects partial-aged provenance with %s before client creation', async (_kind, corrupt) => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    await runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, client: { loadAll: async () => stockmarketRows() }, now: () => BACKFILL_NOW });
+    await updateCloudHistory({
+      dataDir,
+      snapshot: { ...officialBackfillLatest(), timestamp: BACKFILL_LATEST + 9 * 24 * HOUR },
+      generatedAt: '2026-09-10T12:10:00.000Z',
+    });
+    await corrupt(dataDir);
+    const before = await dataBytes(dataDir);
+    const createClient = vi.fn(() => ({ loadAll: vi.fn(async () => stockmarketRows()) }));
+
+    await expect(runStockmarketBackfill({ dataDir, generatedAt: '2026-09-10T12:11:00.000Z', createClient, now: () => Date.parse('2026-09-10T12:11:00.000Z') }))
+      .rejects.toThrow(/validation/i);
+    expect(createClient).not.toHaveBeenCalled();
+    await expect(dataBytes(dataDir)).resolves.toEqual(before);
+  }, 30_000);
+
+  it.each([
     ['invalid generatedAt', { generatedAt: 'not-an-instant', now: () => BACKFILL_NOW }],
     ['invalid now', { generatedAt: BACKFILL_GENERATED, now: () => Number.NaN }],
+    ['negative now', { generatedAt: BACKFILL_GENERATED, now: () => -1 }],
+    ['out-of-range now', { generatedAt: BACKFILL_GENERATED, now: () => MAX_DATE_MS + 1 }],
   ])('rejects %s before client creation and preserves all immutable files', async (_kind, timing) => {
     const dataDir = await backfillDataDir();
     await seedBackfillLatest(dataDir);
@@ -356,6 +398,28 @@ describe('stockmarket backfill command', () => {
     expect(result.skipped).toBe(false);
     if (result.skipped) throw new Error('unexpected skip');
     expect(result.toTimestamp - result.fromTimestamp).toBeLessThanOrEqual(167 * HOUR);
+  }, 30_000);
+
+  it.each([
+    ['no latest timestamp', async () => {
+      const rows = stockmarketRows();
+      for (const values of rows.values()) values.forEach((value) => { value.timestamp -= HOUR; });
+      return rows;
+    }],
+    ['disjoint latest keys', async () => {
+      const rows = stockmarketRows();
+      for (const values of rows.values()) values[149]!.level = 1;
+      return rows;
+    }],
+  ])('rejects %s before merge or provenance publication', async (_kind, loadAll) => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    const before = await dataBytes(dataDir);
+    const client = { loadAll };
+
+    await expect(runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, client, now: () => BACKFILL_NOW }))
+      .rejects.toThrow(/validation/i);
+    await expect(dataBytes(dataDir)).resolves.toEqual(before);
   }, 30_000);
 
   it.each([
@@ -400,8 +464,18 @@ describe('stockmarket backfill command', () => {
 
     await expect(runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, client: { loadAll: async () => stockmarketRows() }, now: () => BACKFILL_NOW, fileSystem }))
       .rejects.toThrow(/provenance/i);
-    expect((await dataBytes(dataDir)).provenance).toBeNull();
+    const afterFailedPublish = await dataBytes(dataDir);
+    expect(afterFailedPublish.provenance).toBeNull();
     expect(removed.some((path) => path.startsWith(dataDir) && path.includes('.history-provenance.json.tmp-'))).toBe(true);
+    const recovered = await runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, client: { loadAll: async () => stockmarketRows() }, now: () => BACKFILL_NOW });
+    expect(recovered).toMatchObject({ skipped: false, inserted: 0, snapshotCount: 150 });
+    const recoveredBytes = await dataBytes(dataDir);
+    expect({
+      ...recoveredBytes,
+      provenance: null,
+      rootEntries: recoveredBytes.rootEntries.filter((entry) => entry !== HISTORY_PROVENANCE_FILE),
+    }).toEqual(afterFailedPublish);
+    expect(JSON.parse(recoveredBytes.provenance!)).toMatchObject({ snapshotCount: 150, sourceId: 'stockmarket-xin' });
   }, 30_000);
 
   it('accepts only required data-dir and optional force with safe fixed errors', () => {
