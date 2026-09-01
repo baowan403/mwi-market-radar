@@ -76,10 +76,29 @@ export interface UpdateCloudHistoryOptions {
   fs?: Partial<CloudFileSystem>;
 }
 
+export interface MergeCloudHistoryOptions {
+  dataDir: string;
+  /**
+   * A batch of immutable snapshots. An empty batch is a no-op; duplicate
+   * timestamps in one batch are rejected, including byte-identical copies.
+   */
+  snapshots: readonly Snapshot[];
+  generatedAt: ManifestGeneratedAt;
+  fileSystem?: Partial<CloudFileSystem>;
+  /** Short alias useful for callers that already name their adapter `fs`. */
+  fs?: Partial<CloudFileSystem>;
+}
+
 export interface CloudHistoryUpdateResult {
   inserted: boolean;
   latestTimestamp: number | null;
   snapshotCount: number;
+  manifest: CloudManifest;
+  cleanupErrors: string[];
+}
+
+export interface CloudHistoryMergeResult {
+  inserted: number;
   manifest: CloudManifest;
   cleanupErrors: string[];
 }
@@ -227,7 +246,7 @@ async function ensureImmutableSnapshotFile(
 
   try {
     await fileSystem.writeFile(path, encoded, { encoding: 'utf8', flag: 'wx' });
-    return { text: encoded, bytes: Buffer.byteLength(encoded, 'utf8') };
+    return await readAndVerifySnapshotFile(path, snapshot, fileSystem);
   } catch (cause) {
     if (isNodeError(cause, 'EEXIST')) {
       try {
@@ -239,6 +258,14 @@ async function ensureImmutableSnapshotFile(
     }
     throw storageError();
   }
+}
+
+function mergedFileSystem(options: Pick<UpdateCloudHistoryOptions, 'fileSystem' | 'fs'>): CloudFileSystem {
+  return {
+    ...defaultFileSystem,
+    ...(options.fs ?? {}),
+    ...(options.fileSystem ?? {}),
+  };
 }
 
 async function publishManifest(
@@ -331,6 +358,46 @@ async function rebuildCurrentDailyHistory(
   await publishDailyHistory(dataDir, next, fileSystem);
 }
 
+async function rebuildCompletedDailyHistory(
+  dataDir: string,
+  manifest: CloudManifest,
+  fileSystem: CloudFileSystem,
+): Promise<void> {
+  if (manifest.latestTimestamp === null) return;
+  const latestDate = new Date(manifest.latestTimestamp).toISOString().slice(0, 10);
+  const byDate = new Map<string, Snapshot[]>();
+
+  for (const entry of manifest.snapshots) {
+    const entryDate = new Date(entry.timestamp).toISOString().slice(0, 10);
+    if (entryDate >= latestDate) continue;
+
+    let text: string;
+    let decoded: Snapshot[];
+    try {
+      text = await fileSystem.readFile(join(dataDir, entry.file), 'utf8');
+      decoded = await decodeDayChunk(text);
+    } catch {
+      throw storageError();
+    }
+    if (
+      Buffer.byteLength(text, 'utf8') !== entry.bytes
+      || decoded.length !== 1
+      || decoded[0]?.timestamp !== entry.timestamp
+    ) throw mismatchError();
+    const values = byDate.get(entryDate) ?? [];
+    values.push(decoded[0]);
+    byDate.set(entryDate, values);
+  }
+
+  if (byDate.size === 0) return;
+  const current = await readDailyHistory(dataDir, manifest.generatedAt, fileSystem);
+  let next = current;
+  for (const values of byDate.values()) {
+    next = upsertDailySummary(next, aggregateDailySummary(values), manifest.generatedAt);
+  }
+  await publishDailyHistory(dataDir, next, fileSystem);
+}
+
 async function pruneSnapshotFiles(
   dataDir: string,
   manifest: CloudManifest,
@@ -373,11 +440,7 @@ async function pruneSnapshotFiles(
 export async function updateCloudHistory(
   options: UpdateCloudHistoryOptions,
 ): Promise<CloudHistoryUpdateResult> {
-  const fileSystem: CloudFileSystem = {
-    ...defaultFileSystem,
-    ...(options.fs ?? {}),
-    ...(options.fileSystem ?? {}),
-  };
+  const fileSystem = mergedFileSystem(options);
   const encoded = await encodeSnapshot(options.snapshot);
   let previous: CloudManifest;
   try {
@@ -422,6 +485,92 @@ export async function updateCloudHistory(
   await rebuildCurrentDailyHistory(options.dataDir, options.snapshot, next, fileSystem);
   const cleanupErrors = await pruneSnapshotFiles(options.dataDir, next, fileSystem);
   return updateResult(true, next, cleanupErrors);
+}
+
+/**
+ * Merge a backfill batch into immutable cloud history. Every supplied snapshot
+ * is strictly encoded and decoded before any storage write; empty batches do
+ * not publish a manifest, and duplicate timestamps in one batch are invalid.
+ */
+export async function mergeCloudHistory(
+  options: MergeCloudHistoryOptions,
+): Promise<CloudHistoryMergeResult> {
+  if (!Array.isArray(options.snapshots)) {
+    throw new CloudHistoryError('invalid_snapshot', 'Cloud snapshots must be an array');
+  }
+  const incoming = await Promise.all(options.snapshots.map(async (snapshot) => ({
+    snapshot,
+    encoded: await encodeSnapshot(snapshot),
+  })));
+  incoming.sort((left, right) => left.snapshot.timestamp - right.snapshot.timestamp);
+  for (let index = 1; index < incoming.length; index += 1) {
+    if (incoming[index - 1]?.snapshot.timestamp === incoming[index]?.snapshot.timestamp) {
+      throw new CloudHistoryError('invalid_snapshot', 'Cloud snapshot batch has duplicate timestamps');
+    }
+  }
+
+  const fileSystem = mergedFileSystem(options);
+  let previous: CloudManifest;
+  try {
+    previous = await readCurrentManifest(options.dataDir, options.generatedAt, fileSystem);
+  } catch (cause) {
+    if (cause instanceof CloudHistoryError) throw cause;
+    throw storageError();
+  }
+  if (incoming.length === 0) return { inserted: 0, manifest: previous, cleanupErrors: [] };
+
+  const finalLatest = Math.max(
+    previous.latestTimestamp ?? 0,
+    incoming.at(-1)?.snapshot.timestamp ?? 0,
+  );
+  const cutoff = finalLatest - CLOUD_RETENTION_MS;
+  const existingByTimestamp = new Map(previous.snapshots.map((entry) => [entry.timestamp, entry]));
+  const newEntries: CloudManifest['snapshots'] = [];
+
+  try {
+    await fileSystem.mkdir(options.dataDir, { recursive: true });
+    await fileSystem.mkdir(snapshotsDir(options.dataDir), { recursive: true });
+    for (const value of incoming) {
+      const existing = existingByTimestamp.get(value.snapshot.timestamp);
+      if (existing !== undefined) {
+        const file = await readAndVerifySnapshotFile(
+          join(options.dataDir, existing.file),
+          value.snapshot,
+          fileSystem,
+        );
+        if (file.bytes !== existing.bytes) throw mismatchError();
+        continue;
+      }
+      if (value.snapshot.timestamp < cutoff) continue;
+      const file = await ensureImmutableSnapshotFile(
+        options.dataDir,
+        value.snapshot,
+        value.encoded,
+        fileSystem,
+      );
+      newEntries.push({
+        timestamp: value.snapshot.timestamp,
+        file: relativeSnapshotPath(value.snapshot.timestamp),
+        bytes: file.bytes,
+      });
+    }
+  } catch (cause) {
+    if (cause instanceof CloudHistoryError) throw cause;
+    throw storageError();
+  }
+
+  if (newEntries.length === 0) return { inserted: 0, manifest: previous, cleanupErrors: [] };
+
+  let next: CloudManifest;
+  try {
+    next = createManifest([...previous.snapshots, ...newEntries], options.generatedAt);
+  } catch {
+    throw manifestError();
+  }
+  await publishManifest(options.dataDir, next, fileSystem);
+  await rebuildCompletedDailyHistory(options.dataDir, next, fileSystem);
+  const cleanupErrors = await pruneSnapshotFiles(options.dataDir, next, fileSystem);
+  return { inserted: newEntries.length, manifest: next, cleanupErrors };
 }
 
 export const CLOUD_HISTORY_MANIFEST_FILE = MANIFEST_FILE;
