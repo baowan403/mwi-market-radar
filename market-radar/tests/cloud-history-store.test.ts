@@ -25,6 +25,7 @@ import {
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
+const MAX_DATE_MS = 8_640_000_000_000_000;
 const LATEST = Date.parse('2026-09-01T12:08:00.000Z');
 const GENERATED_AT = '2026-09-01T12:09:00.000Z';
 const KEY = '/items/test::0';
@@ -73,6 +74,27 @@ afterEach(async () => {
 });
 
 describe('updateCloudHistory', () => {
+  it('accepts the maximum Date timestamp and rejects a larger snapshot before writing', async () => {
+    const maxDataDir = join(dataDir, 'update-max-date');
+    const valid = snapshot(MAX_DATE_MS, 100);
+    await expect(updateCloudHistory({ dataDir: maxDataDir, snapshot: valid, generatedAt: GENERATED_AT }))
+      .resolves.toMatchObject({ inserted: true });
+    const manifestBefore = await readFile(join(maxDataDir, 'manifest.json'), 'utf8');
+    const snapshotBefore = await snapshotFile(maxDataDir, MAX_DATE_MS);
+
+    const error = await updateCloudHistory({
+      dataDir: maxDataDir,
+      snapshot: snapshot(MAX_DATE_MS + 1, 101),
+      generatedAt: GENERATED_AT,
+    }).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(CloudHistoryError);
+    expect((error as CloudHistoryError).code).toBe('invalid_snapshot');
+    await expect(readFile(join(maxDataDir, 'manifest.json'), 'utf8')).resolves.toBe(manifestBefore);
+    await expect(snapshotFile(maxDataDir, MAX_DATE_MS)).resolves.toBe(snapshotBefore);
+    await expect(snapshotFile(maxDataDir, MAX_DATE_MS + 1)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
   it('finalizes one compressed daily OHLCV summary only after the UTC day closes', async () => {
     await updateCloudHistory({
       dataDir,
@@ -305,6 +327,27 @@ describe('updateCloudHistory', () => {
 });
 
 describe('mergeCloudHistory', () => {
+  it('accepts the maximum Date timestamp and rejects a larger snapshot before writing', async () => {
+    const maxDataDir = join(dataDir, 'merge-max-date');
+    const valid = snapshot(MAX_DATE_MS, 100);
+    await expect(mergeCloudHistory({ dataDir: maxDataDir, snapshots: [valid], generatedAt: GENERATED_AT }))
+      .resolves.toMatchObject({ inserted: 1 });
+    const manifestBefore = await readFile(join(maxDataDir, 'manifest.json'), 'utf8');
+    const snapshotBefore = await snapshotFile(maxDataDir, MAX_DATE_MS);
+
+    const error = await mergeCloudHistory({
+      dataDir: maxDataDir,
+      snapshots: [snapshot(MAX_DATE_MS + 1, 101)],
+      generatedAt: GENERATED_AT,
+    }).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(CloudHistoryError);
+    expect((error as CloudHistoryError).code).toBe('invalid_snapshot');
+    await expect(readFile(join(maxDataDir, 'manifest.json'), 'utf8')).resolves.toBe(manifestBefore);
+    await expect(snapshotFile(maxDataDir, MAX_DATE_MS)).resolves.toBe(snapshotBefore);
+    await expect(snapshotFile(maxDataDir, MAX_DATE_MS + 1)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
   it('merges retained older snapshots with an existing latest snapshot in ascending order', async () => {
     const official = snapshot(LATEST, 100);
     await updateCloudHistory({ dataDir, snapshot: official, generatedAt: GENERATED_AT });

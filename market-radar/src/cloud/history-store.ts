@@ -23,6 +23,7 @@ import type { CloudManifest } from './types';
 const MANIFEST_FILE = 'manifest.json';
 const SNAPSHOT_DIRECTORY = 'snapshots';
 const DAILY_HISTORY_FILE = 'daily-history.txt';
+const MAX_DATE_MS = 8_640_000_000_000_000;
 
 export type CloudHistoryErrorCode =
   | 'invalid_snapshot'
@@ -142,6 +143,7 @@ function isValidSnapshot(value: unknown): value is Snapshot {
     && typeof (value as { timestamp?: unknown }).timestamp === 'number'
     && Number.isSafeInteger((value as { timestamp: number }).timestamp)
     && (value as { timestamp: number }).timestamp >= 0
+    && (value as { timestamp: number }).timestamp <= MAX_DATE_MS
     && (value as { quotes?: unknown }).quotes !== null
     && typeof (value as { quotes?: unknown }).quotes === 'object'
     && !Array.isArray((value as { quotes?: unknown }).quotes);
@@ -474,7 +476,10 @@ async function pruneSnapshotFiles(
   return cleanupErrors;
 }
 
-/** Persist one immutable snapshot and atomically publish the retained manifest. */
+/**
+ * Persist one immutable snapshot and atomically publish the retained manifest.
+ * This store requires a single writer; production GitHub workflow serializes it with a concurrency group.
+ */
 export async function updateCloudHistory(
   options: UpdateCloudHistoryOptions,
 ): Promise<CloudHistoryUpdateResult> {
@@ -529,6 +534,7 @@ export async function updateCloudHistory(
  * Merge a backfill batch into immutable cloud history. Every supplied snapshot
  * is strictly encoded and decoded before any storage write; empty batches do
  * not publish a manifest, and duplicate timestamps in one batch are invalid.
+ * This store requires a single writer; production GitHub workflow serializes it with a concurrency group.
  */
 export async function mergeCloudHistory(
   options: MergeCloudHistoryOptions,
