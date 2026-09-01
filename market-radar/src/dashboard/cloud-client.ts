@@ -168,7 +168,11 @@ function parseManifestText(text: string): CloudManifest {
 }
 
 function snapshotSignature(manifest: CloudManifest): string {
-  return `${manifest.latestTimestamp}:${JSON.stringify(manifest)}`;
+  return JSON.stringify({
+    schemaVersion: manifest.schemaVersion,
+    latestTimestamp: manifest.latestTimestamp,
+    snapshots: manifest.snapshots.map(({ timestamp, file, bytes }) => ({ timestamp, file, bytes })),
+  });
 }
 
 function sortedUniqueSnapshots(snapshots: readonly Snapshot[]): Snapshot[] {

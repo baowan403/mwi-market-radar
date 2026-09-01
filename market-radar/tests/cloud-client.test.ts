@@ -183,6 +183,46 @@ describe('cloud client', () => {
     expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/manifest.json'))).toHaveLength(2);
   });
 
+  it('reuses snapshots when only generatedAt changes while returning the new manifest metadata', async () => {
+    const data = await manifestAndFiles([snapshot(LATEST)]);
+    let generatedAt = GENERATED_AT;
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.endsWith('/manifest.json')) return response({ ...data.manifest, generatedAt });
+      return response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+
+    await client.listSnapshots();
+    generatedAt = '2026-09-01T12:10:00.000Z';
+    const refreshed = await client.refresh();
+
+    expect(refreshed.generatedAt).toBe(generatedAt);
+    expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/manifest.json'))).toHaveLength(2);
+    expect(fetcher.mock.calls.filter(([input]) => String(input).includes('/snapshots/'))).toHaveLength(1);
+  });
+
+  it('redownloads snapshots when an entry identity changes', async () => {
+    const data = await manifestAndFiles([snapshot(LATEST)]);
+    let manifest = data.manifest;
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.endsWith('/manifest.json')) return response(manifest);
+      return response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+
+    await client.listSnapshots();
+    const entry = manifest.snapshots[0]!;
+    manifest = {
+      ...manifest,
+      snapshots: [{ ...entry, bytes: entry.bytes + 1 }],
+    };
+    await client.refresh();
+
+    expect(fetcher.mock.calls.filter(([input]) => String(input).includes('/snapshots/'))).toHaveLength(2);
+  });
+
   it('shares concurrent force refreshes so one fetch commits one result', async () => {
     const data = await manifestAndFiles([snapshot(LATEST)]);
     let release!: () => void;
