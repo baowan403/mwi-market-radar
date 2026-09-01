@@ -34,6 +34,7 @@ describe('profile panel', () => {
     expect(document.querySelector('#summary')?.textContent).toContain('測試牛一號');
     expect(document.querySelector('#summary')?.textContent).toContain('煉金 103');
     expect(await store.getActiveId()).toBe('character:700001');
+    expect(panel.getActiveProfile()?.name).toBe('測試牛一號');
     expect(fetchSpy).not.toHaveBeenCalled();
     panel.destroy();
     store.close();

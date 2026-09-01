@@ -3,6 +3,8 @@ import type { ProfileStore } from './store';
 import type { PlayerProfile } from './types';
 
 export interface ProfilePanel {
+  open(): Promise<void>;
+  getActiveProfile(): PlayerProfile | null;
   importText(text: string): Promise<void>;
   selectProfile(id: string): Promise<void>;
   refresh(): Promise<void>;
@@ -16,6 +18,7 @@ export interface ProfilePanelOptions {
   store: ProfileStore;
   now?: () => number;
   confirmDelete?: (message: string) => boolean;
+  onActiveProfileChange?: (profile: PlayerProfile | null) => void;
 }
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
@@ -46,6 +49,7 @@ export function createProfilePanel(options: ProfilePanelOptions): ProfilePanel {
   let activeProfile: PlayerProfile | null = null;
   let textArea: HTMLTextAreaElement | null = null;
   let errorNode: HTMLElement | null = null;
+  let lastNotifiedId: string | null | undefined;
 
   const closeDialog = (): void => {
     if (typeof options.dialog.close === 'function' && options.dialog.open) {
@@ -158,6 +162,10 @@ export function createProfilePanel(options: ProfilePanelOptions): ProfilePanel {
   options.dialog.addEventListener('cancel', onCancel);
 
   const panel: ProfilePanel = {
+    open: openDialog,
+    getActiveProfile(): PlayerProfile | null {
+      return activeProfile === null ? null : structuredClone(activeProfile);
+    },
     async importText(text: string): Promise<void> {
       if (destroyed) return;
       try {
@@ -166,6 +174,7 @@ export function createProfilePanel(options: ProfilePanelOptions): ProfilePanel {
         await options.store.setActiveId(profile.id);
         if (textArea) textArea.value = '';
         await panel.refresh();
+        closeDialog();
       } catch (error) {
         if (errorNode) {
           errorNode.hidden = false;
@@ -195,9 +204,18 @@ export function createProfilePanel(options: ProfilePanelOptions): ProfilePanel {
         options.summary.textContent = activeProfile === null
           ? '尚未導入角色'
           : profileSummary(activeProfile, now());
+        const nextId = activeProfile?.id ?? null;
+        if (nextId !== lastNotifiedId) {
+          lastNotifiedId = nextId;
+          options.onActiveProfileChange?.(activeProfile === null ? null : structuredClone(activeProfile));
+        }
         renderDialog(profiles, activeId);
       } catch {
         activeProfile = null;
+        if (lastNotifiedId !== null) {
+          lastNotifiedId = null;
+          options.onActiveProfileChange?.(null);
+        }
         options.summary.textContent = '角色快照無法使用';
         renderDialog([], null);
       }

@@ -17,6 +17,8 @@ describe('market radar dashboard shell', () => {
     expect(root?.querySelector('[data-testid="topbar"]')?.textContent).toContain('Market Radar');
     expect(root?.querySelector('#collector-status')).not.toBeNull();
     expect(root?.querySelector('#category-nav')).not.toBeNull();
+    expect(root?.querySelector('#product-nav')).not.toBeNull();
+    expect(root?.querySelector('[data-product-surface="strategy"]')?.textContent).toBe('策略推薦');
     expect(root?.querySelector('#toolbar')).not.toBeNull();
     expect(root?.querySelector('#content')).not.toBeNull();
     expect(root?.querySelector('#item-detail')).not.toBeNull();

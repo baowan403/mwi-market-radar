@@ -71,6 +71,14 @@ import {
   createProfileStore as createIndexedProfileStore,
   type ProfileStore,
 } from './profile/store';
+import { catalogItemName } from './core/catalog';
+import { normalizeStrategyGameData, type NormalizedStrategyGameData } from './strategy/game-data';
+import {
+  createMemoryStrategyPinStore,
+  createStrategyPinStore,
+  type StrategyPinStore,
+} from './strategy/store';
+import { createStrategyView, type StrategyView } from './strategy/view';
 
 const dashboardMarkup = `
   <div class="radar-shell">
@@ -93,6 +101,11 @@ const dashboardMarkup = `
         <button id="profile-open" class="toolbar-button" type="button">角色快照</button>
       </div>
     </header>
+
+    <nav id="product-nav" class="product-nav" aria-label="主要功能">
+      <button type="button" class="product-tab is-active" data-product-surface="market" aria-pressed="true">市場行情</button>
+      <button type="button" class="product-tab" data-product-surface="strategy" aria-pressed="false">策略推薦</button>
+    </nav>
 
     <nav id="category-nav" class="category-nav" data-testid="category-nav" aria-label="市場分類"></nav>
 
@@ -166,6 +179,9 @@ export interface DashboardMountOptions {
   createPreferencesStore?: () => PreferencesStore;
   profileStore?: ProfileStore;
   createProfileStore?: () => ProfileStore;
+  strategyPinStore?: StrategyPinStore;
+  createStrategyPinStore?: () => StrategyPinStore;
+  strategyDataLoader?: () => Promise<NormalizedStrategyGameData>;
   createLocalClient?: (target: BridgeDomTarget) => DashboardClient;
   catalogLoader?: () => CatalogInput | Promise<CatalogInput>;
   chartFactory?: ItemChartFactory;
@@ -191,6 +207,14 @@ async function defaultCatalogLoader(): Promise<CatalogData> {
   } catch {
     throw new Error('Catalog response JSON parse failed');
   }
+}
+
+async function defaultStrategyDataLoader(): Promise<NormalizedStrategyGameData> {
+  const response = await fetch('./strategy-data.json', {
+    method: 'GET', credentials: 'omit', cache: 'no-store',
+  });
+  if (!response.ok) throw new Error('Strategy data request failed');
+  return normalizeStrategyGameData(await response.json());
 }
 
 function renderLoading(content: HTMLElement): void {
@@ -443,7 +467,7 @@ function renderDashboard(
   pollMs = 60_000,
   setIntervalFn: (callback: () => void, delayMs: number) => unknown = (callback, delayMs) => globalThis.setInterval(callback, delayMs),
   clearIntervalFn: (handle: unknown) => void = (handle) => globalThis.clearInterval(handle as ReturnType<typeof setInterval>),
-): { detailController: ItemDetailController; refreshProvider(): Promise<void>; destroy(): void } | null {
+): { detailController: ItemDetailController; refreshProvider(): Promise<void>; renderMarket(): void; destroy(): void } | null {
   const nav = root.querySelector<HTMLElement>('#category-nav');
   const toolbar = root.querySelector<HTMLElement>('#toolbar');
   const content = root.querySelector<HTMLElement>('#content');
@@ -895,6 +919,7 @@ function renderDashboard(
   return {
     detailController,
     refreshProvider: refreshProviderData,
+    renderMarket: renderResultsOnly,
     destroy(): void {
       root.removeEventListener(ITEM_SELECTED_EVENT, onItemSelected);
       if (pollTimerActive) {
@@ -941,6 +966,7 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
   let runtime: {
     detailController: ItemDetailController;
     refreshProvider(): Promise<void>;
+    renderMarket(): void;
     destroy(): void;
   } | null = null;
   let provider: HybridClient | null = null;
@@ -948,17 +974,54 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
   const profileStore = options.profileStore
     ?? options.createProfileStore?.()
     ?? (typeof indexedDB === 'undefined' ? createMemoryProfileStore() : createIndexedProfileStore());
+  const strategyPinStore = options.strategyPinStore
+    ?? options.createStrategyPinStore?.()
+    ?? (typeof indexedDB === 'undefined' ? createMemoryStrategyPinStore() : createStrategyPinStore());
+  let strategyView: StrategyView | null = null;
+  let strategySurfaceActive = false;
+  let strategyDataPromise: Promise<NormalizedStrategyGameData> | null = null;
+  const productMarket = root.querySelector<HTMLButtonElement>('[data-product-surface="market"]');
+  const productStrategy = root.querySelector<HTMLButtonElement>('[data-product-surface="strategy"]');
+  const categoryNav = root.querySelector<HTMLElement>('#category-nav');
+  const toolbar = root.querySelector<HTMLElement>('#toolbar');
   const profileOpen = root.querySelector<HTMLButtonElement>('#profile-open');
   const profileSummary = root.querySelector<HTMLElement>('#profile-summary');
   const profileDialog = root.querySelector<HTMLDialogElement>('#profile-dialog');
-  if (!profileOpen || !profileSummary || !profileDialog) throw new Error('Profile shell is incomplete');
+  if (!profileOpen || !profileSummary || !profileDialog || !productMarket || !productStrategy || !categoryNav || !toolbar) {
+    throw new Error('Profile shell is incomplete');
+  }
   const profilePanel: ProfilePanel = createProfilePanel({
     openButton: profileOpen,
     summary: profileSummary,
     dialog: profileDialog,
     store: profileStore,
     now: options.now,
+    onActiveProfileChange: () => {
+      if (strategySurfaceActive) void strategyView?.render();
+    },
   });
+  const showMarket = (): void => {
+    strategySurfaceActive = false;
+    productMarket.setAttribute('aria-pressed', 'true');
+    productStrategy.setAttribute('aria-pressed', 'false');
+    productMarket.classList.add('is-active');
+    productStrategy.classList.remove('is-active');
+    categoryNav.hidden = false;
+    toolbar.hidden = false;
+    runtime?.renderMarket();
+  };
+  const showStrategy = (): void => {
+    strategySurfaceActive = true;
+    productMarket.setAttribute('aria-pressed', 'false');
+    productStrategy.setAttribute('aria-pressed', 'true');
+    productMarket.classList.remove('is-active');
+    productStrategy.classList.add('is-active');
+    categoryNav.hidden = true;
+    toolbar.hidden = true;
+    void strategyView?.render();
+  };
+  productMarket.addEventListener('click', showMarket);
+  productStrategy.addEventListener('click', showStrategy);
   let localAttached = false;
 
   const waitForLocalBridge = (): Promise<boolean> => {
@@ -1007,6 +1070,9 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
     if (!isActive()) {
       profilePanel.destroy();
       profileStore.close();
+      strategyPinStore.close();
+      productMarket.removeEventListener('click', showMarket);
+      productStrategy.removeEventListener('click', showStrategy);
       return { destroy: () => undefined };
     }
 
@@ -1046,6 +1112,31 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       options.setInterval,
       options.clearInterval,
     );
+    if (runtime === null) throw new Error('Dashboard runtime is incomplete');
+    const loadStrategyData = (): Promise<NormalizedStrategyGameData> => {
+      if (strategyDataPromise === null) {
+        strategyDataPromise = (options.strategyDataLoader ?? defaultStrategyDataLoader)()
+          .catch((error: unknown) => {
+            strategyDataPromise = null;
+            throw error;
+          });
+      }
+      return strategyDataPromise;
+    };
+    strategyView = createStrategyView({
+      target: content,
+      getProfile: () => profilePanel.getActiveProfile(),
+      getSnapshot: () => state.snapshots.reduce<Snapshot | null>((latest, snapshot) => (
+        latest === null || snapshot.timestamp > latest.timestamp ? snapshot : latest
+      ), null),
+      loadGameData: loadStrategyData,
+      pinStore: strategyPinStore,
+      itemName: (hrid) => {
+        const item = state.catalog.itemsByHrid.get(hrid);
+        return item ? catalogItemName(item) : hrid.split('/').at(-1)?.replaceAll('_', ' ') ?? hrid;
+      },
+      onImportProfile: () => { void profilePanel.open(); },
+    });
 
     if (provider !== null && !localAttached && target !== null) {
       void waitForLocalBridge().then(async (ready) => {
@@ -1077,6 +1168,10 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       preferences?.close?.();
       profilePanel.destroy();
       profileStore.close();
+      productMarket.removeEventListener('click', showMarket);
+      productStrategy.removeEventListener('click', showStrategy);
+      strategyView?.destroy();
+      strategyPinStore.close();
     },
   };
 }

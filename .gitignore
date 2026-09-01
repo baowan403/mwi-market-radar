@@ -2,6 +2,7 @@
 work/
 market-radar/node_modules/
 market-radar/dist/
+market-radar/public/strategy-data.json
 market-radar/test-results/
 market-radar/playwright-report/
 *.log

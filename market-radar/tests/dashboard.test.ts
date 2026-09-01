@@ -176,6 +176,29 @@ describe('mountDashboard', () => {
     expect(root.textContent).toContain('unknown item');
   });
 
+  it('switches between market and profile-gated strategy surfaces', async () => {
+    const root = createRoot();
+    const strategyDataLoader = vi.fn();
+    await mountDashboard({
+      root,
+      client: createClient(),
+      catalogLoader: vi.fn().mockResolvedValue(catalog),
+      strategyDataLoader,
+    });
+
+    root.querySelector<HTMLButtonElement>('[data-product-surface="strategy"]')?.click();
+    await flushAsyncWork();
+    expect(root.querySelector('[data-product-surface="strategy"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(root.querySelector<HTMLElement>('#category-nav')?.hidden).toBe(true);
+    expect(root.querySelector<HTMLElement>('#toolbar')?.hidden).toBe(true);
+    expect(root.textContent).toContain('導入角色快照後計算');
+    expect(strategyDataLoader).not.toHaveBeenCalled();
+
+    root.querySelector<HTMLButtonElement>('[data-product-surface="market"]')?.click();
+    expect(root.querySelector<HTMLElement>('#category-nav')?.hidden).toBe(false);
+    expect(rows(root)).toHaveLength(6);
+  });
+
   it('shows the no-bridge state with no market rows and never inserts demo data', async () => {
     const root = createRoot();
     const client = createClient({

@@ -10,6 +10,7 @@ export interface CloudFixtureOptions {
   latestTimestamp?: number;
   corruptTimestamp?: number | null;
   stale?: boolean;
+  strategyQuotes?: boolean;
 }
 
 export interface CloudFixture {
@@ -30,7 +31,7 @@ function quote(price: number | null, volume: number | null, ask = price === null
   return { a: ask, b: bid, p: price, v: volume };
 }
 
-function createSnapshot(timestamp: number, offset: number, latest: boolean): Snapshot {
+function createSnapshot(timestamp: number, offset: number, latest: boolean, strategyQuotes = false): Snapshot {
   const quotes: Snapshot['quotes'] = {
     [marketKey('/items/chrono_gloves', 7)]: quote(100 + offset, 60),
     [marketKey('/items/chrono_gloves', 10)]: quote(105 + offset, 30),
@@ -38,6 +39,28 @@ function createSnapshot(timestamp: number, offset: number, latest: boolean): Sna
     [marketKey('/items/apple', 0)]: latest ? quote(null, 20, 42, null) : quote(30 + offset, 20),
     [marketKey('/items/coin', 0)]: quote(200 + offset, 15),
   };
+
+  if (strategyQuotes) {
+    Object.assign(quotes, {
+      [marketKey('/items/redwood_log', 0)]: quote(95 + offset, 10_000, 100 + offset, 90 + offset),
+      [marketKey('/items/redwood_lumber', 0)]: quote(310 + offset, 5_000, 320 + offset, 300 + offset),
+      [marketKey('/items/ginkgo_bow', 0)]: quote(24_000, 800, 25_000, 23_000),
+      [marketKey('/items/redwood_bow', 0)]: quote(57_500, 500, 60_000, 55_000),
+      [marketKey('/items/crafting_essence', 0)]: quote(1_050, 1_000, 1_100, 1_000),
+      [marketKey('/items/branch_of_insight', 0)]: quote(1_050_000, 10, 1_100_000, 1_000_000),
+      [marketKey('/items/medium_artisans_crate', 0)]: quote(525_000, 50, 550_000, 500_000),
+      [marketKey('/items/large_artisans_crate', 0)]: quote(1_050_000, 100, 1_100_000, 1_000_000),
+      [marketKey('/items/pirate_refinement_shard', 0)]: quote(215_000, 100, 220_000, 210_000),
+      [marketKey('/items/pirate_essence', 0)]: quote(675, 100_000, 700, 650),
+      [marketKey('/items/catalyst_of_decomposition', 0)]: quote(9_500, 1_000, 10_000, 9_000),
+      [marketKey('/items/catalyst_of_coinification', 0)]: quote(10_500, 1_000, 11_000, 10_000),
+      [marketKey('/items/prime_catalyst', 0)]: quote(19_500, 1_000, 20_000, 19_000),
+      [marketKey('/items/ultra_alchemy_tea', 0)]: quote(4_750, 1_000, 5_000, 4_500),
+      [marketKey('/items/efficiency_tea', 0)]: quote(1_900, 1_000, 2_000, 1_800),
+      [marketKey('/items/catalytic_tea', 0)]: quote(2_900, 1_000, 3_000, 2_800),
+      [marketKey('/items/alchemy_essence', 0)]: quote(1_900, 10_000, 2_000, 1_800),
+    });
+  }
 
   if (latest) {
     quotes[marketKey('/items/unknown_item', 0)] = quote(null, null, null, null);
@@ -63,7 +86,7 @@ export async function createCloudFixture(options: CloudFixtureOptions = {}): Pro
 
   for (let index = 24; index >= 0; index -= 1) {
     const timestamp = latestTimestamp - index * HOUR;
-    const current = createSnapshot(timestamp, 24 - index, index === 0);
+    const current = createSnapshot(timestamp, 24 - index, index === 0, options.strategyQuotes === true);
     const encoded = await encodeDayChunk([current]);
     const file = `snapshots/${timestamp}.txt` as `snapshots/${number}.txt`;
     snapshots.push(current);
@@ -135,7 +158,7 @@ export async function createCloudFixture(options: CloudFixtureOptions = {}): Pro
       const previous = currentManifest.latestTimestamp;
       if (previous === null) return;
       const timestamp = previous + HOUR;
-      const current = createSnapshot(timestamp, snapshots.length, true);
+      const current = createSnapshot(timestamp, snapshots.length, true, options.strategyQuotes === true);
       const encoded = await encodeDayChunk([current]);
       const file = `snapshots/${timestamp}.txt` as `snapshots/${number}.txt`;
       snapshots.push(current);

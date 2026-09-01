@@ -43,7 +43,10 @@ describe('production privacy boundary', () => {
     for (const location of fetchLocations) {
       const allowed = location.path.endsWith('official-client.ts')
         || location.path.endsWith('cloud-client.ts')
-        || (location.path.endsWith('app.ts') && location.line.includes("fetch('./catalog.json'"));
+        || (location.path.endsWith('app.ts') && (
+          location.line.includes("fetch('./catalog.json'")
+          || location.line.includes("fetch('./strategy-data.json'")
+        ));
       expect(allowed, `${location.path}:${location.index}`).toBe(true);
     }
   });

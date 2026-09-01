@@ -48,6 +48,7 @@ button {
 }
 
 .topbar,
+.product-nav,
 .toolbar,
 .category-nav,
 .content,
@@ -165,6 +166,28 @@ h2 {
   padding: 8px;
   border-top: 0;
   scrollbar-width: none;
+}
+
+.product-nav {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px 0;
+  border-top: 0;
+}
+
+.product-tab {
+  padding: 10px 16px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-muted);
+  font-weight: 650;
+}
+
+.product-tab:hover,
+.product-tab.is-active {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-text);
 }
 
 .category-nav::-webkit-scrollbar,
@@ -720,6 +743,125 @@ summary:focus-visible {
   margin: 0;
   padding: 48px 24px;
   color: var(--color-muted);
+}
+
+.strategy-empty,
+.strategy-no-result,
+.strategy-loading {
+  display: grid;
+  min-height: 360px;
+  place-content: center;
+  gap: 12px;
+  margin: 0;
+  padding: 40px 24px;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.strategy-empty h2 {
+  color: var(--color-text);
+}
+
+.strategy-header {
+  display: grid;
+  gap: 8px;
+  padding: 20px 20px 12px;
+}
+
+.strategy-warning {
+  max-width: 78ch;
+  margin: 0;
+  padding: 9px 11px;
+  border-left: 3px solid var(--color-warning);
+  background: rgb(240 180 91 / 8%);
+  color: var(--color-warning);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.strategy-meta {
+  margin: 0;
+  padding: 0 20px 12px;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+}
+
+.strategy-table-scroll {
+  overflow-x: auto;
+}
+
+.strategy-table {
+  width: 100%;
+  min-width: 940px;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.strategy-table th,
+.strategy-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--color-line);
+  text-align: right;
+  vertical-align: top;
+  font-variant-numeric: tabular-nums;
+}
+
+.strategy-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-panel);
+  color: var(--color-muted);
+  font-size: 0.7rem;
+}
+
+.strategy-table th:first-child,
+.strategy-table td:first-child,
+.strategy-name-cell {
+  text-align: left;
+}
+
+.strategy-name-cell {
+  display: grid;
+  min-width: 300px;
+  gap: 4px;
+}
+
+.strategy-kind {
+  color: var(--color-info);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.strategy-path {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.strategy-profit,
+.strategy-profit-hour {
+  color: var(--color-down);
+  font-weight: 700;
+}
+
+.strategy-capital {
+  color: var(--color-warning);
+}
+
+.strategy-steps summary {
+  cursor: pointer;
+  color: var(--color-accent);
+}
+
+.strategy-steps ol {
+  min-width: 260px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--color-muted);
+  text-align: left;
+  white-space: normal;
 }
 
 .pagination {
