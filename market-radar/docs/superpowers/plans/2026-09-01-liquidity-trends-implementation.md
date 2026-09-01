@@ -63,10 +63,10 @@ interface RealizableStrategy {
 
 **Files:** `src/strategy/margin-series.ts`, `tests/strategy-margin-series.test.ts`
 
-- [ ] Re-evaluate a fixed profile and path at each historical snapshot without changing recipe/equipment assumptions.
-- [ ] Record cost/hour, income/hour, theoretical profit/hour, realizable profit/day, bottleneck capacity, and data completeness.
-- [ ] Require no future snapshots while calculating an earlier point.
-- [ ] Commit `feat: derive historical strategy margins`.
+- [x] Re-evaluate a fixed profile and path at each historical snapshot without changing recipe/equipment assumptions.
+- [x] Record cost/hour, income/hour, theoretical profit/hour, realizable profit/day, bottleneck capacity, and data completeness.
+- [x] Require no future snapshots while calculating an earlier point.
+- [x] Commit `feat: derive historical strategy margins`.
 
 ### Task 5: Explain 3D/7D signals and invalidation
 
