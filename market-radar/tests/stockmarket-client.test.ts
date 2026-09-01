@@ -130,6 +130,18 @@ describe('stockmarket client', () => {
     expect(started[0]).toContain('/alpha/');
   });
 
+  it('rejects when injected item pacing sleep fails', async () => {
+    const pacingFailure = new Error('pacing failed');
+    const fetcher = vi.fn(async (input: string | URL, _init?: RequestInit) => {
+      if (String(input).endsWith('latest-status')) return response(list('ore'));
+      return response({ item: 'ore', history: [point('ore')] });
+    });
+    const sleep = async (milliseconds: number): Promise<void> => {
+      if (milliseconds === 100) throw pacingFailure;
+    };
+    await expect(createStockmarketClient({ fetcher, sleep }).loadAll()).rejects.toBe(pacingFailure);
+  });
+
   it('rejects non-finite or non-positive concurrency and clamps larger values', async () => {
     for (const concurrency of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(() => createStockmarketClient({ concurrency })).toThrow();

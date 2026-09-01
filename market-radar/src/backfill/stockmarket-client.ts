@@ -69,8 +69,17 @@ export function createStockmarketClient(options: StockmarketClientOptions = {}):
       const result = new Map<string, StockmarketHistoryPoint[]>();
       const cancellation = new AbortController();
       let firstFailure: unknown;
+      let hasFailure = false;
       let stopped = false;
       let nextIndex = 0;
+
+      function recordFailure(error: unknown): void {
+        if (hasFailure) return;
+        hasFailure = true;
+        firstFailure = error;
+        stopped = true;
+        cancellation.abort(error);
+      }
 
       async function worker(): Promise<void> {
         while (true) {
@@ -83,20 +92,21 @@ export function createStockmarketClient(options: StockmarketClientOptions = {}):
             const payload = await requestJson(fetcher, sleep, url, cancellation.signal);
             result.set(name, parseStockmarketHistory(payload, name));
           } catch (error) {
-            if (!stopped) {
-              firstFailure = error;
-              stopped = true;
-              cancellation.abort(error);
-            }
+            recordFailure(error);
             throw error;
           } finally {
-            await sleep(100);
+            try {
+              await sleep(100);
+            } catch (error) {
+              recordFailure(error);
+              throw error;
+            }
           }
         }
       }
 
       await Promise.allSettled(Array.from({ length: Math.min(concurrency, names.length) }, () => worker()));
-      if (firstFailure !== undefined) throw firstFailure;
+      if (hasFailure) throw firstFailure;
       return new Map(names.map((name) => [name, result.get(name)!]));
     },
   };
