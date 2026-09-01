@@ -5,12 +5,12 @@ import { isDeepStrictEqual } from 'node:util';
 import type { Snapshot } from '../core/types';
 import { decodeDayChunk, encodeDayChunk } from '../core/storage-codec';
 import {
-  CLOUD_MANIFEST_SCHEMA,
+  CLOUD_RETENTION_MS,
   createManifest,
   parseManifest,
   type ManifestGeneratedAt,
 } from './manifest';
-import type { CloudManifest, CloudSnapshotEntry } from './types';
+import type { CloudManifest } from './types';
 
 const MANIFEST_FILE = 'manifest.json';
 const SNAPSHOT_DIRECTORY = 'snapshots';
@@ -44,6 +44,7 @@ export interface CloudFileSystem {
   ): Promise<void>;
   rename(oldPath: string, newPath: string): Promise<void>;
   unlink(path: string): Promise<void>;
+  readdir(path: string): Promise<string[]>;
   stat(path: string): Promise<{ size: number }>;
 }
 
@@ -53,6 +54,7 @@ const defaultFileSystem: CloudFileSystem = {
   writeFile: (path, data, options) => nodeFileSystem.writeFile(path, data, options),
   rename: (oldPath, newPath) => nodeFileSystem.rename(oldPath, newPath),
   unlink: (path) => nodeFileSystem.unlink(path),
+  readdir: (path) => nodeFileSystem.readdir(path),
   stat: (path) => nodeFileSystem.stat(path),
 };
 
@@ -251,22 +253,36 @@ async function publishManifest(
   }
 }
 
-function filePathForEntry(dataDir: string, entry: CloudSnapshotEntry): string {
-  return join(dataDir, ...entry.file.split('/'));
-}
-
-async function cleanupOldFiles(
+async function pruneSnapshotFiles(
   dataDir: string,
-  previous: CloudManifest,
-  next: CloudManifest,
+  manifest: CloudManifest,
   fileSystem: CloudFileSystem,
 ): Promise<string[]> {
-  const retainedFiles = new Set(next.snapshots.map((entry) => entry.file));
   const cleanupErrors: string[] = [];
-  for (const entry of previous.snapshots) {
-    if (retainedFiles.has(entry.file)) continue;
+  const latestTimestamp = manifest.latestTimestamp;
+  if (latestTimestamp === null) return cleanupErrors;
+
+  let names: string[];
+  try {
+    names = await fileSystem.readdir(snapshotsDir(dataDir));
+  } catch (cause) {
+    if (isNodeError(cause, 'ENOENT')) return cleanupErrors;
+    return ['list'];
+  }
+
+  const cutoff = latestTimestamp - CLOUD_RETENTION_MS;
+  const retainedFiles = new Set(manifest.snapshots.map((entry) => entry.file));
+  for (const name of names) {
+    const match = /^(\d+)\.txt$/.exec(name);
+    if (match === null) continue;
+    const timestampText = match[1];
+    if (timestampText === undefined) continue;
+    const timestamp = Number(timestampText);
+    if (!Number.isSafeInteger(timestamp) || timestamp < 0 || timestamp >= cutoff) continue;
+    const relativeFile = relativeSnapshotPath(timestamp);
+    if (retainedFiles.has(relativeFile)) continue;
     try {
-      await fileSystem.unlink(filePathForEntry(dataDir, entry));
+      await fileSystem.unlink(join(snapshotsDir(dataDir), name));
     } catch (cause) {
       if (isNodeError(cause, 'ENOENT')) continue;
       cleanupErrors.push('delete');
@@ -311,7 +327,8 @@ export async function updateCloudHistory(
   );
   if (existingEntry !== undefined) {
     if (existingEntry.bytes !== existingFile.bytes) throw mismatchError();
-    return updateResult(false, previous, []);
+    const cleanupErrors = await pruneSnapshotFiles(options.dataDir, previous, fileSystem);
+    return updateResult(false, previous, cleanupErrors);
   }
 
   const next = createManifest(
@@ -323,7 +340,7 @@ export async function updateCloudHistory(
     options.generatedAt,
   );
   await publishManifest(options.dataDir, next, fileSystem);
-  const cleanupErrors = await cleanupOldFiles(options.dataDir, previous, next, fileSystem);
+  const cleanupErrors = await pruneSnapshotFiles(options.dataDir, next, fileSystem);
   return updateResult(true, next, cleanupErrors);
 }
 

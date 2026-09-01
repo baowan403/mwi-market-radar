@@ -207,6 +207,49 @@ describe('updateCloudHistory', () => {
     });
     await expect(snapshotFile(dataDir, old.timestamp)).resolves.toMatch(STORAGE_CODEC_PREFIX);
   });
+
+  it('prunes only exact old orphan files on a same-timestamp no-op and preserves the manifest hash', async () => {
+    const current = snapshot(LATEST);
+    await updateCloudHistory({ dataDir, snapshot: current, generatedAt: GENERATED_AT });
+    const oldTimestamp = LATEST - 9 * DAY;
+    const withinWindowTimestamp = LATEST - 7 * DAY;
+    const futureTimestamp = LATEST + DAY;
+    const orphanText = await encodeDayChunk([snapshot(oldTimestamp)]);
+    await writeFile(join(dataDir, 'snapshots', `${oldTimestamp}.txt`), orphanText, 'utf8');
+    await writeFile(join(dataDir, 'snapshots', `${withinWindowTimestamp}.txt`), orphanText, 'utf8');
+    await writeFile(join(dataDir, 'snapshots', `${futureTimestamp}.txt`), orphanText, 'utf8');
+    await writeFile(join(dataDir, 'snapshots', 'not-a-timestamp.txt'), orphanText, 'utf8');
+
+    const beforeManifest = await readFile(join(dataDir, 'manifest.json'), 'utf8');
+    const beforeManifestHash = createHash('sha256').update(beforeManifest).digest('hex');
+    const oldPath = join(dataDir, 'snapshots', `${oldTimestamp}.txt`);
+    const unlink = vi.fn(async (path: string) => {
+      if (path === oldPath) throw new Error('private old path should never be logged');
+    });
+
+    const failed = await updateCloudHistory({
+      dataDir,
+      snapshot: current,
+      generatedAt: GENERATED_AT,
+      fileSystem: { unlink },
+    });
+
+    expect(failed.inserted).toBe(false);
+    expect(failed.cleanupErrors).toEqual(['delete']);
+    expect(createHash('sha256').update(await readFile(join(dataDir, 'manifest.json'), 'utf8')).digest('hex')).toBe(beforeManifestHash);
+    await expect(snapshotFile(dataDir, oldTimestamp)).resolves.toBe(orphanText);
+    await expect(snapshotFile(dataDir, withinWindowTimestamp)).resolves.toBe(orphanText);
+    await expect(snapshotFile(dataDir, futureTimestamp)).resolves.toBe(orphanText);
+    await expect(readFile(join(dataDir, 'snapshots', 'not-a-timestamp.txt'), 'utf8')).resolves.toBe(orphanText);
+
+    const recovered = await updateCloudHistory({ dataDir, snapshot: current, generatedAt: GENERATED_AT });
+
+    expect(recovered.inserted).toBe(false);
+    expect(recovered.cleanupErrors).toEqual([]);
+    expect(createHash('sha256').update(await readFile(join(dataDir, 'manifest.json'), 'utf8')).digest('hex')).toBe(beforeManifestHash);
+    await expect(readFile(oldPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(unlink).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('cloud history CLI', () => {
