@@ -2,7 +2,7 @@
 
 MWI Market Radar 是 Milky Way Idle 的本機市場看盤工具：它保存官方公開市場快照，並在獨立 dashboard 顯示價格、買一／賣一、價差、成交量、1D／3D／7D 變化、波動、排行榜、分類與自選名單。
 
-> 截至 2026-09-01（Asia/Taipei），最終 userscript 0.1.5 已完成真實 MWI read-only live acceptance；unit 290、build 與 E2E 17 passed／1 skipped，Radar deliverable tab 保留。詳細證據見 `docs/manual-acceptance.md`。沒有建立 remote、發布網站或執行交易操作。
+> 截至 2026-09-01（Asia/Taipei），最終 userscript 0.1.5 已完成真實 MWI read-only live acceptance：marker `loaded/mwi/started/dom-event`，Radar official 10:06、local 10:08、next 11:08、無缺口，3072 targets（100/page、31 pages），thin badges visible；第二 MWI 分頁去重後 dashboard timestamp/status 不變。unit 290、build 與 E2E 17 passed／1 skipped，Radar deliverable tab 保留。詳細證據見 `docs/manual-acceptance.md`。沒有建立 remote、發布網站或執行交易操作。
 
 ## 功能與架構
 
