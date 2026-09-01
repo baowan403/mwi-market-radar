@@ -60,6 +60,20 @@ Cloud 公開部署的 Owner 輸入、首次 manual bootstrap、第二次排程�
 - [ ] 記錄 fixture timestamp、generatedAt、snapshot count、檔名／bytes、manifest／snapshot hash、unit、build、E2E；最後清理該 temporary directory。
 - [ ] 不用這項 fixture evidence 宣稱已建立 remote、已完成 Pages deploy 或已完成 live MWI acceptance。
 
+Retention synthetic evidence（2026-09-01，Asia/Taipei）：依序寫入 `1787529599999`（latest - 8d - 1ms）、`1787529600000`（exact latest - 8d）與 `1788220800000`（latest）；validate exit code 0，final manifest 保留 `1787529600000,1788220800000` 共 2 snapshots，`snapshots/1787529599999.txt` 已移除。final manifest SHA-256 為 `FE8FB657301D92B1E23B4666E1FC221B198B064CDDD23D233D3C5861E6A59A1E`；snapshot SHA-256 為 `1787529600000.txt`（159 bytes，`5B2435D51C3182B33AEB5EDDB013EC4CE5C66BE2992E168373180EF3FA5D070E`）、`1788220800000.txt`（159 bytes，`7DD8F3267E1A6787E360BA156B653F97C34FB7CF20E09BF7AE375DA4336A0DF5`）。
+
+Fresh build artifact evidence（`npm run build`）：
+
+| 相對路徑 | bytes | SHA-256 |
+| --- | ---: | --- |
+| `dist/index.html` | 484 | `59E44C96D5F28BF02418492F58DDB3AA6F63915953DA06DD99DC05A4EE85F3CB` |
+| `dist/assets/index-C4MygJl6.js` | 295135 | `A5DF89470917CF52AAA211F44C2860D9F43CA6D15B0FC77354EFC40F397BF5F1` |
+| `dist/assets/index-CMPmJcvL.css` | 13159 | `F1F5344BFD050C68401DD29B214165F469C55935991F526545811519A71F6A49` |
+| `dist/mwi-market-radar.user.js` | 59403 | `1DAA1C9BF295EAC429D776E4566759FA1484A6EE0766135CDC2E20973459B3CE` |
+| `public/catalog.json` | 222753 | `847354A0C867A09E53C3ED9898470897ECDA926600F9B351900368F4E25D3BF0` |
+
+Production evidence（2026-09-01）：公開 repository `baowan403/mwi-market-radar`；Pages `https://baowan403.github.io/mwi-market-radar/`；首次 manual workflow run `33490440289` 的 collector、validate、415 unit tests、build、`market-data` publish 與 deploy 全部 success。公開頁顯示 cloud source，官方快照 `2026-09-01 17:06:00`、generatedAt `17:06:11`、3,084 targets。
+
 ## 失敗恢復
 
 - [ ] network failure：保留舊資料，確認下一次 retry／hourly run 可恢復。

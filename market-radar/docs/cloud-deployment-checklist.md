@@ -1,12 +1,14 @@
 # MWI Market Radar Cloud 部署清單
 
-這是 Owner 審核用的 local-to-Pages runbook，不是已完成的部署紀錄。開始前確認目前 repository 仍沒有 remote；本清單不代替 Owner 核准 remote 建立、push 或公開網站。
+這是 Owner 審核用的 local-to-Pages runbook與部署紀錄。2026-09-01 已由 Owner 核准建立公開 `baowan403/mwi-market-radar`、push `main`、建立 `market-data` 並發布 GitHub Pages。
+
+公開網址：[https://baowan403.github.io/mwi-market-radar/](https://baowan403.github.io/mwi-market-radar/)
 
 ## Owner 必須先提供／確認的輸入
 
-- [ ] GitHub owner／organization 名稱已由 Owner 記錄在受控的 release evidence 中。
-- [ ] repository 名稱、visibility（public／private）與 Pages 網址／自訂網域已由 Owner 確認；未確認的值不得寫入 workflow、allowlist 或文件中的假 URL。
-- [ ] Owner 明確批准建立 remote、push `main` 與 `market-data`；本次 local acceptance 不執行這些動作。
+- [x] GitHub owner 是 `baowan403`。
+- [x] repository `mwi-market-radar` 是 public；Pages 使用預設 HTTPS 網域，沒有自訂網域。
+- [x] Owner 明確批准建立 remote、push `main` 與 `market-data`。
 - [ ] repository Settings → Actions → General 的 workflow permissions 允許本 workflow 所需的 `contents: write`；未批准前不得以個人 token 或秘密繞過。
 - [ ] Pages 的 source 設為 **GitHub Actions**，`github-pages` environment 與 deployment permission 可用。
 - [ ] workflow file 的 Actions 版本與 immutable SHA 已審核；不加入 cookies、Authorization、帳號、角色或交易 secrets。
@@ -42,14 +44,35 @@
 - [ ] 證據欄位至少包含：Asia/Taipei 日期時間、fixture／official timestamp、generatedAt、snapshot count、每個 file／bytes、manifest SHA-256、snapshot SHA-256、第一次／第二次結果、validate、unit、build、E2E。
 - [ ] 不需要 MWI 分頁、不連官方 endpoint、不讀私人資料；此 acceptance 不代表已建立 remote 或 Pages。
 
+### Synthetic retention evidence
+
+2026-09-01（Asia/Taipei）以 local `tsx` import `updateCloudHistory` 依序寫入三份 synthetic snapshots：older `1787529599999`（latest - 8 日 - 1 ms）、exact boundary `1787529600000`（latest - 8 日）與 latest `1788220800000`（`2026-09-01T00:00:00.000Z`）。最後 `cloud:validate --validate-only` exit code 0；manifest 僅保留 `1787529600000,1788220800000`（2 snapshots），`snapshots/1787529599999.txt` 已移除，證明 exact boundary inclusive、older exclusive。
+
+- final manifest SHA-256：`FE8FB657301D92B1E23B4666E1FC221B198B064CDDD23D233D3C5861E6A59A1E`。
+- final snapshot files/hashes：`snapshots/1787529600000.txt` 159 bytes／`5B2435D51C3182B33AEB5EDDB013EC4CE5C66BE2992E168373180EF3FA5D070E`；`snapshots/1788220800000.txt` 159 bytes／`7DD8F3267E1A6787E360BA156B653F97C34FB7CF20E09BF7AE375DA4336A0DF5`。
+
+### Build artifact evidence
+
+Fresh `npm run build`（TypeScript check、dashboard build、userscript build）產出：
+
+| 相對路徑 | bytes | SHA-256 |
+| --- | ---: | --- |
+| `dist/index.html` | 484 | `59E44C96D5F28BF02418492F58DDB3AA6F63915953DA06DD99DC05A4EE85F3CB` |
+| `dist/assets/index-C4MygJl6.js` | 295135 | `A5DF89470917CF52AAA211F44C2860D9F43CA6D15B0FC77354EFC40F397BF5F1` |
+| `dist/assets/index-CMPmJcvL.css` | 13159 | `F1F5344BFD050C68401DD29B214165F469C55935991F526545811519A71F6A49` |
+| `dist/mwi-market-radar.user.js` | 59403 | `1DAA1C9BF295EAC429D776E4566759FA1484A6EE0766135CDC2E20973459B3CE` |
+| `public/catalog.json` | 222753 | `847354A0C867A09E53C3ED9898470897ECDA926600F9B351900368F4E25D3BF0` |
+
 ## Evidence log
 
 | 日期／時間（Asia/Taipei） | 模式 | latest timestamp | generatedAt | snapshot/files | hashes | 結果 |
 | --- | --- | --- | --- | --- | --- | --- |
 | 2026-09-01 14:37 | local public fixture，無 MWI／無網路 | `1787645160000`（`2026-08-25T08:06:00.000Z`） | `2026-09-01T06:37:26.560Z` | 1；`snapshots/1787645160000.txt`；235 bytes | manifest `96C91D591EAE8AB5ED881A199759607FE282F7B0518EB429DD2DE304BAAA3521`；snapshot `764D4BCB1E64EBE6A1AD978335471C59565DC19FF293503F0745DD672B7D5CD6`；第二次完全相同 | first updated／second unchanged／validate 0；unit 31 files／395 tests；build 雙 artifact；final E2E 31 passed／1 skipped |
+| 2026-09-01 | local synthetic retention，無 MWI／無網路 | `1788220800000`；boundary `1787529600000`；older `1787529599999` | fixed synthetic generatedAt per update | final 2；`snapshots/1787529600000.txt`、`snapshots/1788220800000.txt`；older removed | manifest `FE8FB657301D92B1E23B4666E1FC221B198B064CDDD23D233D3C5861E6A59A1E`；snapshot hashes 見上方 | validate 0；exact 8-day boundary retained、older by 1 ms removed；只使用 synthetic data |
+| 2026-09-01 17:06 | GitHub workflow_dispatch run `33490440289` | official `2026-09-01 17:06:00` | `2026-09-01 17:06:11` | `market-data` branch `6bdfc3e`；公開 3,084 targets | GitHub build、data validation、Pages artifact、deploy 全部 success | Pages source GitHub Actions；415 unit tests；公開 cloud source 實頁驗證成功 |
 
 ## 完成條件
 
 - [ ] Owner input、repository settings、首次 manual bootstrap、第二次 schedule、source/timestamp/stale、branch data-only、rollback、60-day recovery 全部有證據。
-- [ ] README、manual acceptance 與 cloud operations 的限制一致；若仍沒有 Owner 核准或 remote，狀態保持「未部署」。
+- [x] README、manual acceptance 與 cloud operations 已記錄實際 remote、Pages URL 與首次成功 deployment。
 - [ ] 全程只做公開市場資料讀取與唯讀顯示；禁止下單、買入、賣出、成交、取消或其他市場 action。

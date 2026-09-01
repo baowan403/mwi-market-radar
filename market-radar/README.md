@@ -61,11 +61,11 @@ MWI 分頁必須保持開啟，因為 v1 不在電腦關機或沒有遊戲分頁
 
 ## 公開 cloud mode 與本機 fallback
 
-未來 Owner 確認 GitHub Pages URL 並完成 workflow 後，公開 cloud mode 可直接開啟 Pages 網址，不需要 MWI 分頁、Tampermonkey 或本機 server；網站會讀取同源 `data/manifest.json` 與公開 snapshot files。這個 repository 目前尚未建立 remote、repository 或 Pages URL，localhost 仍是本機驗證入口。
+公開 cloud mode 已部署於 [https://baowan403.github.io/mwi-market-radar/](https://baowan403.github.io/mwi-market-radar/)，不需要 MWI 分頁、Tampermonkey 或本機 server；網站讀取同源 `data/manifest.json` 與公開 snapshot files。GitHub Actions 每小時 UTC 第 13 分收集官方 `marketplace.json`，資料只提交到 data-only `market-data` branch。
 
 Tampermonkey userscript 保留為可選的本機 fallback：若 cloud data 暫時不可用且 MWI bridge 已 ready，dashboard 會顯示本機備援；若兩者都不可用，顯示安全錯誤與零假資料。cloud 與本機資料以 timestamp 去重，cloud 優先；偏好設定只存於瀏覽器本機 IndexedDB。
 
-Owner 若要啟用公開部署，請先依 [`docs/cloud-deployment-checklist.md`](docs/cloud-deployment-checklist.md) 確認 repository／Pages 輸入、Actions 權限與 remote／push 核准；第一次必須手動 `workflow_dispatch` 建立 `market-data` 與 manifest，source `push` 不會自動 bootstrap。local fixture 的 updated／unchanged／hash／validate evidence 見 [`docs/manual-acceptance.md`](docs/manual-acceptance.md)。
+首次 `workflow_dispatch` 已於 2026-09-01 成功建立 `market-data` 與 manifest；source `push` 不會以空資料自動 bootstrap。部署、rollback 與 local fixture 證據見 [`docs/cloud-deployment-checklist.md`](docs/cloud-deployment-checklist.md) 及 [`docs/manual-acceptance.md`](docs/manual-acceptance.md)。
 
 ## 本機資料、停用與移除
 
@@ -98,4 +98,4 @@ Owner 若要啟用公開部署，請先依 [`docs/cloud-deployment-checklist.md`
 
 ## 部署限制
 
-目前 userscript dashboard allowlist 只有 localhost 開發 origin（預設 `http://localhost:4173`）。尚未選定 production URL，也沒有建立 remote repository 或發布 GitHub Pages。任何部署前都必須先由 Owner 確認 GitHub 帳號／組織、repository 名稱、Pages URL／自訂網域及公開／私人設定；確認後才可設定 `MWI_RADAR_DASHBOARD_ORIGINS` 並重新 build。
+Cloud dashboard 不需要 userscript bridge。Userscript 的 dashboard allowlist 仍只包含 localhost 開發 origin，作為 cloud 不可用時的本機 fallback；不得為公開 Pages 擴張角色資料或交易權限。正式 repository 是 [baowan403/mwi-market-radar](https://github.com/baowan403/mwi-market-radar)，Pages 使用預設 HTTPS 網域，尚未設定自訂網域。
