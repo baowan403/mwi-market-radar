@@ -63,8 +63,22 @@ describe('history provenance', () => {
   });
 
   it.each([
+    '2026-09-01T12:09:00Z',
+    '2026-09-01T20:09:00+08:00',
+    '2026-09-01T07:09:00-05:00',
+    '2024-02-29T12:09:00.5Z',
+  ])('accepts a strict ISO-8601 instant with a timezone: %s', (fetchedAt) => {
+    expect(parseHistoryProvenance(provenance({ fetchedAt })).fetchedAt).toBe(fetchedAt);
+  });
+
+  it.each([
     [{ fetchedAt: 'not-an-iso-date' }],
-    [{ fetchedAt: '2026-09-01T12:09:00Z' }],
+    [{ fetchedAt: '2026-02-30T12:09:00Z' }],
+    [{ fetchedAt: '2026-09-01T12:09:00' }],
+    [{ fetchedAt: 'September 1, 2026 12:09:00 UTC' }],
+    [{ fetchedAt: '2026-09-01T24:09:00Z' }],
+    [{ fetchedAt: '2026-09-01T12:09:00+24:00' }],
+    [{ fetchedAt: '2026-09-01T12:09:00+08:60' }],
     [{ fromTimestamp: -1 }],
     [{ toTimestamp: Number.MAX_SAFE_INTEGER }],
     [{ fromTimestamp: VALID.toTimestamp, toTimestamp: VALID.fromTimestamp }],

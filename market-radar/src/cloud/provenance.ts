@@ -46,10 +46,44 @@ function isDateTimestamp(value: unknown): value is number {
     && value <= MAX_DATE_MS;
 }
 
-function isCanonicalIsoDate(value: unknown): value is string {
+function isStrictIsoInstant(value: unknown): value is string {
   if (typeof value !== 'string') return false;
-  const date = new Date(value);
-  return Number.isFinite(date.getTime()) && date.toISOString() === value;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/.exec(value);
+  if (match === null) return false;
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText, timezone] = match;
+  if (
+    yearText === undefined
+    || monthText === undefined
+    || dayText === undefined
+    || hourText === undefined
+    || minuteText === undefined
+    || secondText === undefined
+    || timezone === undefined
+  ) return false;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  const daysInMonth = month === 2
+    ? (year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28)
+    : [4, 6, 9, 11].includes(month) ? 30 : 31;
+  if (
+    month < 1
+    || month > 12
+    || day < 1
+    || day > daysInMonth
+    || hour > 23
+    || minute > 59
+    || second > 59
+  ) return false;
+  if (timezone !== 'Z') {
+    const offsetHour = Number(timezone.slice(1, 3));
+    const offsetMinute = Number(timezone.slice(4, 6));
+    if (offsetHour > 23 || offsetMinute > 59) return false;
+  }
+  return Number.isFinite(Date.parse(value));
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -68,7 +102,7 @@ export function parseHistoryProvenance(value: unknown): HistoryProvenance {
     || value.sourceUrl !== 'https://www.stockmarket.xin'
     || value.permission !== 'owner-confirmed'
     || value.liveSource !== 'mwi-official'
-    || !isCanonicalIsoDate(value.fetchedAt)
+    || !isStrictIsoInstant(value.fetchedAt)
     || !isDateTimestamp(value.fromTimestamp)
     || !isDateTimestamp(value.toTimestamp)
     || value.fromTimestamp > value.toTimestamp
