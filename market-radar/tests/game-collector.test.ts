@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { CollectorStatus, Snapshot } from '../src/core/types';
 import type { KeyValueStore, MarketStore, SnapshotSaveResult } from '../src/collector/market-store';
-import { STORAGE_PREFIX } from '../src/collector/market-store';
+import { STORAGE_PREFIX, StorageCleanupError } from '../src/collector/market-store';
 import {
   createCollectorCheck,
   startGameCollector,
@@ -31,6 +31,7 @@ function snapshot(timestamp = SNAPSHOT_TIMESTAMP): Snapshot {
 
 interface HarnessOptions {
   inserted?: boolean;
+  cleanupErrors?: string[];
   fetchSnapshot?: (signal?: AbortSignal) => Promise<Snapshot>;
   lockResult?: 'acquired' | 'busy';
   initialStatus?: Partial<CollectorStatus>;
@@ -71,7 +72,7 @@ function createHarness(options: HarnessOptions = {}) {
   const getCollectorStatus = vi.fn(async () => ({ ...status }));
   const saveSnapshot = vi.fn<MarketStore['saveSnapshot']>(async () => ({
     inserted: options.inserted ?? true,
-    cleanupErrors: [],
+    cleanupErrors: options.cleanupErrors ?? [],
   } satisfies SnapshotSaveResult));
   const marketStore = {
     saveSnapshot,
@@ -273,6 +274,62 @@ describe('createCollectorCheck', () => {
 
     expect(harness.values.has(LAST_CHECKED_SLOT_KEY)).toBe(false);
     expect(harness.statusWrites.at(-1)?.lastErrorCode).toBe('storage');
+  });
+
+  it('treats an inserted snapshot with retention cleanup errors as a storage failure', async () => {
+    const harness = createHarness({ cleanupErrors: ['delete:mwi-radar:v1:hourly:private-day'] });
+
+    const error = await harness.check({ isRetry: false }).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(StorageCleanupError);
+    expect((error as StorageCleanupError).code).toBe('storage');
+    expect((error as StorageCleanupError).count).toBe(1);
+    expect((error as Error).message).not.toContain('private-day');
+    expect(harness.values.has(LAST_CHECKED_SLOT_KEY)).toBe(false);
+    expect(harness.statusWrites.at(-1)).toMatchObject({
+      state: 'retrying',
+      nextRunAt: NOW + TEN_MINUTES,
+      lastErrorCode: 'storage',
+    });
+    expect(JSON.stringify(harness.statusWrites)).not.toContain('private-day');
+  });
+
+  it('recovers a failed normal cleanup on retry through the duplicate save path', async () => {
+    const harness = createHarness({ cleanupErrors: ['set:mwi-radar:v1:hourly:private-day'] });
+    await expect(harness.check({ isRetry: false })).rejects.toBeInstanceOf(StorageCleanupError);
+
+    harness.saveSnapshot.mockResolvedValueOnce({ inserted: false, cleanupErrors: [] });
+
+    await expect(harness.check({ isRetry: true })).resolves.toBe('unchanged');
+
+    expect(harness.saveSnapshot).toHaveBeenCalledTimes(2);
+    expect(harness.values.get(LAST_CHECKED_SLOT_KEY)).toBe(slotId(NOW));
+    expect(harness.statusWrites.at(-1)).toMatchObject({
+      state: 'ok',
+      lastErrorCode: null,
+    });
+    expect(JSON.stringify(harness.statusWrites)).not.toContain('private-day');
+  });
+
+  it('keeps retrying cleanup failures in error state without marking the slot', async () => {
+    const harness = createHarness({ cleanupErrors: ['delete:mwi-radar:v1:hourly:private-day'] });
+    await expect(harness.check({ isRetry: false })).rejects.toBeInstanceOf(StorageCleanupError);
+
+    harness.saveSnapshot.mockResolvedValueOnce({
+      inserted: false,
+      cleanupErrors: ['set:mwi-radar:v1:hourly:secret-day'],
+    });
+
+    const error = await harness.check({ isRetry: true }).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(StorageCleanupError);
+    expect((error as Error).message).not.toContain('secret-day');
+    expect(harness.values.has(LAST_CHECKED_SLOT_KEY)).toBe(false);
+    expect(harness.statusWrites.at(-1)).toMatchObject({
+      state: 'error',
+      lastErrorCode: 'storage',
+    });
+    expect(JSON.stringify(harness.statusWrites)).not.toContain('secret-day');
   });
 
   it('skips a normal check for a slot already fetched under the lock', async () => {

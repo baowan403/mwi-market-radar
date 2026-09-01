@@ -74,6 +74,20 @@ export class StorageWriteError extends Error {
   }
 }
 
+/** Safe signal for a successful insert whose retention cleanup was incomplete. */
+export class StorageCleanupError extends Error {
+  readonly code: 'storage' = 'storage';
+  readonly count: number;
+
+  constructor(count: number) {
+    const safeCount = Number.isSafeInteger(count) && count > 0 ? count : 1;
+    super(`Snapshot retention cleanup failed (${safeCount} issue${safeCount === 1 ? '' : 's'})`);
+    this.name = 'StorageCleanupError';
+    this.count = safeCount;
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
 export function hourlyDayKey(timestamp: number): string {
   return `${HOURLY_PREFIX}${new Date(timestamp).toISOString().slice(0, 10)}`;
 }

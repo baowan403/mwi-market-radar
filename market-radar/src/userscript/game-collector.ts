@@ -4,8 +4,10 @@ import {
   STORAGE_PREFIX,
   createGMKeyValueStore,
   MarketStore,
+  StorageCleanupError,
   StorageWriteError,
   type KeyValueStore,
+  type SnapshotSaveResult,
 } from '../collector/market-store';
 import { MarketSchemaError } from '../core/market-schema';
 import {
@@ -112,6 +114,7 @@ function errorProperty(error: unknown, key: string): unknown {
 
 /** Classify an error without ever persisting its message or arbitrary properties. */
 export function classifyCollectorError(error: unknown): CollectorErrorCode {
+  if (error instanceof StorageCleanupError) return 'storage';
   if (error instanceof StorageWriteError) return 'storage';
   if (error instanceof MarketSchemaError) return 'schema';
   if (error instanceof CollectorLockError) return 'lock';
@@ -160,10 +163,11 @@ function throwIfCancelled(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw cancellationError();
 }
 
-function isInsertedResult(value: unknown): value is { inserted: boolean } {
+function isSnapshotSaveResult(value: unknown): value is SnapshotSaveResult {
   return value !== null
     && typeof value === 'object'
-    && typeof (value as { inserted?: unknown }).inserted === 'boolean';
+    && typeof (value as { inserted?: unknown }).inserted === 'boolean'
+    && Array.isArray((value as { cleanupErrors?: unknown }).cleanupErrors);
 }
 
 async function writeLockFailureStatus(
@@ -289,9 +293,13 @@ function createCollectorCheckInternal(options: CollectorCheckOptions): (context:
           failureCode = 'storage';
           throw error;
         }
-        if (!isInsertedResult(saved)) {
+        if (!isSnapshotSaveResult(saved)) {
           failureCode = 'unknown';
           throw new Error('Collector snapshot save returned an invalid result.');
+        }
+        if (saved.cleanupErrors.length > 0) {
+          failureCode = 'storage';
+          throw new StorageCleanupError(saved.cleanupErrors.length);
         }
 
         try {
