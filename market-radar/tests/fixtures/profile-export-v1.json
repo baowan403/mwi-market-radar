@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "exportedAt": "2026-09-01T08:00:00.000Z",
+  "name": "測試牛一號",
+  "skills": {
+    "/skills/milking": 66,
+    "/skills/foraging": 82,
+    "/skills/woodcutting": 80,
+    "/skills/cheesesmithing": 80,
+    "/skills/crafting": 98,
+    "/skills/tailoring": 80,
+    "/skills/cooking": 80,
+    "/skills/brewing": 80,
+    "/skills/alchemy": 103,
+    "/skills/enhancing": 65
+  },
+  "equipment": {
+    "/item_locations/alchemy_tool": { "hrid": "/items/holy_alembic", "enhanceLevel": 10 },
+    "/item_locations/body": { "hrid": "/items/alchemist_robe_top", "enhanceLevel": 7 },
+    "/item_locations/legs": { "hrid": "/items/alchemist_robe_bottoms", "enhanceLevel": 5 },
+    "/item_locations/pouch": { "hrid": "/items/guzzling_pouch", "enhanceLevel": 5 }
+  },
+  "houses": {
+    "/house_rooms/laboratory": 4,
+    "/house_rooms/workshop": 4,
+    "/house_rooms/brewery": 2
+  },
+  "communityBuffs": {
+    "/community_buff_types/experience": 20,
+    "/community_buff_types/gathering_quantity": 16,
+    "/community_buff_types/production_efficiency": 10,
+    "/community_buff_types/enhancing_speed": 14,
+    "/community_buff_types/moo_card": 0
+  },
+  "achievements": [
+    {
+      "characterID": 700001,
+      "achievementHrid": "/achievements/build_room_level_1",
+      "isCompleted": true
+    }
+  ],
+  "shrines": {
+    "power": 1,
+    "rhythm": 3,
+    "spirit": 1,
+    "rare": 0,
+    "scholar": 1
+  },
+  "actionTeas": {
+    "alchemy": [
+      "/items/ultra_alchemy_tea",
+      "/items/efficiency_tea",
+      "/items/catalytic_tea"
+    ]
+  },
+  "inventoryMap": {
+    "/items/holy_alembic": 10,
+    "/items/guzzling_pouch": 5
+  },
+  "token": "must-not-survive",
+  "cookie": "must-not-survive"
+}

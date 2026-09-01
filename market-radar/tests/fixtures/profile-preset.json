@@ -1,0 +1,53 @@
+{
+  "name": "測試預設",
+  "color": "#16ab1b",
+  "actionConfigMap": {
+    "brewing": {
+      "action": "brewing",
+      "playerLevel": 80,
+      "tool": { "type": "brewing_tool", "hrid": "/items/holy_pot", "enhanceLevel": 5 },
+      "body": { "type": "body" },
+      "legs": { "type": "legs" },
+      "back": { "type": "back" },
+      "charm": { "type": "charm" },
+      "houseLevel": 2,
+      "tea": [
+        "/items/ultra_brewing_tea",
+        "/items/efficiency_tea",
+        "/items/artisan_tea"
+      ]
+    },
+    "alchemy": {
+      "action": "alchemy",
+      "playerLevel": 103,
+      "tool": { "type": "alchemy_tool", "hrid": "/items/holy_alembic", "enhanceLevel": 10 },
+      "body": { "type": "body", "hrid": "/items/alchemist_robe_top", "enhanceLevel": 7 },
+      "legs": { "type": "legs", "hrid": "/items/alchemist_robe_bottoms", "enhanceLevel": 5 },
+      "back": { "type": "back" },
+      "charm": { "type": "charm" },
+      "houseLevel": 4,
+      "tea": [
+        "/items/ultra_alchemy_tea",
+        "/items/efficiency_tea",
+        "/items/catalytic_tea"
+      ]
+    }
+  },
+  "specialEquimentMap": {
+    "pouch": { "type": "pouch", "hrid": "/items/guzzling_pouch", "enhanceLevel": 5 }
+  },
+  "communityBuffMap": {
+    "production_efficiency": {
+      "type": "production_efficiency",
+      "hrid": "/community_buff_types/production_efficiency",
+      "level": 10
+    }
+  },
+  "achievementBuffMap": {
+    "beginner": { "type": "beginner", "enabled": true }
+  },
+  "shrineBuffMap": {
+    "power": { "type": "power", "level": 1 },
+    "rhythm": { "type": "rhythm", "level": 3 }
+  }
+}
