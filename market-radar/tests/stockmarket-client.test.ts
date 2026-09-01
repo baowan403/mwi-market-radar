@@ -1,11 +1,24 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createStockmarketClient } from '../src/backfill/stockmarket-client';
+import { HISTORY_MAX_BODY_BYTES, LATEST_STATUS_MAX_BODY_BYTES, createStockmarketClient } from '../src/backfill/stockmarket-client';
 
 const point = (itemName: string) => ({
   item_name: itemName, level: 1, timestamp: 1, price_a: 1, price_b: 2, price_p: 3, volume: 4,
 });
-const response = (body: unknown, status = 200) => ({ ok: status >= 200 && status < 300, status, json: async () => body }) as unknown as Response;
+const response = (body: unknown, status = 200) => ({ ok: status >= 200 && status < 300, status, json: async () => body, body: null }) as unknown as Response;
 const list = (...names: string[]) => ({ data: names.map((item_name) => ({ item_name })) });
+
+function streamingResponse(chunks: Uint8Array[], status = 200): Response & { cancel: ReturnType<typeof vi.fn> } {
+  const cancel = vi.fn();
+  let index = 0;
+  const body = {
+    getReader: () => ({
+      read: async () => index < chunks.length ? { done: false, value: chunks[index++]! } : { done: true, value: undefined },
+      cancel,
+      releaseLock: () => undefined,
+    }),
+  } as unknown as ReadableStream<Uint8Array>;
+  return { ok: status >= 200 && status < 300, status, body, json: async () => { throw new Error('stream should be used'); }, cancel } as unknown as Response & { cancel: ReturnType<typeof vi.fn> };
+}
 
 describe('stockmarket client', () => {
   it('uses the fixed origin, exact paths, headers, and timeout signals', async () => {
@@ -22,6 +35,10 @@ describe('stockmarket client', () => {
       for (const call of fetcher.mock.calls) {
         const init = call[1] as RequestInit;
         expect(init.headers).toEqual({ 'User-Agent': 'mwi-market-radar-authorized-backfill/1' });
+        expect(init.method).toBe('GET');
+        expect(init.redirect).toBe('error');
+        expect(init.credentials).toBe('omit');
+        expect(init.cache).toBe('no-store');
         expect(init.signal).toBeInstanceOf(AbortSignal);
       }
       expect(timeout).toHaveBeenCalledTimes(2);
@@ -29,6 +46,47 @@ describe('stockmarket client', () => {
     } finally {
       timeout.mockRestore();
     }
+  });
+
+  it('rejects redirected responses without retrying or using a different origin', async () => {
+    let calls = 0;
+    const redirected = {
+      ok: true, status: 200, body: null, json: async () => list('ore'), redirected: true, url: 'https://elsewhere.invalid/api/latest-status',
+    } as unknown as Response;
+    const fetcher = vi.fn(async () => { calls++; return redirected; });
+    await expect(createStockmarketClient({ fetcher, sleep: async () => undefined }).loadAll()).rejects.toThrow('Stockmarket redirect rejected');
+    expect(calls).toBe(1);
+  });
+
+  it('parses split UTF-8 stream bodies and falls back safely when bodies are unavailable', async () => {
+    const bytes = new TextEncoder().encode(JSON.stringify({ ...list('ore'), label: 'é' }));
+    const split = bytes.indexOf(0xC3) + 1;
+    const streamed = streamingResponse([bytes.slice(0, split), bytes.slice(split)]);
+    const fetcher = vi.fn(async (input: string | URL) => {
+      if (String(input).endsWith('latest-status')) return streamed;
+      return response({ item: 'ore', history: [point('ore')] });
+    });
+    await expect(createStockmarketClient({ fetcher, sleep: async () => undefined }).loadAll()).resolves.toBeInstanceOf(Map);
+    expect(streamed.cancel).not.toHaveBeenCalled();
+  });
+
+  it('cancels oversize streams before buffering or retrying them', async () => {
+    const oversize = streamingResponse([new Uint8Array(LATEST_STATUS_MAX_BODY_BYTES + 1)]);
+    const fetcher = vi.fn(async () => oversize);
+    await expect(createStockmarketClient({ fetcher, sleep: async () => undefined }).loadAll()).rejects.toThrow('Stockmarket response body too large');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(oversize.cancel).toHaveBeenCalledTimes(1);
+    expect(HISTORY_MAX_BODY_BYTES).toBe(8 * 1024 * 1024);
+  });
+
+  it('applies the smaller body cap and cancellation to each item history response', async () => {
+    const oversize = streamingResponse([new Uint8Array(HISTORY_MAX_BODY_BYTES + 1)]);
+    const fetcher = vi.fn(async (input: string | URL) => String(input).endsWith('latest-status')
+      ? response(list('ore'))
+      : oversize);
+    await expect(createStockmarketClient({ fetcher, sleep: async () => undefined }).loadAll()).rejects.toThrow('Stockmarket response body too large');
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(oversize.cancel).toHaveBeenCalledTimes(1);
   });
 
   it('returns a sorted Map and limits item concurrency to four', async () => {

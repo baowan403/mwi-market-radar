@@ -54,6 +54,53 @@ describe('stockmarket.xin schema', () => {
     }, 'arcane_log')[0]?.v).toBe(0);
   });
 
+  it('accepts only nullish, non-negative finite, or negative sentinel quote values', () => {
+    const row = {
+      item_name: 'arcane_log', level: 0, timestamp: 1788271560,
+      price_a: 1, price_b: 2, price_p: 3, volume: 4,
+    };
+    const parse = (overrides: Record<string, unknown>) => parseStockmarketHistory({
+      item: 'arcane_log', history: [{ ...row, ...overrides }],
+    }, 'arcane_log')[0]!;
+
+    for (const field of ['price_a', 'price_b', 'price_p', 'volume'] as const) {
+      const absent = { ...row } as Record<string, unknown>;
+      delete absent[field];
+      expect(parseStockmarketHistory({ item: 'arcane_log', history: [absent] }, 'arcane_log')[0]).toMatchObject({
+        a: field === 'price_a' ? null : 1,
+        b: field === 'price_b' ? null : 2,
+        p: field === 'price_p' ? null : 3,
+        v: field === 'volume' ? null : 4,
+      });
+      expect(parse({ [field]: null })).toMatchObject({
+        a: field === 'price_a' ? null : 1,
+        b: field === 'price_b' ? null : 2,
+        p: field === 'price_p' ? null : 3,
+        v: field === 'volume' ? null : 4,
+      });
+      expect(parse({ [field]: -1 })).toMatchObject({
+        a: field === 'price_a' ? null : 1,
+        b: field === 'price_b' ? null : 2,
+        p: field === 'price_p' ? null : 3,
+        v: field === 'volume' ? null : 4,
+      });
+      for (const malformed of [Number.NaN, Number.POSITIVE_INFINITY, '1', {}]) {
+        expect(() => parse({ [field]: malformed })).toThrow('Invalid stockmarket quote value');
+      }
+    }
+  });
+
+  it('caps latest-status and per-item history response rows', () => {
+    expect(parseStockmarketItemNames({ data: Array.from({ length: 5000 }, (_, index) => ({ item_name: `item_${index}` })) })).toHaveLength(5000);
+    expect(() => parseStockmarketItemNames({ data: Array.from({ length: 5001 }, (_, index) => ({ item_name: `item_${index}` })) })).toThrow('Invalid stockmarket item list');
+
+    const history = Array.from({ length: 500 }, (_, timestamp) => ({
+      item_name: 'arcane_log', level: 0, timestamp, price_a: 1, price_b: 2, price_p: 3, volume: 4,
+    }));
+    expect(parseStockmarketHistory({ item: 'arcane_log', history }, 'arcane_log')).toHaveLength(500);
+    expect(() => parseStockmarketHistory({ item: 'arcane_log', history: [...history, history[0]] }, 'arcane_log')).toThrow('Invalid stockmarket history');
+  });
+
   it('rejects unsafe names, mismatched items, and invalid timestamps', () => {
     expect(() => parseStockmarketItemNames({ data: [{ item_name: '../secret' }] })).toThrow();
     expect(() => parseStockmarketHistory({ history: [{

@@ -27,7 +27,7 @@ describe('production privacy boundary', () => {
       /WebSocket/,
       /api\.milkywayidle\.com/,
       /unsafeWindow/,
-      /\b(?:order|buy|sell|cancel)\s*\(/i,
+      /(?<!reader\.)\b(?:order|buy|sell|cancel)\s*\(/i,
     ]) {
       expect(contents).not.toMatch(token);
     }
@@ -59,7 +59,7 @@ describe('production privacy boundary', () => {
     expect(requestCalls).toHaveLength(2);
     expect(requestCalls).toEqual(expect.arrayContaining([
       expect.stringContaining('`${ORIGIN}/api/latest-status`'),
-      expect.stringContaining('url, cancellation.signal'),
+      expect.stringContaining('url, HISTORY_MAX_BODY_BYTES, cancellation.signal'),
     ]));
     const fetchCalls = source.split('\n').filter((line) => /\bfetcher\s*\(/.test(line));
     expect(fetchCalls).toHaveLength(1);

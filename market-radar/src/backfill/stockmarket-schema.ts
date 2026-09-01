@@ -7,6 +7,8 @@ export interface StockmarketHistoryPoint extends Quote {
 }
 
 const SAFE_ITEM_NAME = /^[a-z0-9_]+$/;
+const MAX_LATEST_STATUS_ROWS = 5_000;
+const MAX_HISTORY_ROWS = 500;
 
 function record(value: unknown, message: string): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
@@ -19,13 +21,16 @@ function safeItemName(value: unknown): value is string {
   return typeof value === 'string' && SAFE_ITEM_NAME.test(value);
 }
 
-function nonNegativeFinite(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+function quoteValue(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return value >= 0 ? value : null;
+  throw new Error('Invalid stockmarket quote value');
 }
 
 export function parseStockmarketItemNames(value: unknown): string[] {
   const data = record(value, 'Invalid stockmarket data').data;
   if (!Array.isArray(data)) throw new Error('Invalid stockmarket item list');
+  if (data.length > MAX_LATEST_STATUS_ROWS) throw new Error('Invalid stockmarket item list');
 
   const names = data.map((entry) => {
     const item = record(entry, 'Invalid stockmarket item');
@@ -44,6 +49,7 @@ export function parseStockmarketHistory(value: unknown, expectedItem: string): S
   }
   const history = payload.history;
   if (!Array.isArray(history)) throw new Error('Invalid stockmarket history');
+  if (history.length > MAX_HISTORY_ROWS) throw new Error('Invalid stockmarket history');
 
   return history.map((entry) => {
     const row = record(entry, 'Invalid stockmarket history row');
@@ -60,10 +66,10 @@ export function parseStockmarketHistory(value: unknown, expectedItem: string): S
     const timestamp = (row.timestamp as number) * 1_000;
     if (!Number.isSafeInteger(timestamp)) throw new Error('Invalid stockmarket timestamp');
 
-    const a = nonNegativeFinite(row.price_a);
-    const b = nonNegativeFinite(row.price_b);
-    const p = nonNegativeFinite(row.price_p);
-    const volume = nonNegativeFinite(row.volume);
+    const a = quoteValue(row.price_a);
+    const b = quoteValue(row.price_b);
+    const p = quoteValue(row.price_p);
+    const volume = quoteValue(row.volume);
     const hasPriceSentinel = [row.price_a, row.price_b, row.price_p].some(
       (price) => typeof price === 'number' && Number.isFinite(price) && price < 0,
     );

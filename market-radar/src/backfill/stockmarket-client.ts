@@ -4,6 +4,8 @@ const ORIGIN = 'https://www.stockmarket.xin';
 const USER_AGENT = 'mwi-market-radar-authorized-backfill/1';
 const RETRY_STATUSES = new Set([429, 502, 503, 504]);
 const RETRY_DELAYS = [500, 1000, 1500];
+export const LATEST_STATUS_MAX_BODY_BYTES = 16 * 1024 * 1024;
+export const HISTORY_MAX_BODY_BYTES = 8 * 1024 * 1024;
 
 type Fetcher = (input: string | URL, init?: RequestInit) => Promise<Response>;
 type Sleeper = (milliseconds: number) => Promise<void>;
@@ -28,15 +30,51 @@ async function defaultSleep(milliseconds: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function requestJson(fetcher: Fetcher, sleep: Sleeper, url: string, cancellation?: AbortSignal): Promise<unknown> {
+async function readResponseJson(response: Response, maxBytes: number): Promise<unknown> {
+  if (response.body === null) return response.json();
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let bytesRead = 0;
+  let text = '';
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      bytesRead += chunk.value.byteLength;
+      if (bytesRead > maxBytes) {
+        await reader.cancel();
+        throw new Error('Stockmarket response body too large');
+      }
+      text += decoder.decode(chunk.value, { stream: true });
+    }
+    text += decoder.decode();
+    return JSON.parse(text);
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function requestJson(
+  fetcher: Fetcher,
+  sleep: Sleeper,
+  url: string,
+  maxBodyBytes: number,
+  cancellation?: AbortSignal,
+): Promise<unknown> {
   for (let attempt = 0; attempt < 4; attempt++) {
     if (cancellation?.aborted) throw cancellation.reason ?? new DOMException('Request cancelled', 'AbortError');
     try {
       const timeout = AbortSignal.timeout(10_000);
       const response = await fetcher(url, {
+        method: 'GET',
+        redirect: 'error',
+        credentials: 'omit',
+        cache: 'no-store',
         headers: { 'User-Agent': USER_AGENT },
         signal: cancellation ? AbortSignal.any([timeout, cancellation]) : timeout,
       });
+      if (response.redirected) throw new Error('Stockmarket redirect rejected');
       if (!response.ok) {
         if (!RETRY_STATUSES.has(response.status) || attempt === 3) {
           throw new Error(`Stockmarket request failed with HTTP ${response.status}`);
@@ -44,7 +82,7 @@ async function requestJson(fetcher: Fetcher, sleep: Sleeper, url: string, cancel
         await sleep(RETRY_DELAYS[attempt] ?? 1500);
         continue;
       }
-      return await response.json();
+      return await readResponseJson(response, maxBodyBytes);
     } catch (error) {
       if (cancellation?.aborted) throw error;
       if (!isAbortError(error) || attempt === 3) throw error;
@@ -64,7 +102,7 @@ export function createStockmarketClient(options: StockmarketClientOptions = {}):
 
   return {
     async loadAll() {
-      const status = await requestJson(fetcher, sleep, `${ORIGIN}/api/latest-status`);
+      const status = await requestJson(fetcher, sleep, `${ORIGIN}/api/latest-status`, LATEST_STATUS_MAX_BODY_BYTES);
       const names = parseStockmarketItemNames(status);
       const result = new Map<string, StockmarketHistoryPoint[]>();
       const cancellation = new AbortController();
@@ -89,7 +127,7 @@ export function createStockmarketClient(options: StockmarketClientOptions = {}):
           const name = names[index]!;
           const url = `${ORIGIN}/api/item/${encodeURIComponent(name)}/history?limit=200`;
           try {
-            const payload = await requestJson(fetcher, sleep, url, cancellation.signal);
+            const payload = await requestJson(fetcher, sleep, url, HISTORY_MAX_BODY_BYTES, cancellation.signal);
             result.set(name, parseStockmarketHistory(payload, name));
           } catch (error) {
             recordFailure(error);
