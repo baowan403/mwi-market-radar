@@ -344,6 +344,36 @@ describe('mergeCloudHistory', () => {
     await expect(readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8')).resolves.toBe(dailyBefore);
   });
 
+  it('reconciles an incomplete daily pack once and leaves the repaired bytes untouched on retry', async () => {
+    const backfill = [snapshot(LATEST - DAY, 80), snapshot(LATEST - DAY + HOUR, 90)];
+    await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST), generatedAt: GENERATED_AT });
+    await mergeCloudHistory({ dataDir, snapshots: backfill, generatedAt: '2026-09-01T12:11:00.000Z' });
+    await writeFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), await encodeDailyHistoryPack({
+      schemaVersion: 1,
+      generatedAt: '2026-09-01T12:11:00.000Z',
+      summaries: [],
+    }), 'utf8');
+    const manifestBefore = await readFile(join(dataDir, 'manifest.json'), 'utf8');
+
+    const reconciled = await mergeCloudHistory({
+      dataDir,
+      snapshots: backfill,
+      generatedAt: '2026-09-01T12:12:00.000Z',
+    });
+    const repaired = await readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8');
+    const retried = await mergeCloudHistory({
+      dataDir,
+      snapshots: backfill,
+      generatedAt: '2026-09-01T12:13:00.000Z',
+    });
+
+    expect(reconciled.inserted).toBe(0);
+    expect(retried.inserted).toBe(0);
+    await expect(readFile(join(dataDir, 'manifest.json'), 'utf8')).resolves.toBe(manifestBefore);
+    expect((await decodeDailyHistoryPack(repaired)).summaries[0]?.quotes[KEY]?.c).toBe(90);
+    await expect(readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8')).resolves.toBe(repaired);
+  });
+
   it('rejects an incoming snapshot that conflicts with an immutable manifest timestamp', async () => {
     await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST), generatedAt: GENERATED_AT });
     const manifestBefore = await readFile(join(dataDir, 'manifest.json'), 'utf8');
@@ -433,7 +463,7 @@ describe('mergeCloudHistory', () => {
     await writeFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), await encodeDailyHistoryPack({
       schemaVersion: 1,
       generatedAt: GENERATED_AT,
-      summaries: [aggregateDailySummary([initial])],
+      summaries: [aggregateDailySummary([initial]), aggregateDailySummary([latest])],
     }), 'utf8');
 
     await mergeCloudHistory({
@@ -445,6 +475,73 @@ describe('mergeCloudHistory', () => {
     const pack = await decodeDailyHistoryPack(await readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8'));
     expect(pack.summaries).toHaveLength(1);
     expect(pack.summaries[0]?.quotes[KEY]).toMatchObject({ o: 80, c: 90, samples: 2 });
+    expect(pack.summaries.some((summary) => summary.date === '2026-09-01')).toBe(false);
+  });
+
+  it('does not publish the manifest when a later snapshot fails immutable readback', async () => {
+    await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST), generatedAt: GENERATED_AT });
+    const incoming = snapshot(LATEST - HOUR, 90);
+    const before = await readFile(join(dataDir, 'manifest.json'), 'utf8');
+    const rename = vi.fn(async () => undefined);
+    let incomingReads = 0;
+
+    const error = await mergeCloudHistory({
+      dataDir,
+      snapshots: [snapshot(LATEST - 2 * HOUR, 80), incoming],
+      generatedAt: '2026-09-01T12:11:00.000Z',
+      fileSystem: {
+        readFile: async (path) => {
+          if (path !== join(dataDir, 'snapshots', `${incoming.timestamp}.txt`)) return readFile(path, 'utf8');
+          incomingReads += 1;
+          if (incomingReads === 1) return readFile(path, 'utf8');
+          return 'corrupt newly-written snapshot';
+        },
+        rename,
+      },
+    }).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(CloudHistoryError);
+    expect((error as CloudHistoryError).code).toBe('storage');
+    expect(rename).not.toHaveBeenCalled();
+    await expect(readFile(join(dataDir, 'manifest.json'), 'utf8')).resolves.toBe(before);
+  });
+
+  it('does not publish the manifest when a retained snapshot is corrupt during daily preparation', async () => {
+    await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST), generatedAt: GENERATED_AT });
+    await writeFile(join(dataDir, 'snapshots', `${LATEST}.txt`), 'corrupt retained snapshot', 'utf8');
+    const before = await readFile(join(dataDir, 'manifest.json'), 'utf8');
+    const rename = vi.fn(async () => undefined);
+
+    const error = await mergeCloudHistory({
+      dataDir,
+      snapshots: [snapshot(LATEST - HOUR, 90)],
+      generatedAt: '2026-09-01T12:11:00.000Z',
+      fileSystem: { rename },
+    }).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(CloudHistoryError);
+    expect((error as CloudHistoryError).code).toBe('storage');
+    expect(rename).not.toHaveBeenCalled();
+    await expect(readFile(join(dataDir, 'manifest.json'), 'utf8')).resolves.toBe(before);
+  });
+
+  it('does not publish the manifest when the existing daily pack is corrupt', async () => {
+    await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST), generatedAt: GENERATED_AT });
+    await writeFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'corrupt retained daily pack', 'utf8');
+    const before = await readFile(join(dataDir, 'manifest.json'), 'utf8');
+    const rename = vi.fn(async () => undefined);
+
+    const error = await mergeCloudHistory({
+      dataDir,
+      snapshots: [snapshot(LATEST - HOUR, 90)],
+      generatedAt: '2026-09-01T12:11:00.000Z',
+      fileSystem: { rename },
+    }).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(CloudHistoryError);
+    expect((error as CloudHistoryError).code).toBe('storage');
+    expect(rename).not.toHaveBeenCalled();
+    await expect(readFile(join(dataDir, 'manifest.json'), 'utf8')).resolves.toBe(before);
   });
 
   it('leaves the previous manifest untouched when publishing a merged batch fails', async () => {
@@ -484,6 +581,20 @@ describe('mergeCloudHistory', () => {
     expect(overrideReaddir).toHaveBeenCalledTimes(1);
     expect(failingUnlink).toHaveBeenCalledTimes(1);
     await expect(readManifest(dataDir)).resolves.toMatchObject({ latestTimestamp: LATEST });
+  });
+
+  it('uses the fs alias when fileSystem is absent', async () => {
+    await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST), generatedAt: GENERATED_AT });
+    const aliasReaddir = vi.fn(async () => readdir(join(dataDir, 'snapshots')));
+
+    await mergeCloudHistory({
+      dataDir,
+      snapshots: [snapshot(LATEST - HOUR, 90)],
+      generatedAt: '2026-09-01T12:11:00.000Z',
+      fs: { readdir: aliasReaddir },
+    });
+
+    expect(aliasReaddir).toHaveBeenCalledTimes(1);
   });
 });
 

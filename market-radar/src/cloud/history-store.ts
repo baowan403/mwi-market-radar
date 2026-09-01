@@ -294,23 +294,37 @@ async function readDailyHistory(
   generatedAt: string,
   fileSystem: CloudFileSystem,
 ): Promise<DailyHistoryPack> {
+  return (await readStoredDailyHistory(dataDir, generatedAt, fileSystem)).pack;
+}
+
+interface StoredDailyHistory {
+  pack: DailyHistoryPack;
+  text: string | null;
+}
+
+async function readStoredDailyHistory(
+  dataDir: string,
+  generatedAt: string,
+  fileSystem: CloudFileSystem,
+): Promise<StoredDailyHistory> {
   try {
-    return await decodeDailyHistoryPack(await fileSystem.readFile(join(dataDir, DAILY_HISTORY_FILE), 'utf8'));
+    const text = await fileSystem.readFile(join(dataDir, DAILY_HISTORY_FILE), 'utf8');
+    return { pack: await decodeDailyHistoryPack(text), text };
   } catch (cause) {
-    if (isNodeError(cause, 'ENOENT')) return createDailyHistoryPack([], generatedAt);
+    if (isNodeError(cause, 'ENOENT')) return { pack: createDailyHistoryPack([], generatedAt), text: null };
     throw storageError();
   }
 }
 
-async function publishDailyHistory(
+async function publishEncodedDailyHistory(
   dataDir: string,
-  pack: DailyHistoryPack,
+  encoded: string,
   fileSystem: CloudFileSystem,
 ): Promise<void> {
   const finalPath = join(dataDir, DAILY_HISTORY_FILE);
   const tempPath = join(dataDir, `.${DAILY_HISTORY_FILE}.tmp-${process.pid}-${randomUUID()}`);
   try {
-    await fileSystem.writeFile(tempPath, await encodeDailyHistoryPack(pack), { encoding: 'utf8', flag: 'wx' });
+    await fileSystem.writeFile(tempPath, encoded, { encoding: 'utf8', flag: 'wx' });
     await fileSystem.rename(tempPath, finalPath);
   } catch {
     try {
@@ -320,6 +334,20 @@ async function publishDailyHistory(
     }
     throw storageError();
   }
+}
+
+async function publishDailyHistory(
+  dataDir: string,
+  pack: DailyHistoryPack,
+  fileSystem: CloudFileSystem,
+): Promise<void> {
+  let encoded: string;
+  try {
+    encoded = await encodeDailyHistoryPack(pack);
+  } catch {
+    throw storageError();
+  }
+  await publishEncodedDailyHistory(dataDir, encoded, fileSystem);
 }
 
 async function rebuildCurrentDailyHistory(
@@ -358,18 +386,17 @@ async function rebuildCurrentDailyHistory(
   await publishDailyHistory(dataDir, next, fileSystem);
 }
 
-async function rebuildCompletedDailyHistory(
+async function prepareCompletedDailyHistory(
   dataDir: string,
   manifest: CloudManifest,
   fileSystem: CloudFileSystem,
-): Promise<void> {
-  if (manifest.latestTimestamp === null) return;
+): Promise<string | null> {
+  if (manifest.latestTimestamp === null) return null;
   const latestDate = new Date(manifest.latestTimestamp).toISOString().slice(0, 10);
   const byDate = new Map<string, Snapshot[]>();
 
   for (const entry of manifest.snapshots) {
     const entryDate = new Date(entry.timestamp).toISOString().slice(0, 10);
-    if (entryDate >= latestDate) continue;
 
     let text: string;
     let decoded: Snapshot[];
@@ -384,18 +411,28 @@ async function rebuildCompletedDailyHistory(
       || decoded.length !== 1
       || decoded[0]?.timestamp !== entry.timestamp
     ) throw mismatchError();
+    if (entryDate >= latestDate) continue;
     const values = byDate.get(entryDate) ?? [];
     values.push(decoded[0]);
     byDate.set(entryDate, values);
   }
 
-  if (byDate.size === 0) return;
-  const current = await readDailyHistory(dataDir, manifest.generatedAt, fileSystem);
-  let next = current;
+  const current = await readStoredDailyHistory(dataDir, manifest.generatedAt, fileSystem);
+  let next = createDailyHistoryPack(
+    current.pack.summaries.filter((summary) => summary.date !== latestDate),
+    manifest.generatedAt,
+  );
   for (const values of byDate.values()) {
     next = upsertDailySummary(next, aggregateDailySummary(values), manifest.generatedAt);
   }
-  await publishDailyHistory(dataDir, next, fileSystem);
+  if (current.text === null && next.summaries.length === 0) return null;
+  let encoded: string;
+  try {
+    encoded = await encodeDailyHistoryPack(next);
+  } catch {
+    throw storageError();
+  }
+  return current.text === encoded ? null : encoded;
 }
 
 async function pruneSnapshotFiles(
@@ -559,7 +596,11 @@ export async function mergeCloudHistory(
     throw storageError();
   }
 
-  if (newEntries.length === 0) return { inserted: 0, manifest: previous, cleanupErrors: [] };
+  if (newEntries.length === 0) {
+    const dailyHistory = await prepareCompletedDailyHistory(options.dataDir, previous, fileSystem);
+    if (dailyHistory !== null) await publishEncodedDailyHistory(options.dataDir, dailyHistory, fileSystem);
+    return { inserted: 0, manifest: previous, cleanupErrors: [] };
+  }
 
   let next: CloudManifest;
   try {
@@ -567,8 +608,9 @@ export async function mergeCloudHistory(
   } catch {
     throw manifestError();
   }
+  const dailyHistory = await prepareCompletedDailyHistory(options.dataDir, next, fileSystem);
   await publishManifest(options.dataDir, next, fileSystem);
-  await rebuildCompletedDailyHistory(options.dataDir, next, fileSystem);
+  if (dailyHistory !== null) await publishEncodedDailyHistory(options.dataDir, dailyHistory, fileSystem);
   const cleanupErrors = await pruneSnapshotFiles(options.dataDir, next, fileSystem);
   return { inserted: newEntries.length, manifest: next, cleanupErrors };
 }
