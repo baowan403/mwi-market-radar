@@ -19,14 +19,19 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      data_changed: ${{ steps.publish-data.outputs.data_changed }}
+      data_commit_sha: ${{ steps.publish-data.outputs.data_commit_sha }}
+      previous_data_sha: ${{ steps.data-worktree.outputs.previous_data_sha }}
+      data_branch_created: ${{ steps.data-worktree.outputs.data_branch_created }}
     steps:
       - name: Checkout source and data history
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
 
       - name: Set up Node.js 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: npm
@@ -47,10 +52,14 @@ jobs:
           git fetch origin market-data:refs/remotes/origin/market-data || true
           if git show-ref --verify --quiet refs/remotes/origin/market-data; then
             git worktree add --detach "$DATA_WT" refs/remotes/origin/market-data
+            echo "data_branch_created=false" >> "$GITHUB_OUTPUT"
+            echo "previous_data_sha=$(git -C "$DATA_WT" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           else
             git worktree add --detach "$DATA_WT" HEAD
             git -C "$DATA_WT" switch --orphan market-data
             git -C "$DATA_WT" rm -r --cached --ignore-unmatch .
+            echo "data_branch_created=true" >> "$GITHUB_OUTPUT"
+            echo "previous_data_sha=" >> "$GITHUB_OUTPUT"
           fi
           mkdir -p "$DATA_WT/data"
           echo "path=$DATA_WT" >> "$GITHUB_OUTPUT"
@@ -82,25 +91,6 @@ jobs:
           DATA_WT: ${{ steps.data-worktree.outputs.path }}
         run: npm run cloud:validate -- --data-dir "$DATA_WT/data"
 
-      - name: Commit and publish data-only changes
-        env:
-          DATA_WT: ${{ steps.data-worktree.outputs.path }}
-        run: |
-          set -euo pipefail
-          # Equivalent to `git add -- data`, scoped to the explicit worktree.
-          git -C "$DATA_WT" add -- data
-          if git -C "$DATA_WT" diff --cached --name-only | grep -v '^data/'; then
-            echo "Only data/** may be committed"
-            exit 1
-          fi
-          if ! git -C "$DATA_WT" diff --cached --quiet; then
-            git -C "$DATA_WT" config user.name 'github-actions[bot]'
-            git -C "$DATA_WT" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git -C "$DATA_WT" commit -m 'chore: update public market data'
-            # Equivalent to `git push origin HEAD:market-data`, scoped to the worktree.
-            git -C "$DATA_WT" push origin HEAD:market-data
-          fi
-
       - name: Copy validated market data into the site
         env:
           DATA_WT: ${{ steps.data-worktree.outputs.path }}
@@ -116,6 +106,24 @@ jobs:
           test -s public/data/manifest.json
           npm run cloud:validate -- --data-dir "$GITHUB_WORKSPACE/market-radar/public/data"
 
+      - name: Stage validated data changes
+        id: stage-data
+        env:
+          DATA_WT: ${{ steps.data-worktree.outputs.path }}
+        run: |
+          set -euo pipefail
+          # Equivalent to `git add -- data`, scoped to the explicit worktree.
+          git -C "$DATA_WT" add -- data
+          if git -C "$DATA_WT" diff --cached --name-only | grep -q -v '^data/'; then
+            echo "Only data/** may be committed"
+            exit 1
+          fi
+          if git -C "$DATA_WT" diff --cached --quiet; then
+            echo "data_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "data_changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run unit tests
         working-directory: market-radar
         run: npm test -- --run
@@ -125,12 +133,33 @@ jobs:
         run: npm run build
 
       - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: market-radar/dist
+
+      - name: Commit and publish data-only changes
+        id: publish-data
+        env:
+          DATA_WT: ${{ steps.data-worktree.outputs.path }}
+          DATA_CHANGED: ${{ steps.stage-data.outputs.data_changed }}
+        run: |
+          set -euo pipefail
+          if [ "$DATA_CHANGED" = "true" ]; then
+            git -C "$DATA_WT" config user.name 'github-actions[bot]'
+            git -C "$DATA_WT" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git -C "$DATA_WT" commit -m 'chore: update public market data'
+            # Equivalent to `git push origin HEAD:market-data`, scoped to the worktree.
+            git -C "$DATA_WT" push origin HEAD:market-data
+          fi
+          echo "data_changed=$DATA_CHANGED" >> "$GITHUB_OUTPUT"
+          if git -C "$DATA_WT" rev-parse --verify HEAD >/dev/null 2>&1; then
+            echo "data_commit_sha=$(git -C "$DATA_WT" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          else
+            echo "data_commit_sha=" >> "$GITHUB_OUTPUT"
+          fi
 
   deploy:
     needs: build
@@ -144,4 +173,31 @@ jobs:
     steps:
       - name: Deploy Pages artifact
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+
+  rollback-data:
+    if: ${{ always() && needs.deploy.result == 'failure' && needs.build.outputs.data_changed == 'true' && needs.build.outputs.data_branch_created == 'false' && needs.build.outputs.previous_data_sha != '' }}
+    needs: [build, deploy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository for rollback
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Revert the published market-data commit
+        env:
+          DATA_COMMIT_SHA: ${{ needs.build.outputs.data_commit_sha }}
+          PREVIOUS_DATA_SHA: ${{ needs.build.outputs.previous_data_sha }}
+        run: |
+          set -euo pipefail
+          git fetch origin refs/heads/market-data:refs/remotes/origin/market-data
+          CURRENT_SHA="$(git rev-parse refs/remotes/origin/market-data)"
+          test "$CURRENT_SHA" = "$DATA_COMMIT_SHA"
+          test "$PREVIOUS_DATA_SHA" != ""
+          git switch --detach "$CURRENT_SHA"
+          git revert --no-edit "$DATA_COMMIT_SHA"
+          test "$(git rev-parse HEAD)" = "$PREVIOUS_DATA_SHA"
+          git push origin HEAD:market-data

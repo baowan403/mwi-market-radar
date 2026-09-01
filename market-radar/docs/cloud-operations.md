@@ -7,8 +7,8 @@
 - 在 GitHub Actions 選擇 `MWI Market Radar Pages`，使用 **Run workflow** 進行手動採集／重新部署；第一次啟用 cloud mode 也必須先這樣執行，讓 workflow 建立 `market-data` 與第一份 manifest，再完成部署。
 - 排程為每小時 UTC 第 13 分；只有排程與 **Run workflow** 會執行官方採集。`push` 到 `main` 僅建置／部署既有 `market-data`，不會因為資料分支或 manifest 缺失而自動採集。
 - 若首次只有 source push 而尚未初始化資料，push run 會在 validate、copy、artifact upload 前以固定訊息 `market-data is not initialized; run workflow_dispatch to bootstrap cloud history.` 失敗並停止部署；請改用 **Run workflow**，不要把失敗期間當成已有歷史。
-- Workflow 會在明確的 runner temporary worktree 操作 `market-data`，只將 `data/**` 的變更提交到該分支；manifest 與每個 snapshot 會在測試、建置前驗證。
-- 任一採集、驗證、測試或建置失敗都會在 Pages artifact upload 前停止，上一個可用網站不會被新失敗取代。
+- Workflow 會在明確的 runner temporary worktree 操作 `market-data`，只將 `data/**` 的變更提交到該分支；manifest 與每個 snapshot 會在測試、建置前驗證。資料 commit/push 會等 cloud validate、unit test、雙 artifact build 與 Pages artifact upload 全部成功後才執行，並且仍在 deploy 前。
+- 任一採集、驗證、測試、建置或 artifact upload 失敗都會在資料 commit/push 前停止，上一個可用網站不會被新失敗取代；資料 push 失敗也會阻止 deploy。
 
 ## Stale 診斷
 
@@ -30,7 +30,9 @@ GitHub scheduled workflow 可能在 repository 長時間無活動後停用（常
 ## 安全 rollback
 
 - 若某次 build/deploy 內容有問題，先在 Actions 選擇上一個成功的 Pages deployment 重新部署；不要 force-push 或刪除整個 repository。
-- 若只有 `market-data` commit 有問題，保留 workflow log 與 manifest 證據，經 Owner 審核後以正常 revert commit 還原 `data/**`，再手動執行驗證與建置。
+- 若既有 `market-data` branch 的新資料已 push 但 deploy 失敗，`rollback-data` 會在 deploy failure 後執行：先確認遠端 branch head 仍等於本次 data commit，再以 `git revert --no-edit` 建立反向 commit 並正常 push，還原前一個資料樹；不接受 force-push。
+- 初次建立 branch 沒有 `previous_data_sha` 可還原；若該次 deploy 失敗，`market-data` 會保留已驗證的資料但不會有公開部署。先查看 Actions failure，再用 **Run workflow** 重新執行；不要把 branch 存在誤認成網站已上線。
+- 若自動 rollback 因 head guard、權限或 revert conflict 失敗，保留 workflow log 與 manifest 證據，經 Owner 審核後確認目前 branch head，再以正常 revert commit 還原 `data/**`，手動執行驗證與建置；不要 force-push 或刪除整個 repository。
 - rollback 後確認網站 source、latest timestamp、snapshot count 與 8 日 retention，再重新啟用排程。
 
 ## 資料成長預估

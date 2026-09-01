@@ -19,9 +19,13 @@ describe('market radar Pages workflow', () => {
   });
 
   it('uses pinned build actions and Node 22 with npm ci in market-radar', () => {
-    expect(workflow).toContain('actions/checkout@v6');
+    expect(workflow).toContain(
+      'actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6',
+    );
     expect(workflow).toContain('fetch-depth: 0');
-    expect(workflow).toContain('actions/setup-node@v4');
+    expect(workflow).toContain(
+      'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4',
+    );
     expect(workflow).toMatch(/node-version:\s*["']?22["']?/);
     expect(workflow).toContain('cache: npm');
     expect(workflow).toContain('cache-dependency-path: market-radar/package-lock.json');
@@ -73,13 +77,64 @@ describe('market radar Pages workflow', () => {
   it('copies and validates data before tests/build and Pages upload/deploy', () => {
     expect(workflow).toContain('public/data');
     expect(workflow).toContain('manifest.json');
-    expect(workflow).toContain('actions/configure-pages@v5');
-    expect(workflow).toContain('actions/upload-pages-artifact@v4');
-    expect(workflow).toContain('actions/deploy-pages@v4');
+    expect(workflow).toContain(
+      'actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5',
+    );
+    expect(workflow).toContain(
+      'actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4',
+    );
+    expect(workflow).toContain(
+      'actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4',
+    );
     expect(workflow).toContain('needs: build');
     expect(workflow.indexOf('cloud:validate')).toBeLessThan(workflow.indexOf('npm test'));
-    expect(workflow.indexOf('npm run build')).toBeLessThan(workflow.indexOf('actions/upload-pages-artifact@v4'));
-    expect(workflow.indexOf('actions/upload-pages-artifact@v4')).toBeLessThan(workflow.indexOf('actions/deploy-pages@v4'));
+    expect(workflow.indexOf('npm run build')).toBeLessThan(
+      workflow.indexOf('actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b'),
+    );
+    expect(workflow.indexOf('actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b')).toBeLessThan(
+      workflow.indexOf('actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e'),
+    );
+  });
+
+  it('publishes data only after validation, build, and Pages artifact upload', () => {
+    const positions = [
+      workflow.indexOf('npm run cloud:update'),
+      workflow.indexOf('npm run cloud:validate'),
+      workflow.indexOf('npm test -- --run'),
+      workflow.indexOf('npm run build'),
+      workflow.indexOf('actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b'),
+      workflow.indexOf('git push origin HEAD:market-data'),
+      workflow.indexOf('actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e'),
+    ];
+
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((left, right) => left - right));
+  });
+
+  it('exposes data publication state and has guarded rollback for existing branches', () => {
+    expect(workflow).toContain('data_changed: ${{ steps.publish-data.outputs.data_changed }}');
+    expect(workflow).toContain('data_commit_sha: ${{ steps.publish-data.outputs.data_commit_sha }}');
+    expect(workflow).toContain('previous_data_sha: ${{ steps.data-worktree.outputs.previous_data_sha }}');
+    expect(workflow).toContain('data_branch_created: ${{ steps.data-worktree.outputs.data_branch_created }}');
+
+    const rollback = workflow.slice(workflow.indexOf('\n  rollback-data:'));
+    expect(rollback).toContain('if: ${{ always()');
+    expect(rollback).toContain("needs.deploy.result == 'failure'");
+    expect(rollback).toContain("needs.build.outputs.data_changed == 'true'");
+    expect(rollback).toContain("needs.build.outputs.data_branch_created == 'false'");
+    expect(rollback).toContain("needs.build.outputs.previous_data_sha != ''");
+    expect(rollback).toContain(
+      'git fetch origin refs/heads/market-data:refs/remotes/origin/market-data',
+    );
+    expect(rollback).toContain('test "$CURRENT_SHA" = "$DATA_COMMIT_SHA"');
+    expect(rollback).toContain('git revert --no-edit "$DATA_COMMIT_SHA"');
+    expect(rollback).toContain('git push origin HEAD:market-data');
+  });
+
+  it('pins every external action to an immutable 40-hex commit', () => {
+    const refs = [...workflow.matchAll(/^\s+uses:\s+([^\s#]+)/gm)].map((match) => match[1] ?? '');
+    expect(refs.length).toBeGreaterThan(0);
+    expect(refs.every((ref) => /^[^@]+@[0-9a-f]{40}$/.test(ref))).toBe(true);
   });
 
   it('does not include private-data channels or a hardcoded repository owner', () => {
