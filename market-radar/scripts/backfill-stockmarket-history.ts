@@ -19,11 +19,13 @@ import {
   createHistoryProvenance,
   HISTORY_PROVENANCE_FILE,
   parseHistoryProvenance,
+  type HistoryProvenance,
 } from '../src/cloud/provenance';
 import type { CloudManifest } from '../src/cloud/types';
 
 const MINIMUM_SNAPSHOTS = 150;
 const MAXIMUM_SNAPSHOTS = 168;
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1_000;
 
 export class StockmarketBackfillError extends Error {
   constructor(message: string) {
@@ -117,7 +119,7 @@ export function parseBackfillArgs(argv: readonly string[]): StockmarketBackfillA
 interface ExistingHistory {
   manifest: CloudManifest;
   officialSnapshots: Snapshot[];
-  hasValidProvenance: boolean;
+  provenance: HistoryProvenance | null;
 }
 
 async function readRequired(fileSystem: CloudFileSystem, path: string): Promise<string> {
@@ -157,6 +159,11 @@ async function validateExistingHistory(dataDir: string, fileSystem: CloudFileSys
   if (officialSnapshots.at(-1)?.timestamp !== manifest.latestTimestamp) {
     throw safeError('Stockmarket backfill validation failed');
   }
+  try {
+    validateOfficialOverlap([], officialSnapshots);
+  } catch {
+    throw safeError('Stockmarket backfill validation failed');
+  }
 
   try {
     await fileSystem.readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8')
@@ -165,15 +172,35 @@ async function validateExistingHistory(dataDir: string, fileSystem: CloudFileSys
     if (!isNodeError(error, 'ENOENT')) throw safeError('Stockmarket backfill validation failed');
   }
 
-  let hasValidProvenance = false;
+  let provenance: HistoryProvenance | null = null;
   try {
     const text = await fileSystem.readFile(join(dataDir, HISTORY_PROVENANCE_FILE), 'utf8');
-    parseHistoryProvenance(JSON.parse(text) as unknown);
-    hasValidProvenance = true;
+    provenance = parseHistoryProvenance(JSON.parse(text) as unknown);
   } catch (error) {
     if (!isNodeError(error, 'ENOENT')) throw safeError('Stockmarket backfill validation failed');
   }
-  return { manifest, officialSnapshots, hasValidProvenance };
+  if (provenance !== null && !provenanceMatchesRetainedHistory(provenance, manifest)) {
+    throw safeError('Stockmarket backfill validation failed');
+  }
+  return { manifest, officialSnapshots, provenance };
+}
+
+function provenanceMatchesRetainedHistory(provenance: HistoryProvenance, manifest: CloudManifest): boolean {
+  const latest = manifest.latestTimestamp;
+  if (latest === null || provenance.snapshotCount < MINIMUM_SNAPSHOTS || provenance.snapshotCount > MAXIMUM_SNAPSHOTS) {
+    return false;
+  }
+  if (
+    provenance.fromTimestamp > provenance.toTimestamp
+    || provenance.toTimestamp > latest
+    || provenance.fromTimestamp < latest - SEVEN_DAYS_MS
+    || provenance.toTimestamp - provenance.fromTimestamp > SEVEN_DAYS_MS
+  ) return false;
+  const timestamps = new Set(manifest.snapshots.map((entry) => entry.timestamp));
+  if (!timestamps.has(provenance.fromTimestamp) || !timestamps.has(provenance.toTimestamp)) return false;
+  return manifest.snapshots.filter((entry) => (
+    entry.timestamp >= provenance.fromTimestamp && entry.timestamp <= provenance.toTimestamp
+  )).length >= provenance.snapshotCount;
 }
 
 async function publishProvenance(
@@ -207,6 +234,20 @@ function isoNow(now: () => number): string {
   }
 }
 
+function validateGeneratedAt(value: string): void {
+  try {
+    createHistoryProvenance({
+      fetchedAt: value,
+      fromTimestamp: 0,
+      toTimestamp: 0,
+      snapshotCount: MINIMUM_SNAPSHOTS,
+      overlapComparisons: 0,
+    });
+  } catch {
+    throw safeError('Stockmarket backfill validation failed');
+  }
+}
+
 /**
  * Run the owner-authorized fixed-window history import. It intentionally has
  * no configurable endpoint or time range: the local official latest snapshot
@@ -216,9 +257,11 @@ export async function runStockmarketBackfill(options: StockmarketBackfillOptions
   if (!options || typeof options.dataDir !== 'string' || options.dataDir.length === 0 || typeof options.generatedAt !== 'string') {
     throw safeError('Stockmarket backfill validation failed');
   }
+  validateGeneratedAt(options.generatedAt);
+  const fetchedAt = isoNow(options.now ?? (() => Date.now()));
   const fileSystem = fileSystemFor(options);
   const existing = await validateExistingHistory(options.dataDir, fileSystem);
-  if (existing.hasValidProvenance && options.force !== true) return { skipped: true };
+  if (existing.provenance !== null && options.force !== true) return { skipped: true };
   const latestOfficialTimestamp = existing.manifest.latestTimestamp;
   if (latestOfficialTimestamp === null) throw safeError('Stockmarket backfill validation failed');
 
@@ -246,6 +289,15 @@ export async function runStockmarketBackfill(options: StockmarketBackfillOptions
   } catch {
     throw safeError('Stockmarket backfill validation failed');
   }
+  const fromTimestamp = imported[0]?.timestamp;
+  const toTimestamp = imported.at(-1)?.timestamp;
+  if (fromTimestamp === undefined || toTimestamp === undefined) throw safeError('Stockmarket backfill validation failed');
+  let provenance: HistoryProvenance;
+  try {
+    provenance = createHistoryProvenance({ fetchedAt, fromTimestamp, toTimestamp, snapshotCount: imported.length, overlapComparisons });
+  } catch {
+    throw safeError('Stockmarket backfill validation failed');
+  }
 
   let merged: Awaited<ReturnType<typeof mergeCloudHistory>>;
   try {
@@ -258,16 +310,7 @@ export async function runStockmarketBackfill(options: StockmarketBackfillOptions
   } catch {
     throw safeError('Stockmarket backfill storage failed');
   }
-  const fromTimestamp = imported[0]?.timestamp;
-  const toTimestamp = imported.at(-1)?.timestamp;
-  if (fromTimestamp === undefined || toTimestamp === undefined) throw safeError('Stockmarket backfill validation failed');
-  await publishProvenance(options.dataDir, createHistoryProvenance({
-    fetchedAt: isoNow(options.now ?? (() => Date.now())),
-    fromTimestamp,
-    toTimestamp,
-    snapshotCount: imported.length,
-    overlapComparisons,
-  }), fileSystem);
+  await publishProvenance(options.dataDir, provenance, fileSystem);
   return {
     skipped: false,
     itemCount: rows.size,

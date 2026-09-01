@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Quote, Snapshot } from '../src/core/types';
@@ -7,8 +7,8 @@ import type { StockmarketHistoryPoint } from '../src/backfill/stockmarket-schema
 import { buildBackfillSnapshots, validateOfficialOverlap } from '../src/backfill/stockmarket-backfill';
 import { updateCloudHistory, type CloudFileSystem } from '../src/cloud/history-store';
 import { parseManifest } from '../src/cloud/manifest';
-import { HISTORY_PROVENANCE_FILE } from '../src/cloud/provenance';
-import { decodeDayChunk } from '../src/core/storage-codec';
+import { createHistoryProvenance, HISTORY_PROVENANCE_FILE } from '../src/cloud/provenance';
+import { decodeDayChunk, encodeDayChunk } from '../src/core/storage-codec';
 import { parseBackfillArgs, run as runBackfillCli, runStockmarketBackfill } from '../scripts/backfill-stockmarket-history';
 
 const HOUR = 3_600_000;
@@ -165,15 +165,30 @@ async function seedBackfillLatest(dataDir: string): Promise<void> {
   });
 }
 
-async function dataBytes(dataDir: string): Promise<{ manifest: string; daily: string; provenance: string | null }> {
+async function dataBytes(dataDir: string): Promise<{
+  manifest: string;
+  daily: string | null;
+  provenance: string | null;
+  rootEntries: string[];
+  snapshotFiles: Record<string, string>;
+}> {
   const provenance = await readFile(join(dataDir, HISTORY_PROVENANCE_FILE), 'utf8').catch((error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT') return null;
     throw error;
   });
+  const snapshotNames = await readdir(join(dataDir, 'snapshots'));
   return {
     manifest: await readFile(join(dataDir, 'manifest.json'), 'utf8'),
-    daily: await readFile(join(dataDir, 'daily-history.txt'), 'utf8'),
+    daily: await readFile(join(dataDir, 'daily-history.txt'), 'utf8').catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return null;
+      throw error;
+    }),
     provenance,
+    rootEntries: (await readdir(dataDir)).sort(),
+    snapshotFiles: Object.fromEntries(await Promise.all(snapshotNames.sort().map(async (name) => [
+      name,
+      await readFile(join(dataDir, 'snapshots', name), 'utf8'),
+    ]))),
   };
 }
 
@@ -239,6 +254,75 @@ describe('stockmarket backfill command', () => {
     await expect(readFile(join(dataDir, HISTORY_PROVENANCE_FILE), 'utf8')).resolves.toContain('stockmarket-xin');
   }, 30_000);
 
+  it.each([
+    ['corrupt key', async (dataDir: string) => {
+      const corrupted = { timestamp: BACKFILL_LATEST, quotes: { '/not-an-item': { a: 10, b: 9, p: 80, v: 70 } } };
+      const text = await encodeDayChunk([corrupted]);
+      const manifest = JSON.parse(await readFile(join(dataDir, 'manifest.json'), 'utf8')) as { snapshots: Array<{ timestamp: number; bytes: number }> };
+      manifest.snapshots[0]!.bytes = Buffer.byteLength(text, 'utf8');
+      await writeFile(join(dataDir, 'snapshots', `${BACKFILL_LATEST}.txt`), text, 'utf8');
+      await writeFile(join(dataDir, 'manifest.json'), JSON.stringify(manifest), 'utf8');
+    }],
+    ['out-of-range timestamp', async (dataDir: string) => {
+      const timestamp = 8_640_000_000_000_001;
+      const text = await encodeDayChunk([{ timestamp, quotes: officialBackfillLatest().quotes }]);
+      await writeFile(join(dataDir, 'snapshots', `${timestamp}.txt`), text, 'utf8');
+      await writeFile(join(dataDir, 'manifest.json'), JSON.stringify({
+        schemaVersion: 1,
+        generatedAt: BACKFILL_GENERATED,
+        latestTimestamp: timestamp,
+        snapshots: [{ timestamp, file: `snapshots/${timestamp}.txt`, bytes: Buffer.byteLength(text, 'utf8') }],
+      }), 'utf8');
+    }],
+  ])('rejects a locally %s official snapshot before constructing or calling the client', async (_kind, corrupt) => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    await corrupt(dataDir);
+    const before = await dataBytes(dataDir);
+    const client = { loadAll: vi.fn(async () => stockmarketRows()) };
+    const createClient = vi.fn(() => client);
+
+    await expect(runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, createClient, now: () => BACKFILL_NOW }))
+      .rejects.toThrow(/validation/i);
+    expect(createClient).not.toHaveBeenCalled();
+    expect(client.loadAll).not.toHaveBeenCalled();
+    await expect(dataBytes(dataDir)).resolves.toEqual(before);
+  });
+
+  it('rejects a schema-valid provenance marker that cannot describe the retained fixed window before client creation', async () => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    await writeFile(join(dataDir, HISTORY_PROVENANCE_FILE), `${JSON.stringify(createHistoryProvenance({
+      fetchedAt: BACKFILL_GENERATED,
+      fromTimestamp: BACKFILL_LATEST - HOUR,
+      toTimestamp: BACKFILL_LATEST,
+      snapshotCount: 1,
+      overlapComparisons: 0,
+    }))}\n`, 'utf8');
+    const before = await dataBytes(dataDir);
+    const createClient = vi.fn(() => ({ loadAll: vi.fn(async () => stockmarketRows()) }));
+
+    await expect(runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, createClient, now: () => BACKFILL_NOW }))
+      .rejects.toThrow(/validation/i);
+    expect(createClient).not.toHaveBeenCalled();
+    await expect(dataBytes(dataDir)).resolves.toEqual(before);
+  });
+
+  it.each([
+    ['invalid generatedAt', { generatedAt: 'not-an-instant', now: () => BACKFILL_NOW }],
+    ['invalid now', { generatedAt: BACKFILL_GENERATED, now: () => Number.NaN }],
+  ])('rejects %s before client creation and preserves all immutable files', async (_kind, timing) => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    const before = await dataBytes(dataDir);
+    const createClient = vi.fn(() => ({ loadAll: vi.fn(async () => stockmarketRows()) }));
+
+    await expect(runStockmarketBackfill({ dataDir, createClient, ...timing }))
+      .rejects.toThrow(/validation/i);
+    expect(createClient).not.toHaveBeenCalled();
+    await expect(dataBytes(dataDir)).resolves.toEqual(before);
+  });
+
   it('force refetches only the fixed <=168-snapshot latest window', async () => {
     const dataDir = await backfillDataDir();
     await seedBackfillLatest(dataDir);
@@ -303,6 +387,7 @@ describe('stockmarket backfill command', () => {
   it('accepts only required data-dir and optional force with safe fixed errors', () => {
     expect(parseBackfillArgs(['--data-dir', 'cloud-data'])).toEqual({ dataDir: 'cloud-data', force: false });
     expect(parseBackfillArgs(['--data-dir', 'cloud-data', '--force'])).toEqual({ dataDir: 'cloud-data', force: true });
+    expect(parseBackfillArgs(['--force', '--data-dir', 'cloud-data'])).toEqual({ dataDir: 'cloud-data', force: true });
     for (const args of [[], ['--data-dir'], ['--data-dir', ''], ['--data-dir', 'x', '--data-dir', 'y'], ['--force', '--force', '--data-dir', 'x'], ['--origin', 'x'], ['--start', 'x'], ['--end', 'x']]) {
       expect(() => parseBackfillArgs(args)).toThrow(/Invalid stockmarket backfill arguments/);
     }
