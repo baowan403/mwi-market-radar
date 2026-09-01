@@ -10,15 +10,11 @@ import type {
 
 export const BRIDGE_REQUEST_EVENT = 'mwi-radar:request';
 export const BRIDGE_RESPONSE_EVENT = 'mwi-radar:response';
-export const BRIDGE_REQUEST_PREFIX = `${BRIDGE_REQUEST_EVENT}:`;
-export const BRIDGE_RESPONSE_PREFIX = `${BRIDGE_RESPONSE_EVENT}:`;
 
 // Keep the wire names available under concise aliases for callers that prefer
 // to import event constants without the bridge prefix.
 export const REQUEST_EVENT = BRIDGE_REQUEST_EVENT;
 export const RESPONSE_EVENT = BRIDGE_RESPONSE_EVENT;
-export const REQUEST_PREFIX = BRIDGE_REQUEST_PREFIX;
-export const RESPONSE_PREFIX = BRIDGE_RESPONSE_PREFIX;
 
 export const DEFAULT_SNAPSHOT_PAGE_SIZE = 12;
 export const MAX_SNAPSHOT_PAGES = 256;
@@ -28,12 +24,17 @@ export interface DashboardClientOptions {
   idFactory?: () => string;
   snapshotPageSize?: number;
   maxSnapshotPages?: number;
-  targetOrigin?: string;
+  eventFactory?: BridgeEventFactory;
+  /** Alias accepted by callers that want to name the native event explicitly. */
+  customEventFactory?: BridgeEventFactory;
 }
 
-export interface BridgeMessageTarget extends EventTarget {
-  postMessage(message: string, targetOrigin: string): void;
+export interface BridgeDomTarget extends EventTarget {
+  dataset?: { [key: string]: string | undefined };
 }
+
+export type BridgeEventTarget = BridgeDomTarget;
+export type BridgeEventFactory = (type: string, detail: string) => Event;
 
 export interface DashboardClient {
   bootstrap(): Promise<BridgeBootstrap>;
@@ -88,11 +89,11 @@ function isBridgeResponse(value: unknown): value is BridgeResponse {
   return typeof value.error.code === 'string' && typeof value.error.message === 'string';
 }
 
-function parseWireResponse(data: unknown): BridgeResponse | null {
-  if (typeof data !== 'string' || !data.startsWith(BRIDGE_RESPONSE_PREFIX)) return null;
+function parseWireResponse(detail: unknown): BridgeResponse | null {
+  if (typeof detail !== 'string') return null;
 
   try {
-    const parsed: unknown = JSON.parse(data.slice(BRIDGE_RESPONSE_PREFIX.length));
+    const parsed: unknown = JSON.parse(detail);
     return isBridgeResponse(parsed) ? parsed : null;
   } catch {
     return null;
@@ -136,22 +137,103 @@ function invalidRequestError(): BridgeError {
   return new BridgeError('invalid_request', 'Invalid bridge request');
 }
 
-function defaultTargetOrigin(): string {
-  if (typeof location !== 'undefined' && typeof location.origin === 'string' && location.origin.length > 0) {
-    return location.origin;
+function defaultEventFactory(type: string, detail: string): Event {
+  return new CustomEvent(type, { detail });
+}
+
+function bridgeIsReady(target: BridgeDomTarget): boolean {
+  return target.dataset?.mwiRadarBridge === 'ready';
+}
+
+export interface BridgeReadyWaitOptions {
+  timeoutMs?: number;
+  signal?: AbortSignal;
+  mutationObserver?: typeof MutationObserver;
+}
+
+function normalizedReadyTimeout(timeoutMs: number | undefined): number {
+  if (timeoutMs === undefined || !Number.isFinite(timeoutMs) || timeoutMs < 0) return 2_500;
+  return Math.min(2_500, timeoutMs);
+}
+
+export function waitForBridgeReady(
+  target: BridgeDomTarget | null,
+  options: BridgeReadyWaitOptions = {},
+): Promise<boolean> {
+  if (target === null) return Promise.resolve(false);
+  if (bridgeIsReady(target)) return Promise.resolve(true);
+  if (options.signal?.aborted) return Promise.resolve(false);
+
+  const timeoutMs = normalizedReadyTimeout(options.timeoutMs);
+  const MutationObserverConstructor = options.mutationObserver
+    ?? (typeof MutationObserver === 'undefined' ? undefined : MutationObserver);
+
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    let timer: ReturnType<typeof globalThis.setTimeout> | undefined;
+    const observer = MutationObserverConstructor === undefined
+      ? undefined
+      : new MutationObserverConstructor(() => {
+        if (bridgeIsReady(target)) finish(true);
+      });
+
+    const finish = (ready: boolean): void => {
+      if (settled) return;
+      settled = true;
+      observer?.disconnect();
+      if (timer !== undefined) globalThis.clearTimeout(timer);
+      options.signal?.removeEventListener('abort', onAbort);
+      resolve(ready);
+    };
+    const onAbort = (): void => finish(false);
+
+    if (bridgeIsReady(target)) {
+      finish(true);
+      return;
+    }
+
+    if (observer !== undefined) {
+      try {
+        observer.observe(target as Node, { attributes: true, attributeFilter: ['data-mwi-radar-bridge'] });
+      } catch {
+        // Unit-test doubles may expose EventTarget/dataset without being DOM Nodes.
+        observer.disconnect();
+      }
+    }
+    options.signal?.addEventListener('abort', onAbort, { once: true });
+    timer = globalThis.setTimeout(() => finish(bridgeIsReady(target)), timeoutMs);
+  });
+}
+
+function resolveEventFactory(options: DashboardClientOptions): BridgeEventFactory {
+  return options.eventFactory ?? options.customEventFactory ?? defaultEventFactory;
+}
+
+function targetHasDataset(target: BridgeDomTarget): target is BridgeDomTarget & {
+  dataset: { [key: string]: string | undefined };
+} {
+  return target.dataset !== undefined;
+}
+
+export function markBridgeReady(target: BridgeDomTarget): void {
+  if (targetHasDataset(target)) target.dataset.mwiRadarBridge = 'ready';
+}
+
+export function markBridgeStopped(target: BridgeDomTarget): void {
+  if (targetHasDataset(target) && target.dataset.mwiRadarBridge === 'ready') {
+    target.dataset.mwiRadarBridge = 'stopped';
   }
-  return 'null';
 }
 
 export function createDashboardClient(
-  target: BridgeMessageTarget,
+  target: BridgeDomTarget,
   options: DashboardClientOptions = {},
 ): DashboardClient {
   const timeoutMs = normalizedTimeout(options.timeoutMs);
   const pageSize = normalizedPageSize(options.snapshotPageSize);
   const maxPages = normalizedMaxPages(options.maxSnapshotPages);
   const idFactory = options.idFactory ?? defaultIdFactory;
-  const targetOrigin = options.targetOrigin ?? defaultTargetOrigin();
+  const eventFactory = resolveEventFactory(options);
   const activeIds = new Set<string>();
   let fallbackSequence = 0;
 
@@ -197,15 +279,13 @@ export function createDashboardClient(
         if (settled) return;
         settled = true;
         activeIds.delete(requestId);
-        target.removeEventListener('message', onResponse);
+        target.removeEventListener(BRIDGE_RESPONSE_EVENT, onResponse);
         if (timer !== undefined) globalThis.clearTimeout(timer);
       };
 
       const onResponse = (event: Event): void => {
-        if (event.type !== 'message') return;
-        const message = event as MessageEvent<unknown>;
-        if (message.origin !== targetOrigin) return;
-        const response = parseWireResponse(message.data);
+        if (event.type !== BRIDGE_RESPONSE_EVENT) return;
+        const response = parseWireResponse((event as Event & { detail?: unknown }).detail);
         if (response === null || response.id !== requestId) return;
         if (response.ok && valueGuard !== undefined && !valueGuard(response.value)) return;
 
@@ -217,17 +297,17 @@ export function createDashboardClient(
         }
       };
 
-      target.addEventListener('message', onResponse);
+      target.addEventListener(BRIDGE_RESPONSE_EVENT, onResponse);
       timer = globalThis.setTimeout(() => {
         cleanup();
         reject(new BridgeError('timeout', 'Bridge request timed out'));
       }, timeoutMs);
 
       try {
-        target.postMessage(`${BRIDGE_REQUEST_PREFIX}${wireDetail}`, targetOrigin);
+        target.dispatchEvent(eventFactory(BRIDGE_REQUEST_EVENT, wireDetail));
       } catch {
         cleanup();
-        reject(new BridgeError('dispatch', 'Bridge request could not be sent'));
+        reject(new BridgeError('dispatch', 'Bridge request could not be dispatched'));
       }
     });
   }

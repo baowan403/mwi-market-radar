@@ -4,7 +4,7 @@ import {
   type DashboardBridgeCleanup,
   type DashboardBridgeOptions,
 } from './dashboard-bridge';
-import type { BridgeMessageTarget } from '../dashboard/client';
+import type { BridgeDomTarget } from '../dashboard/client';
 import { startGameCollector as defaultStartGameCollector, type GameCollectorHandle } from './game-collector';
 import { DEFAULT_DASHBOARD_ORIGINS, isAllowedDashboardUrl } from './origins';
 
@@ -34,7 +34,7 @@ export interface OriginStartupOptions {
   startDashboardBridge?: (options: DashboardBridgeOptions) => DashboardBridgeCleanup | void;
   createGMKeyValueStore?: () => KeyValueStore;
   createMarketStore?: (storage: KeyValueStore) => MarketStore;
-  dashboardTarget?: BridgeMessageTarget;
+  dashboardTarget?: BridgeDomTarget;
 }
 
 function defaultStartupMarkerTarget(): StartupMarkerTarget | undefined {
@@ -108,7 +108,7 @@ function startDashboardRoute(
   }
   const store = (options.createMarketStore ?? ((adapter: KeyValueStore) => new MarketStore(adapter)))(storage);
   const target = options.dashboardTarget
-    ?? ((typeof window === 'undefined' ? globalThis : window) as BridgeMessageTarget);
+    ?? (typeof document === 'undefined' ? globalThis as unknown as BridgeDomTarget : document.documentElement);
   const install = options.startDashboardBridge ?? installDashboardBridge;
 
   install({ target, currentUrl, allowedBaseUrls, store });
@@ -151,6 +151,8 @@ export function bootstrapUserscript(
   markerTarget: StartupMarkerTarget | null | undefined = defaultStartupMarkerTarget(),
 ): OriginRoute {
   setStartupMarker(markerTarget, 'mwiRadarScript', 'loaded');
+  setStartupMarker(markerTarget, 'mwiRadarVersion', '0.1.3');
+  setStartupMarker(markerTarget, 'mwiRadarTransport', 'dom-event');
   return startForCurrentOrigin(locationReference, options, markerTarget);
 }
 

@@ -60,62 +60,69 @@ export const bridgeFixtureSource = String.raw`
     lastErrorCode: null,
   };
 
-  const requestPrefix = 'mwi-radar:request:';
-  const responsePrefix = 'mwi-radar:response:';
-  const send = (id, ok, value, error) => {
-    const response = ok ? { id, ok: true, value } : { id, ok: false, error };
-    window.postMessage(responsePrefix + JSON.stringify(response), window.location.origin);
+  const installBridge = () => {
+    const target = document.documentElement;
+    if (target === null) {
+      document.addEventListener('DOMContentLoaded', installBridge, { once: true });
+      return;
+    }
+    target.dataset.mwiRadarBridge = 'ready';
+    const send = (id, ok, value, error) => {
+      const response = ok ? { id, ok: true, value } : { id, ok: false, error };
+      target.dispatchEvent(new CustomEvent('mwi-radar:response', { detail: JSON.stringify(response) }));
+    };
+
+    target.addEventListener('mwi-radar:request', (event) => {
+      if (typeof event.detail !== 'string') return;
+      let request;
+      try {
+        request = JSON.parse(event.detail);
+      } catch {
+        return;
+      }
+      if (request === null || typeof request !== 'object' || typeof request.id !== 'string') return;
+
+      if (request.type === 'bootstrap') {
+        send(request.id, true, {
+          watchlist,
+          settings,
+          collectorStatus,
+          latestTimestamp: now,
+          snapshotCount: snapshots.length,
+        });
+        return;
+      }
+      if (request.type === 'snapshots') {
+        const newestFirst = [...snapshots].sort((left, right) => right.timestamp - left.timestamp);
+        const eligible = request.beforeTimestamp === null
+          ? newestFirst
+          : newestFirst.filter((snapshot) => snapshot.timestamp < request.beforeTimestamp);
+        const items = eligible.slice(0, request.limit);
+        const hasMore = items.length < eligible.length;
+        send(request.id, true, {
+          items,
+          nextBeforeTimestamp: hasMore ? items[items.length - 1].timestamp : null,
+          hasMore,
+        });
+        return;
+      }
+      if (request.type === 'set-watchlist' && Array.isArray(request.value)) {
+        watchlist = request.value;
+        localStorage.setItem(watchlistStorageKey, JSON.stringify(watchlist));
+        send(request.id, true, { acknowledged: true });
+        return;
+      }
+      if (request.type === 'set-settings' && request.value !== null && typeof request.value === 'object' && !Array.isArray(request.value)) {
+        Object.assign(settings, request.value);
+        send(request.id, true, { acknowledged: true });
+        return;
+      }
+      send(request.id, false, undefined, { code: 'invalid_request', message: 'Invalid bridge request' });
+    });
+
+    window.__mwiRadarE2eFixture = { snapshots, getWatchlist: () => watchlist };
   };
 
-  window.addEventListener('message', (event) => {
-    if (event.origin !== window.location.origin) return;
-    if (typeof event.data !== 'string' || !event.data.startsWith(requestPrefix)) return;
-    let request;
-    try {
-      request = JSON.parse(event.data.slice(requestPrefix.length));
-    } catch {
-      return;
-    }
-    if (request === null || typeof request !== 'object' || typeof request.id !== 'string') return;
-
-    if (request.type === 'bootstrap') {
-      send(request.id, true, {
-        watchlist,
-        settings,
-        collectorStatus,
-        latestTimestamp: now,
-        snapshotCount: snapshots.length,
-      });
-      return;
-    }
-    if (request.type === 'snapshots') {
-      const newestFirst = [...snapshots].sort((left, right) => right.timestamp - left.timestamp);
-      const eligible = request.beforeTimestamp === null
-        ? newestFirst
-        : newestFirst.filter((snapshot) => snapshot.timestamp < request.beforeTimestamp);
-      const items = eligible.slice(0, request.limit);
-      const hasMore = items.length < eligible.length;
-      send(request.id, true, {
-        items,
-        nextBeforeTimestamp: hasMore ? items[items.length - 1].timestamp : null,
-        hasMore,
-      });
-      return;
-    }
-    if (request.type === 'set-watchlist' && Array.isArray(request.value)) {
-      watchlist = request.value;
-      localStorage.setItem(watchlistStorageKey, JSON.stringify(watchlist));
-      send(request.id, true, { acknowledged: true });
-      return;
-    }
-    if (request.type === 'set-settings' && request.value !== null && typeof request.value === 'object' && !Array.isArray(request.value)) {
-      Object.assign(settings, request.value);
-      send(request.id, true, { acknowledged: true });
-      return;
-    }
-    send(request.id, false, undefined, { code: 'invalid_request', message: 'Invalid bridge request' });
-  });
-
-  window.__mwiRadarE2eFixture = { snapshots, getWatchlist: () => watchlist };
+  installBridge();
 })();
 `;

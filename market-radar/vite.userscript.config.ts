@@ -19,7 +19,7 @@ export default defineConfig({
       userscript: {
         name: 'MWI Market Radar Collector',
         namespace: 'local.mwi.market-radar',
-        version: '0.1.2',
+        version: '0.1.3',
         match: [
           'https://www.milkywayidle.com/*',
           ...dashboardMatches,

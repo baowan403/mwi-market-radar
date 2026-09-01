@@ -9,8 +9,8 @@ import type {
   WatchItem,
 } from '../src/core/types';
 import {
-  BRIDGE_REQUEST_PREFIX,
-  BRIDGE_RESPONSE_PREFIX,
+  BRIDGE_REQUEST_EVENT,
+  BRIDGE_RESPONSE_EVENT,
 } from '../src/dashboard/client';
 import {
   installDashboardBridge,
@@ -45,15 +45,8 @@ const collectorStatus: CollectorStatus = {
   lastErrorCode: null,
 };
 
-const TEST_ORIGIN = 'https://example.test';
-
-class MessageTarget extends EventTarget {
-  postMessage(message: unknown, targetOrigin: string): void {
-    if (targetOrigin !== TEST_ORIGIN) throw new Error(`unexpected target origin: ${targetOrigin}`);
-    queueMicrotask(() => {
-      this.dispatchEvent(new MessageEvent('message', { data: message, origin: TEST_ORIGIN }));
-    });
-  }
+class DomEventTarget extends EventTarget {
+  readonly dataset: Record<string, string> = {};
 }
 
 function createStore(overrides: Partial<DashboardBridgeStore> = {}): DashboardBridgeStore {
@@ -69,23 +62,22 @@ function createStore(overrides: Partial<DashboardBridgeStore> = {}): DashboardBr
 }
 
 async function dispatchRequest(
-  target: MessageTarget,
+  target: DomEventTarget,
   detail: Record<string, unknown>,
 ): Promise<BridgeResponse> {
   const response = new Promise<BridgeResponse>((resolve) => {
     const onResponse = (event: Event): void => {
-      if (event.type !== 'message') return;
-      const message = event as MessageEvent<unknown>;
-      if (message.origin !== TEST_ORIGIN || typeof message.data !== 'string') return;
-      if (!message.data.startsWith(BRIDGE_RESPONSE_PREFIX)) return;
-      const value = JSON.parse(message.data.slice(BRIDGE_RESPONSE_PREFIX.length)) as { id?: unknown };
+      if (event.type !== BRIDGE_RESPONSE_EVENT) return;
+      const detailValue = (event as CustomEvent<unknown>).detail;
+      if (typeof detailValue !== 'string') return;
+      const value = JSON.parse(detailValue) as { id?: unknown };
       if (value?.id !== detail.id) return;
-      target.removeEventListener('message', onResponse);
+      target.removeEventListener(BRIDGE_RESPONSE_EVENT, onResponse);
       resolve(value as BridgeResponse);
     };
-    target.addEventListener('message', onResponse);
+    target.addEventListener(BRIDGE_RESPONSE_EVENT, onResponse);
   });
-  target.postMessage(`${BRIDGE_REQUEST_PREFIX}${JSON.stringify(detail)}`, TEST_ORIGIN);
+  target.dispatchEvent(new CustomEvent(BRIDGE_REQUEST_EVENT, { detail: JSON.stringify(detail) }));
   return response;
 }
 
@@ -95,9 +87,8 @@ async function flushAsyncWork(): Promise<void> {
 }
 
 function observeResponses(target: EventTarget, listener: (event: Event) => void): void {
-  target.addEventListener('message', (event) => {
-    const data = (event as MessageEvent<unknown>).data;
-    if (typeof data === 'string' && data.startsWith(BRIDGE_RESPONSE_PREFIX)) listener(event);
+  target.addEventListener(BRIDGE_RESPONSE_EVENT, (event) => {
+    if (typeof (event as CustomEvent<unknown>).detail === 'string') listener(event);
   });
 }
 
@@ -107,7 +98,7 @@ afterEach(() => {
 
 describe('installDashboardBridge', () => {
   it('returns bootstrap data from all store reads and computes latest timestamp/count', async () => {
-    const target = new MessageTarget();
+    const target = new DomEventTarget();
     const store = createStore();
     const cleanup = installDashboardBridge({
       target,
@@ -115,6 +106,7 @@ describe('installDashboardBridge', () => {
       allowedBaseUrls: ['https://example.test/radar'],
       store,
     });
+    expect(target.dataset.mwiRadarBridge).toBe('ready');
 
     const response = await dispatchRequest(target, { id: 'bootstrap-1', type: 'bootstrap' });
 
@@ -134,10 +126,11 @@ describe('installDashboardBridge', () => {
     expect(store.getSettings).toHaveBeenCalledTimes(1);
     expect(store.getCollectorStatus).toHaveBeenCalledTimes(1);
     cleanup();
+    expect(target.dataset.mwiRadarBridge).toBe('stopped');
   });
 
   it('returns one newest-first snapshot page for the snapshots operation', async () => {
-    const target = new MessageTarget();
+    const target = new DomEventTarget();
     const store = createStore();
     const cleanup = installDashboardBridge({
       target,
@@ -164,7 +157,7 @@ describe('installDashboardBridge', () => {
   });
 
   it('pages from the bootstrap cache without returning snapshots in bootstrap', async () => {
-    const target = new MessageTarget();
+    const target = new DomEventTarget();
     const store = createStore();
     const cleanup = installDashboardBridge({
       target,
@@ -207,7 +200,7 @@ describe('installDashboardBridge', () => {
   });
 
   it('acknowledges the two strict setter operations and passes values to the store', async () => {
-    const target = new MessageTarget();
+    const target = new DomEventTarget();
     const store = createStore();
     const cleanup = installDashboardBridge({
       target,
@@ -243,7 +236,7 @@ describe('installDashboardBridge', () => {
   });
 
   it('does not listen or respond on a URL outside the approved origin and base path', async () => {
-    const target = new MessageTarget();
+    const target = new DomEventTarget();
     const store = createStore();
     const response = vi.fn();
     observeResponses(target, response);
@@ -254,7 +247,9 @@ describe('installDashboardBridge', () => {
       store,
     });
 
-    target.postMessage(`${BRIDGE_REQUEST_PREFIX}${JSON.stringify({ id: 'denied-1', type: 'bootstrap' })}`, TEST_ORIGIN);
+    target.dispatchEvent(new CustomEvent(BRIDGE_REQUEST_EVENT, {
+      detail: JSON.stringify({ id: 'denied-1', type: 'bootstrap' }),
+    }));
     await flushAsyncWork();
 
     expect(response).not.toHaveBeenCalled();
@@ -262,28 +257,23 @@ describe('installDashboardBridge', () => {
     cleanup();
   });
 
-  it('ignores foreign origins and response-channel echoes', async () => {
-    const target = new MessageTarget();
+  it('ignores response-channel echoes', async () => {
+    const target = new DomEventTarget();
     const store = createStore();
     const responses: BridgeResponse[] = [];
     observeResponses(target, (event) => {
-      const data = (event as MessageEvent<string>).data;
-      responses.push(JSON.parse(data.slice(BRIDGE_RESPONSE_PREFIX.length)) as BridgeResponse);
+      const detail = (event as CustomEvent<string>).detail;
+      responses.push(JSON.parse(detail) as BridgeResponse);
     });
     const cleanup = installDashboardBridge({
       target,
-      currentUrl: TEST_ORIGIN,
-      allowedBaseUrls: [TEST_ORIGIN],
+      currentUrl: 'https://example.test',
+      allowedBaseUrls: ['https://example.test'],
       store,
     });
 
-    target.dispatchEvent(new MessageEvent('message', {
-      data: `${BRIDGE_REQUEST_PREFIX}${JSON.stringify({ id: 'foreign-1', type: 'bootstrap' })}`,
-      origin: 'https://foreign.example',
-    }));
-    target.dispatchEvent(new MessageEvent('message', {
-      data: `${BRIDGE_RESPONSE_PREFIX}${JSON.stringify({ id: 'echo-1', ok: true, value: {} })}`,
-      origin: TEST_ORIGIN,
+    target.dispatchEvent(new CustomEvent(BRIDGE_RESPONSE_EVENT, {
+      detail: JSON.stringify({ id: 'echo-1', ok: true, value: {} }),
     }));
     await flushAsyncWork();
     expect(store.listSnapshots).not.toHaveBeenCalled();
@@ -295,7 +285,7 @@ describe('installDashboardBridge', () => {
   });
 
   it('rejects unknown and malformed requests with safe fixed errors', async () => {
-    const target = new MessageTarget();
+    const target = new DomEventTarget();
     const store = createStore();
     const cleanup = installDashboardBridge({
       target,
@@ -360,18 +350,18 @@ describe('installDashboardBridge', () => {
     });
     const responses = vi.fn();
     observeResponses(target, responses);
-    target.postMessage(`${BRIDGE_REQUEST_PREFIX}{not-json`, TEST_ORIGIN);
+    target.dispatchEvent(new CustomEvent(BRIDGE_REQUEST_EVENT, { detail: '{not-json' }));
     await flushAsyncWork();
     expect(responses).not.toHaveBeenCalled();
     cleanup();
   });
 
-  it('accepts a foreign-realm MessageEvent carrying a serialized null-prototype payload', async () => {
+  it('accepts a foreign-realm CustomEvent carrying a serialized null-prototype payload', async () => {
     const frame = document.createElement('iframe');
     document.body.appendChild(frame);
-    const ForeignMessageEvent = (frame.contentWindow as (Window & typeof globalThis) | null)?.MessageEvent;
-    expect(ForeignMessageEvent).toBeDefined();
-    const target = new MessageTarget();
+    const ForeignCustomEvent = (frame.contentWindow as (Window & typeof globalThis) | null)?.CustomEvent;
+    expect(ForeignCustomEvent).toBeDefined();
+    const target = new DomEventTarget();
     const store = createStore();
     const cleanup = installDashboardBridge({
       target,
@@ -380,18 +370,17 @@ describe('installDashboardBridge', () => {
       store,
     });
     const response = new Promise<BridgeResponse>((resolve) => {
-      target.addEventListener('message', (event) => {
-        const data = (event as MessageEvent<unknown>).data;
-        if (typeof data !== 'string' || !data.startsWith(BRIDGE_RESPONSE_PREFIX)) return;
-        resolve(JSON.parse(data.slice(BRIDGE_RESPONSE_PREFIX.length)) as BridgeResponse);
+      target.addEventListener(BRIDGE_RESPONSE_EVENT, (event) => {
+        const detail = (event as CustomEvent<unknown>).detail;
+        if (typeof detail !== 'string') return;
+        resolve(JSON.parse(detail) as BridgeResponse);
       });
     });
     const payload = Object.create(null) as Record<string, unknown>;
     payload.id = 'foreign-1';
     payload.type = 'bootstrap';
-    target.dispatchEvent(new ForeignMessageEvent!('message', {
-      data: `${BRIDGE_REQUEST_PREFIX}${JSON.stringify(payload)}`,
-      origin: TEST_ORIGIN,
+    target.dispatchEvent(new ForeignCustomEvent!(BRIDGE_REQUEST_EVENT, {
+      detail: JSON.stringify(payload),
     }));
 
     await expect(response).resolves.toMatchObject({ id: 'foreign-1', ok: true });
@@ -400,7 +389,7 @@ describe('installDashboardBridge', () => {
   });
 
   it('sanitizes storage failures without returning the original error or value', async () => {
-    const target = new MessageTarget();
+    const target = new DomEventTarget();
     const privateMessage = 'private storage detail and payload';
     const store = createStore({
       listSnapshots: vi.fn().mockRejectedValue(new Error(privateMessage)),
@@ -429,7 +418,7 @@ describe('installDashboardBridge', () => {
   });
 
   it('removes the listener during cleanup', async () => {
-    const target = new MessageTarget();
+    const target = new DomEventTarget();
     const removeEventListener = vi.spyOn(target, 'removeEventListener');
     const store = createStore();
     const cleanup = installDashboardBridge({
@@ -440,10 +429,9 @@ describe('installDashboardBridge', () => {
     });
 
     cleanup();
-    target.postMessage(
-      `${BRIDGE_REQUEST_PREFIX}${JSON.stringify({ id: 'after-cleanup', type: 'snapshots', beforeTimestamp: null, limit: 12 })}`,
-      TEST_ORIGIN,
-    );
+    target.dispatchEvent(new CustomEvent(BRIDGE_REQUEST_EVENT, {
+      detail: JSON.stringify({ id: 'after-cleanup', type: 'snapshots', beforeTimestamp: null, limit: 12 }),
+    }));
     await flushAsyncWork();
 
     expect(removeEventListener).toHaveBeenCalledTimes(1);
@@ -451,7 +439,7 @@ describe('installDashboardBridge', () => {
   });
 
   it('does not dispatch an in-flight response after cleanup', async () => {
-    const target = new MessageTarget();
+    const target = new DomEventTarget();
     const response = vi.fn();
     observeResponses(target, response);
     let resolveSnapshots!: (value: Snapshot[]) => void;
@@ -467,10 +455,9 @@ describe('installDashboardBridge', () => {
       store,
     });
 
-    target.postMessage(
-      `${BRIDGE_REQUEST_PREFIX}${JSON.stringify({ id: 'inflight-1', type: 'snapshots', beforeTimestamp: null, limit: 12 })}`,
-      TEST_ORIGIN,
-    );
+    target.dispatchEvent(new CustomEvent(BRIDGE_REQUEST_EVENT, {
+      detail: JSON.stringify({ id: 'inflight-1', type: 'snapshots', beforeTimestamp: null, limit: 12 }),
+    }));
     await flushAsyncWork();
     cleanup();
     resolveSnapshots(snapshots);

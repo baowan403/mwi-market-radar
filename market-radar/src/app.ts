@@ -10,7 +10,9 @@ import type {
 } from './core/types';
 import {
   createDashboardClient,
-  type BridgeMessageTarget,
+  waitForBridgeReady as defaultWaitForBridgeReady,
+  type BridgeDomTarget,
+  type BridgeReadyWaitOptions,
   type DashboardClient,
 } from './dashboard/client';
 import { filterViewRows, type DashboardFilters, type PrimaryView } from './dashboard/filters';
@@ -116,6 +118,9 @@ const mountGenerations = new WeakMap<HTMLElement, number>();
 export interface DashboardMountOptions {
   root?: HTMLElement | null;
   client?: DashboardClient;
+  bridgeTarget?: BridgeDomTarget | null;
+  waitForBridgeReady?: (target: BridgeDomTarget, options?: BridgeReadyWaitOptions) => Promise<boolean>;
+  bridgeReadyTimeoutMs?: number;
   catalogLoader?: () => CatalogInput | Promise<CatalogInput>;
   chartFactory?: ItemChartFactory;
   pollMs?: number;
@@ -730,12 +735,24 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
   const content = root.querySelector<HTMLElement>('#content');
   if (!status || !content) throw new Error('Dashboard shell is incomplete');
 
-  const target = (typeof window === 'undefined' ? new EventTarget() : window) as BridgeMessageTarget;
-  const client = options.client ?? createDashboardClient(target);
+  const target = options.bridgeTarget
+    ?? (typeof document === 'undefined' ? null : document.documentElement);
   const catalogLoader = options.catalogLoader ?? defaultCatalogLoader;
   let runtime: { detailController: ItemDetailController; destroy(): void } | null = null;
+  let waitController: AbortController | null = null;
 
   try {
+    if (options.client === undefined) {
+      if (target === null) throw new Error('Missing bridge target');
+      waitController = typeof AbortController === 'undefined' ? null : new AbortController();
+      const ready = await (options.waitForBridgeReady ?? defaultWaitForBridgeReady)(target, {
+        timeoutMs: options.bridgeReadyTimeoutMs,
+        signal: waitController?.signal,
+      });
+      if (!ready) throw new Error('Bridge did not become ready');
+    }
+    const client = options.client ?? (target === null ? null : createDashboardClient(target));
+    if (client === null) throw new Error('Missing bridge target');
     const [bootstrap, snapshots, catalogInput] = await Promise.all([
       client.bootstrap(),
       client.listSnapshots(),
@@ -782,6 +799,7 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
   return {
     destroy(): void {
       destroyed = true;
+      waitController?.abort();
       if (mountGenerations.get(root) === mountGeneration) {
         mountGenerations.set(root, mountGeneration + 1);
       }
