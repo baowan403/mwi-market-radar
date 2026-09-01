@@ -637,8 +637,9 @@ summary:focus-visible {
 .item-detail-card {
   display: grid;
   gap: 18px;
-  min-width: min(720px, calc(100vw - 32px));
-  max-width: min(820px, calc(100vw - 32px));
+  width: 100%;
+  min-width: 0;
+  max-width: none;
   padding: 24px;
   border: 1px solid var(--color-line);
   border-radius: 14px;
@@ -712,7 +713,12 @@ summary:focus-visible {
 
 .detail-chart-container {
   position: relative;
-  min-height: 260px;
+  width: 100%;
+  min-width: 0;
+  height: 320px;
+  min-height: 0;
+  block-size: 320px;
+  overflow: hidden;
   padding: 8px;
   border: 1px solid var(--color-line);
   border-radius: 8px;
@@ -721,8 +727,10 @@ summary:focus-visible {
 
 .detail-chart-container canvas {
   display: block;
-  width: 100%;
-  height: 244px;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .detail-pin-button {
@@ -741,6 +749,14 @@ dialog {
   border: 0;
   background: transparent;
   color: var(--color-text);
+}
+
+dialog#item-detail {
+  width: min(820px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  box-sizing: border-box;
 }
 
 dialog::backdrop {
@@ -828,6 +844,11 @@ dialog::backdrop {
     min-width: 0;
     max-width: calc(100vw - 24px);
     padding: 18px;
+  }
+
+  .detail-chart-container {
+    height: 260px;
+    block-size: 260px;
   }
 
   .item-detail-header {

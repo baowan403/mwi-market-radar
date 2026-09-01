@@ -160,3 +160,78 @@ test('paginates a large market table without mounting every row', async ({ page 
   await expect(page.locator('[data-market-row]')).toHaveCount(100);
   await expect(page.locator('[data-pagination-page]').first()).toHaveText('第 2 / 4 頁・共 304 筆');
 });
+
+test('bounds detail chart geometry on desktop and mobile', async ({ page }, testInfo) => {
+  await loadFixture(page);
+
+  const detailCell = page.locator('[data-market-row="/items/chrono_gloves::7"] .name-column');
+  await detailCell.scrollIntoViewIfNeeded();
+  await detailCell.click();
+
+  const dialog = page.locator('#item-detail');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('[data-detail-close]')).toBeVisible();
+
+  const measure = async (): Promise<{
+    dialog: { width: number; height: number; clientWidth: number; scrollWidth: number; clientHeight: number; scrollHeight: number };
+    card: { width: number; height: number; clientWidth: number; scrollWidth: number };
+    container: { width: number; height: number; clientWidth: number; scrollWidth: number };
+    canvas: { width: number; height: number; clientWidth: number; scrollWidth: number; attributeHeight: number };
+  }> => page.evaluate(() => {
+    const dialogElement = document.querySelector<HTMLDialogElement>('#item-detail');
+    const card = dialogElement?.querySelector<HTMLElement>('.item-detail-card');
+    const container = dialogElement?.querySelector<HTMLElement>('.detail-chart-container');
+    const canvas = dialogElement?.querySelector<HTMLCanvasElement>('[data-detail-chart]');
+    if (!dialogElement || !card || !container || !canvas) throw new Error('Detail geometry elements missing');
+
+    const dimensions = (element: HTMLElement) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        width: rect.width,
+        height: rect.height,
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+      };
+    };
+    const dialogDimensions = dimensions(dialogElement);
+    return {
+      dialog: {
+        ...dialogDimensions,
+        clientHeight: dialogElement.clientHeight,
+        scrollHeight: dialogElement.scrollHeight,
+      },
+      card: dimensions(card),
+      container: dimensions(container),
+      canvas: { ...dimensions(canvas), attributeHeight: canvas.height },
+    };
+  });
+
+  await page.waitForTimeout(500);
+  const first = await measure();
+  await page.waitForTimeout(500);
+  const second = await measure();
+  await testInfo.attach('detail-geometry.json', {
+    body: Buffer.from(JSON.stringify({ first, second }), 'utf8'),
+    contentType: 'application/json',
+  });
+
+  for (const geometry of [first, second]) {
+    expect(geometry.container.height).toBeLessThanOrEqual(360);
+    expect(geometry.canvas.height).toBeLessThanOrEqual(360);
+    expect(geometry.dialog.scrollWidth).toBeLessThanOrEqual(geometry.dialog.clientWidth + 1);
+    expect(geometry.card.scrollWidth).toBeLessThanOrEqual(geometry.card.clientWidth + 1);
+    expect(geometry.container.scrollWidth).toBeLessThanOrEqual(geometry.container.clientWidth + 1);
+    expect(geometry.container.width).toBeLessThanOrEqual(geometry.dialog.clientWidth + 1);
+  }
+  expect(Math.abs(second.container.height - first.container.height)).toBeLessThanOrEqual(1);
+  expect(Math.abs(second.canvas.height - first.canvas.height)).toBeLessThanOrEqual(1);
+
+  await dialog.locator('[data-detail-period="7d"]').click();
+  await page.waitForTimeout(500);
+  const afterPeriod = await measure();
+  expect(afterPeriod.container.height).toBeLessThanOrEqual(360);
+  expect(afterPeriod.canvas.height).toBeLessThanOrEqual(360);
+  expect(Math.abs(afterPeriod.container.height - second.container.height)).toBeLessThanOrEqual(1);
+  expect(Math.abs(afterPeriod.canvas.height - second.canvas.height)).toBeLessThanOrEqual(1);
+  await dialog.locator('[data-detail-close]').click();
+});
