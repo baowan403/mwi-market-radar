@@ -43,6 +43,10 @@ function scaled(flow: StrategyFlow, fraction: number): StrategyFlow {
   return { ...flow, unitsPerHour: flow.unitsPerHour * fraction };
 }
 
+function scaledMetric(value: number | null, fraction: number): number | null {
+  return value === null ? null : value * fraction;
+}
+
 function aggregate(flows: readonly StrategyFlow[]): Map<string, StrategyFlow> {
   const result = new Map<string, StrategyFlow>();
   for (const flow of flows) {
@@ -111,6 +115,11 @@ export function calculateWorkflow(sourceSteps: readonly StrategyStepResult[]): W
   const fractions = cumulative.map((value) => value / total);
   const steps = sourceSteps.map((step, index) => ({
     ...step,
+    actionsPerHour: step.actionsPerHour * fractions[index]!,
+    costPerHour: scaledMetric(step.costPerHour, fractions[index]!),
+    incomePerHour: scaledMetric(step.incomePerHour, fractions[index]!),
+    profitPerHour: scaledMetric(step.profitPerHour, fractions[index]!),
+    experiencePerHour: step.experiencePerHour * fractions[index]!,
     inputs: step.inputs.map((flow) => scaled(flow, fractions[index]!)),
     outputs: step.outputs.map((flow) => scaled(flow, fractions[index]!)),
     workFraction: fractions[index]!,

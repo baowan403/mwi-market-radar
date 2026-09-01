@@ -41,6 +41,13 @@ describe('balanced multi-step workflows', () => {
       6 / 39,
       30 / 39,
     ]);
+    expect(result.steps[0]).toMatchObject({
+      actionsPerHour: 1 / 39,
+      costPerHour: 10 / 39,
+      incomePerHour: 2 * 20 * 0.95 / 39,
+      profitPerHour: (2 * 20 * 0.95 - 10) / 39,
+      experiencePerHour: 10 / 39,
+    });
     expect(result.inputs).toHaveLength(1);
     expect(result.inputs[0]?.itemHrid).toBe('/items/a');
     expect(result.outputs).toHaveLength(1);
