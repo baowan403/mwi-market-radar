@@ -35,6 +35,8 @@
 
 > 此區所有欄位必須在唯一一次 `backfill_stockmarket_7d=true` 的 successful manual run 後填入；現在不要填入或推測數值。先以預設 `false` push/deploy，再手動執行一次；queued/running 時不可重複觸發，並必須驗證下一個 scheduled run 是 official-only。
 
+> 公開歷史 compatibility probe（不是 production 回填證據）：872 item names、169 eligible timestamps、每小時 key 數 min 398／median 508／max 3101／latest 3085；因此歷史快照 gate 是 350 keys，而最新官方 overlap 仍需至少 1000 個 ask/bid comparisons。下列 actual run 欄位保持空白直到成功 manual run。
+
 - [ ] Asia/Taipei 執行時間：
 - [ ] imported UTC range／snapshot count：
 - [ ] 最小 keys per snapshot：

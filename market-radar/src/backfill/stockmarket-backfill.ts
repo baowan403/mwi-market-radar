@@ -3,6 +3,7 @@ import type { StockmarketHistoryPoint } from './stockmarket-schema';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1_000;
 const HOUR_MS = 60 * 60 * 1_000;
+export const PRODUCTION_HISTORICAL_MINIMUM_QUOTE_KEYS = 350;
 const MAX_DATE_TIMESTAMP = 8_640_000_000_000_000;
 const SAFE_ITEM_NAME = /^[a-z0-9_]+$/;
 const CANONICAL_KEY = /^\/items\/([a-z0-9_]+)::(0|[1-9]\d*)$/;
@@ -63,7 +64,7 @@ function cloneSnapshot(snapshot: Snapshot): Snapshot {
 export function buildBackfillSnapshots(
   rowsByItem: ReadonlyMap<string, readonly StockmarketHistoryPoint[]>,
   latestOfficialTimestamp: number,
-  gates: BackfillGates = { minimumHours: 150, minimumQuotes: 1_000 },
+  gates: BackfillGates = { minimumHours: 150, minimumQuotes: PRODUCTION_HISTORICAL_MINIMUM_QUOTE_KEYS },
 ): Snapshot[] {
   if (!validTimestamp(latestOfficialTimestamp)) fail('latest official timestamp is invalid');
   validGates(gates);

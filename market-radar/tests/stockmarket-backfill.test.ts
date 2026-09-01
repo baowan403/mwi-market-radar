@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Quote, Snapshot } from '../src/core/types';
 import type { StockmarketHistoryPoint } from '../src/backfill/stockmarket-schema';
-import { buildBackfillSnapshots, validateOfficialOverlap } from '../src/backfill/stockmarket-backfill';
+import {
+  buildBackfillSnapshots,
+  PRODUCTION_HISTORICAL_MINIMUM_QUOTE_KEYS,
+  validateOfficialOverlap,
+} from '../src/backfill/stockmarket-backfill';
 import { mergeCloudHistory, updateCloudHistory, type CloudFileSystem } from '../src/cloud/history-store';
 import { parseManifest } from '../src/cloud/manifest';
 import { createHistoryProvenance, HISTORY_PROVENANCE_FILE } from '../src/cloud/provenance';
@@ -62,6 +66,12 @@ describe('stockmarket backfill aggregation', () => {
     expect(() => buildBackfillSnapshots(new Map(), latest, { minimumHours: 0, minimumQuotes: 1 })).toThrow(/gate/i);
     expect(() => buildBackfillSnapshots(new Map(), latest, { minimumHours: 1.5, minimumQuotes: 1 })).toThrow(/gate/i);
     expect(() => buildBackfillSnapshots(new Map(), latest, { minimumHours: 1, minimumQuotes: Number.MAX_SAFE_INTEGER + 1 })).toThrow(/gate/i);
+  });
+
+  it('uses the exported production historical density minimum of 350 quote keys by default', () => {
+    expect(PRODUCTION_HISTORICAL_MINIMUM_QUOTE_KEYS).toBe(350);
+    expect(buildBackfillSnapshots(makeRows(150, 350), latest)).toHaveLength(150);
+    expect(() => buildBackfillSnapshots(makeRows(150, 349), latest)).toThrow(/quotes/i);
   });
 
   it('rejects conflicting duplicate rows but accepts exact duplicates', () => {
@@ -226,6 +236,28 @@ describe('stockmarket backfill command', () => {
       snapshotCount: 150,
       overlapComparisons: 2_000,
     });
+  }, 30_000);
+
+  it('drops a newer downloaded source row before the strict builder and records the official upper bound', async () => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    const rows = stockmarketRows();
+    rows.get('item_0000')!.push(row('item_0000', 0, BACKFILL_LATEST + HOUR));
+
+    const result = await runStockmarketBackfill({
+      dataDir,
+      generatedAt: BACKFILL_GENERATED,
+      client: { loadAll: async () => rows },
+      now: () => BACKFILL_NOW,
+    });
+
+    expect(result).toMatchObject({
+      skipped: false,
+      inserted: 149,
+      toTimestamp: BACKFILL_LATEST,
+      minimumQuoteKeys: 350,
+    });
+    await expect(readFile(join(dataDir, HISTORY_PROVENANCE_FILE), 'utf8')).resolves.toContain(`"toTimestamp": ${BACKFILL_LATEST}`);
   }, 30_000);
 
   it('skips a valid completed backfill before calling the client and leaves published bytes untouched', async () => {

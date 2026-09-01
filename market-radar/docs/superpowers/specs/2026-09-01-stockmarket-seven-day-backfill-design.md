@@ -39,7 +39,7 @@ CLI 規則：
 - 只保留以最新官方 timestamp 為上界、向前七日內的資料。
 - 同 timestamp 的所有物品與強化等級合併成一份完整快照。
 
-目標為最多 168 個逐時 timestamp。允許官方或牛牛本身存在少量缺時，但發布前至少需要 150 個有效 timestamp，且每個快照至少 1,000 個 market keys；不足時整次回填失敗，不發布半套資料。
+目標為最多 168 個逐時 timestamp。允許官方或牛牛本身存在少量缺時，但發布前至少需要 150 個有效 timestamp，且每個歷史快照至少 350 個 market keys；不足時整次回填失敗，不發布半套資料。350 是後續公開歷史 compatibility probe（min 398／median 508 keys per hour）得出的實作門檻，不是 production run 證據；最新官方 overlap 另維持至少 1,000 個可比較 ask/bid 欄位。
 
 ## 官方重疊驗證與合併優先級
 
@@ -74,7 +74,7 @@ Cloud client 僅接受同源、符合 schema 的 provenance。頁面資料來源
 - 物品名稱或強化等級無法正規化；
 - timestamp 超出七日窗口、位於最新官方資料之後，或非安全整數；
 - 有效 timestamp 少於 150；
-- 任一快照 market keys 少於 1,000；
+- 任一歷史快照 market keys 少於 350；
 - 官方重疊的實際買一／賣一不同；
 - manifest、snapshot、daily-history 或 provenance 驗證失敗；
 - 下載只完成一部分。
@@ -89,7 +89,7 @@ Cloud client 僅接受同源、符合 schema 的 provenance。頁面資料來源
 - fixture 證明 `-1／0` 缺值不會生成假價格或假成交量。
 - 168 小時資料依 timestamp 聚合，不受 Asia/Taipei 日界影響。
 - 官方重疊完全一致時官方優先；買一或賣一不同時整批拒絕。
-- 少於 150 小時、少於 1,000 keys、未來 timestamp、錯誤 schema 與部分下載皆拒絕。
+- 少於 150 小時、少於 350 歷史 keys、未來 timestamp、錯誤 schema 與部分下載皆拒絕；最新官方 overlap 少於 1,000 個可比較 ask/bid 欄位亦拒絕。
 - 第二次對同一來源執行不改 manifest、snapshot hash 或 provenance。
 - cloud manifest、daily pack、dashboard、策略流動性與來源標示既有測試全部通過。
 

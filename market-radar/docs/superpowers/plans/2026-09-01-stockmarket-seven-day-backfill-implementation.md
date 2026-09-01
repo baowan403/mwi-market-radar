@@ -578,7 +578,7 @@ git commit -m "feat: disclose historical market provenance"
 
 - [ ] **Step 1: Add a failing orchestration test**
 
-The test injects a fixture client containing 150 hourly timestamps with 1,000 keys, an existing official latest snapshot, and a memory filesystem. It asserts that `runStockmarketBackfill` writes `history-provenance.json`, inserts only absent timestamps, preserves the official duplicate, and returns unchanged without network calls when valid provenance already exists.
+The test injects a fixture client containing 150 hourly timestamps with at least 350 historical keys, an existing official latest snapshot with at least 1,000 comparable ask/bid fields, and a memory filesystem. It asserts that `runStockmarketBackfill` writes `history-provenance.json`, inserts only absent timestamps, preserves the official duplicate, and returns unchanged without network calls when valid provenance already exists.
 
 ```ts
 const first = await runStockmarketBackfill({
@@ -670,7 +670,7 @@ Scheduled and push events must not reference or call the backfill script.
 
 - [ ] **Step 3: Document authority, one-shot operation, and recovery**
 
-Document the public source, Owner-confirmed permission, fixed endpoint, 4-request concurrency cap, 168-hour target, 150-hour minimum, 1,000-key minimum, exact official overlap gate, provenance label, idempotent rerun, and the rule that normal hourly runs remain official-only. Add a notice that this project does not claim ownership of stockmarket.xin history and uses the authorized snapshot solely for the initial seven-day bootstrap.
+Document the public source, Owner-confirmed permission, fixed endpoint, 4-request concurrency cap, 168-hour target, 150-hour minimum, 350-key historical minimum, exact 1,000-field official overlap gate, provenance label, idempotent rerun, and the rule that normal hourly runs remain official-only. Add a notice that this project does not claim ownership of stockmarket.xin history and uses the authorized snapshot solely for the initial seven-day bootstrap.
 
 - [ ] **Step 4: Validate workflow syntax through existing build and static tests**
 
@@ -749,7 +749,7 @@ Run `MWI Market Radar Pages` with `backfill_stockmarket_7d=true`. Do not trigger
 Expected workflow evidence:
 
 - 150–168 imported hourly timestamps;
-- every retained snapshot has at least 1,000 keys;
+- every retained historical snapshot has at least 350 keys, while the latest official overlap has at least 1,000 comparable ask/bid fields;
 - official overlap mismatch count is zero;
 - provenance exists and validates;
 - `market-data` contains only `data/**` changes;

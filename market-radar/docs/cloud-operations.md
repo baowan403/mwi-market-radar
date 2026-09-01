@@ -14,7 +14,7 @@
 
 - Owner 已確認可以在唯一一次手動 GitHub Actions run 中，於 server-side runner 使用可公開讀取的牛牛股市 endpoint 做初始 bootstrap；此專案不主張擁有該歷史資料，且只為初始七日歷史使用。固定 origin 是 `https://www.stockmarket.xin`，只讀 `/api/latest-status` 與 `/api/item/<item>/history?limit=200`，不接受可改寫 origin 的參數，也不傳 profile、cookie 或 token。dashboard、userscript 與 player profile 永遠不會呼叫這些 endpoint；本文件不主張其 API 文件、服務條款或授權狀態。
 - 回填 client 最多 4 個並行 request；每個 worker 的 request 後固定等待 100ms。每次 request timeout 為 10 秒；只有 HTTP 429、502、503、504 或 timeout 會重試，最多共 4 次，retry delay 依序為 500ms、1000ms、1500ms；其他 HTTP/schema/validation 失敗立即拒絕。
-- 資料 gate 是最多最近 168 個 UTC-hour sample、至少 150 個不同 UTC-hour sample、每個 snapshot 至少 1000 個 key。與最新官方 snapshot 重疊時，至少需 1000 個非 null ask/bid 比對；任何一個 ask 或 bid 不一致都會拒絕回填。
+- 資料 gate 是最多最近 168 個 UTC-hour sample、至少 150 個不同 UTC-hour sample、每個歷史 snapshot 至少 350 個 key。這個 350 是依公開歷史 probe 的每小時 key 數（min 398／median 508／max 3101；latest 3085）設定的保守兼容門檻；不是實際 production backfill 成功證據。與最新官方 snapshot 重疊時仍至少需 1000 個非 null ask/bid 比對，且任何一個 ask 或 bid 不一致都會拒絕回填。
 - 成功後 `data/history-provenance.json` 記錄 `stockmarket-xin`、來源 label「牛牛股市」、固定來源 URL、Owner-confirmed permission 與回填範圍；頁面以「歷史回填：牛牛股市；最新行情：MWI 官方」揭露來源。無有效 provenance 時不猜測歷史來源。
 - 有效 provenance 已存在時，預設永久 idempotent skip，不做 network request。`--force` 僅重新驗證同一個固定七日 window，不能擴大範圍；正常每小時官方 collector 不依賴、也不會例行呼叫回填。
 

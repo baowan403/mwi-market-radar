@@ -4,7 +4,11 @@ import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 import type { Snapshot } from '../src/core/types';
 import { decodeDayChunk } from '../src/core/storage-codec';
-import { buildBackfillSnapshots, validateOfficialOverlap } from '../src/backfill/stockmarket-backfill';
+import {
+  buildBackfillSnapshots,
+  PRODUCTION_HISTORICAL_MINIMUM_QUOTE_KEYS,
+  validateOfficialOverlap,
+} from '../src/backfill/stockmarket-backfill';
 import { createStockmarketClient } from '../src/backfill/stockmarket-client';
 import type { StockmarketHistoryPoint } from '../src/backfill/stockmarket-schema';
 import {
@@ -63,6 +67,7 @@ export type StockmarketBackfillResult =
     inserted: number;
     snapshotCount: number;
     overlapComparisons: number;
+    minimumQuoteKeys: number;
     fromTimestamp: number;
     toTimestamp: number;
   };
@@ -267,6 +272,17 @@ function latestOverlapComparisons(
   return comparisons;
 }
 
+function rowsInApprovedOfficialWindow(
+  rowsByItem: ReadonlyMap<string, readonly StockmarketHistoryPoint[]>,
+  latestOfficialTimestamp: number,
+): Map<string, StockmarketHistoryPoint[]> {
+  const earliest = latestOfficialTimestamp - SEVEN_DAYS_MS;
+  return new Map([...rowsByItem.entries()].map(([itemName, rows]) => [
+    itemName,
+    rows.filter((row) => row.timestamp >= earliest && row.timestamp <= latestOfficialTimestamp),
+  ]));
+}
+
 function validateGeneratedAt(value: string): void {
   try {
     createHistoryProvenance({
@@ -306,13 +322,19 @@ export async function runStockmarketBackfill(options: StockmarketBackfillOptions
   } catch {
     throw safeError('Stockmarket backfill fetch failed');
   }
+  let approvedRows: Map<string, StockmarketHistoryPoint[]>;
+  try {
+    approvedRows = rowsInApprovedOfficialWindow(rows, latestOfficialTimestamp);
+  } catch {
+    throw safeError('Stockmarket backfill validation failed');
+  }
 
   let imported: Snapshot[];
   let overlapComparisons: number;
   try {
-    const candidates = buildBackfillSnapshots(rows, latestOfficialTimestamp, {
+    const candidates = buildBackfillSnapshots(approvedRows, latestOfficialTimestamp, {
       minimumHours: MINIMUM_SNAPSHOTS,
-      minimumQuotes: 1_000,
+      minimumQuotes: PRODUCTION_HISTORICAL_MINIMUM_QUOTE_KEYS,
     });
     if (candidates.length < MINIMUM_SNAPSHOTS || candidates.length > MAXIMUM_SNAPSHOTS) {
       throw new Error('invalid fixed history window');
@@ -357,6 +379,7 @@ export async function runStockmarketBackfill(options: StockmarketBackfillOptions
     inserted: merged.inserted,
     snapshotCount: imported.length,
     overlapComparisons,
+    minimumQuoteKeys: PRODUCTION_HISTORICAL_MINIMUM_QUOTE_KEYS,
     fromTimestamp,
     toTimestamp,
   };
@@ -381,7 +404,7 @@ export async function run(
     if (result.skipped) {
       console.log('Stockmarket backfill skipped');
     } else {
-      console.log(`Stockmarket backfill complete: items=${result.itemCount} inserted=${result.inserted} snapshots=${result.snapshotCount} overlaps=${result.overlapComparisons} range=${result.fromTimestamp}-${result.toTimestamp}`);
+      console.log(`Stockmarket backfill complete: items=${result.itemCount} inserted=${result.inserted} snapshots=${result.snapshotCount} minKeys=${result.minimumQuoteKeys} overlaps=${result.overlapComparisons} range=${result.fromTimestamp}-${result.toTimestamp}`);
     }
     return 0;
   } catch (error) {
