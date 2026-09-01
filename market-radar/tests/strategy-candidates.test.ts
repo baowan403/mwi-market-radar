@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { importPlayerProfile } from '../src/profile/import';
 import { buildStrategyCandidates } from '../src/strategy/candidates';
 import { normalizeStrategyGameData } from '../src/strategy/game-data';
-import { createMarketPriceBook } from '../src/strategy/price-book';
+import { createStrategyPriceBook } from '../src/strategy/price-book';
 import type { Snapshot } from '../src/core/types';
 
 const data = normalizeStrategyGameData(strategyDataJson);
@@ -29,7 +29,15 @@ const snapshot: Snapshot = {
     '/items/efficiency_tea::0': { a: 2_000, b: 1_800, p: 1_900, v: 1_000 },
     '/items/catalytic_tea::0': { a: 3_000, b: 2_800, p: 2_900, v: 1_000 },
     '/items/alchemy_essence::0': { a: 2_000, b: 1_800, p: 1_900, v: 10_000 },
-    '/items/large_artisans_crate::0': { a: 1_100_000, b: 1_000_000, p: 1_050_000, v: 100 },
+    '/items/bag_of_10_cowbells::0': { a: 1_000, b: 1_000, p: 1_000, v: 1_000 },
+    '/items/shard_of_protection::0': { a: 10, b: 10, p: 10, v: 1_000 },
+    '/items/mirror_of_protection::0': { a: 15, b: 15, p: 15, v: 1_000 },
+    '/items/pearl::0': { a: 20, b: 20, p: 20, v: 1_000 },
+    '/items/amber::0': { a: 30, b: 30, p: 30, v: 1_000 },
+    '/items/garnet::0': { a: 40, b: 40, p: 40, v: 1_000 },
+    '/items/jade::0': { a: 50, b: 50, p: 50, v: 1_000 },
+    '/items/amethyst::0': { a: 60, b: 60, p: 60, v: 1_000 },
+    '/items/moonstone::0': { a: 70, b: 70, p: 70, v: 1_000 },
   },
 };
 
@@ -38,7 +46,7 @@ describe('personalized strategy candidate enumeration', () => {
     const result = buildStrategyCandidates({
       profile,
       data,
-      prices: createMarketPriceBook(snapshot),
+      prices: createStrategyPriceBook(snapshot, data),
     });
 
     expect(result.candidates.some((item) => item.kind === 'manufacture'
@@ -55,7 +63,7 @@ describe('personalized strategy candidate enumeration', () => {
 
   it('finishes a full-data scan within two seconds', () => {
     const started = performance.now();
-    buildStrategyCandidates({ profile, data, prices: createMarketPriceBook(snapshot) });
+    buildStrategyCandidates({ profile, data, prices: createStrategyPriceBook(snapshot, data) });
     expect(performance.now() - started).toBeLessThan(2_000);
   });
 });

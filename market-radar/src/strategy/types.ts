@@ -50,6 +50,7 @@ export interface StrategyItemDetail {
   name: string;
   itemLevel?: number;
   categoryHrid: string;
+  isTradable?: boolean;
   equipmentDetail?: Record<string, unknown> | null;
   consumableDetail?: Record<string, unknown> | null;
   alchemyDetail?: Record<string, unknown> | null;

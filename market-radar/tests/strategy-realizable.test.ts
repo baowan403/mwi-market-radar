@@ -80,20 +80,27 @@ describe('liquidity-adjusted realizable strategy', () => {
     expect(result.realizableProfitPerDay).toBeNull();
   });
 
-  it('ignores a derived loot output with no market history and keeps theoretical profit', () => {
+  it('checks contained market leaves while ignoring liquidated currency leaves', () => {
     const value = candidate(1, 10);
-    value.steps[1]!.outputs.push({
-      itemHrid: '/items/medium_artisans_crate', enhancementLevel: 0,
-      unitsPerHour: 0.1, unitPrice: 500_000, market: false,
-    });
-    const result = evaluateRealizableStrategy(value, snapshots({
+    value.steps[1]!.outputs.push(
+      { itemHrid: '/items/cowbell', enhancementLevel: 0, unitsPerHour: 0.1, unitPrice: 100, market: false },
+      { itemHrid: '/items/moonstone', enhancementLevel: 0, unitsPerHour: 1, unitPrice: 70, market: true },
+    );
+    const liquid = evaluateRealizableStrategy(value, snapshots({
+      '/items/input': 1_000,
+      '/items/output': 1_000,
+      '/items/moonstone': 1_000,
+    }));
+    const missingGem = evaluateRealizableStrategy(value, snapshots({
       '/items/input': 1_000,
       '/items/output': 1_000,
     }));
 
-    expect(result.classification).toBe('long-run');
-    expect(result.bottleneckHrid).not.toBe('/items/medium_artisans_crate');
-    expect(result.theoreticalProfitPerDay).toBe(value.profitPerDay);
+    expect(liquid.classification).toBe('long-run');
+    expect(liquid.theoreticalProfitPerDay).toBe(value.profitPerDay);
+    expect(missingGem.classification).toBe('insufficient');
+    expect(missingGem.bottleneckHrid).toBe('/items/moonstone');
+    expect(missingGem.bottleneckSide).toBe('output');
   });
 
   it('still reports insufficient for a market output with no volume history', () => {

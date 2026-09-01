@@ -34,7 +34,7 @@ describe('strategy market price book', () => {
     expect(book.volume('/items/missing')).toBeNull();
   });
 
-  it('values loot from contained drops and caps shop asks at fixed coin cost', () => {
+  it('uses complete gross loot asks, net liquidation bids, and capped shop asks', () => {
     const extended: Snapshot = {
       ...snapshot,
       quotes: {
@@ -44,16 +44,15 @@ describe('strategy market price book', () => {
       },
     };
     const items = new Map<string, unknown>([
-      ['/items/crate', { hrid: '/items/crate', categoryHrid: '/item_categories/loot' }],
-      ['/items/apple', { hrid: '/items/apple', categoryHrid: '/item_categories/resource' }],
-      ['/items/tool', { hrid: '/items/tool', categoryHrid: '/item_categories/equipment' }],
+      ['/items/crate', { hrid: '/items/crate', name: 'Crate', categoryHrid: '/item_categories/loot' }],
+      ['/items/apple', { hrid: '/items/apple', name: 'Apple', categoryHrid: '/item_categories/resource', isTradable: true }],
+      ['/items/tool', { hrid: '/items/tool', name: 'Tool', categoryHrid: '/item_categories/equipment', isTradable: true }],
     ]);
     const data = {
       itemsByHrid: items,
       openableLootDropMap: {
         '/items/crate': [
           { itemHrid: '/items/apple', dropRate: 1, minCount: 1, maxCount: 3 },
-          { itemHrid: '/items/unknown_drop', dropRate: 1, minCount: 1, maxCount: 1 },
         ],
       },
       shopItemDetailMap: {
@@ -63,7 +62,7 @@ describe('strategy market price book', () => {
     const book = createStrategyPriceBook(extended, data);
 
     expect(book.ask('/items/crate')).toBe(20);
-    expect(book.bid('/items/crate')).toBe(16);
+    expect(book.bid('/items/crate')).toBe(15.2);
     expect(book.ask('/items/tool')).toBe(5_000);
     expect(book.bid('/items/tool')).toBe(5_500);
   });
@@ -79,12 +78,15 @@ describe('strategy market price book', () => {
     const items = new Map<string, unknown>([
       ['/items/medium_artisans_crate', {
         hrid: '/items/medium_artisans_crate',
+        name: 'Medium Crate',
         categoryHrid: '/item_categories/loot',
       }],
-      ['/items/cowbell', { hrid: '/items/cowbell', categoryHrid: '/item_categories/currency' }],
+      ['/items/cowbell', { hrid: '/items/cowbell', name: 'Cowbell', categoryHrid: '/item_categories/currency' }],
       ['/items/bag_of_10_cowbells', {
         hrid: '/items/bag_of_10_cowbells',
+        name: 'Cowbell Bag',
         categoryHrid: '/item_categories/loot',
+        isTradable: true,
       }],
     ]);
     const data = {

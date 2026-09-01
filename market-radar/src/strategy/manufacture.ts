@@ -9,6 +9,7 @@ export interface PricedCount {
   price: number | null;
   rate?: number;
   artisanEligible?: boolean;
+  taxable?: boolean;
 }
 
 export interface ManufactureInput {
@@ -127,7 +128,7 @@ export function calculateManufacture(input: ManufactureInput): ManufactureResult
 
   const addIncome = (item: PricedCount & { price: number }, units: number): void => {
     addUnit(productUnitsPerHour, item.itemHrid, units);
-    const taxFactor = item.itemHrid === COIN_HRID ? 1 : SELL_TAX_FACTOR;
+    const taxFactor = item.itemHrid === COIN_HRID || item.taxable === false ? 1 : SELL_TAX_FACTOR;
     incomePerHour += units * item.price * taxFactor;
   };
 

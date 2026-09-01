@@ -1,6 +1,7 @@
 import type { PlayerProfile, SkillingAction } from '../profile/types';
 import { actionBuffs, type ActionBuffs } from './buffs';
-import { isDerivedOpenableLootValue, type NormalizedStrategyGameData } from './game-data';
+import type { NormalizedStrategyGameData } from './game-data';
+import { expandStrategyLiquidation } from './liquidation';
 import { calculateManufacture, type PricedCount } from './manufacture';
 import type { MarketPriceBook } from './price-book';
 import type { DropItem, StrategyActionDetail, StrategyFlow, StrategyStepResult } from './types';
@@ -44,17 +45,43 @@ function priceFlow(
     enhancementLevel: 0,
     unitsPerHour,
     unitPrice: side === 'ask' ? prices.ask(itemHrid) : prices.bid(itemHrid),
-    market: side === 'ask' || !isDerivedOpenableLootValue(itemHrid, data),
+    market: data.itemsByHrid.get(itemHrid)?.isTradable === true,
   }));
 }
 
-function pricedDrop(drop: DropItem, prices: MarketPriceBook): PricedCount {
+function taxable(itemHrid: string, data: NormalizedStrategyGameData): boolean {
+  return itemHrid !== '/items/coin' && data.itemsByHrid.get(itemHrid)?.isTradable === true;
+}
+
+function pricedDrop(drop: DropItem, prices: MarketPriceBook, data: NormalizedStrategyGameData): PricedCount {
   return {
     itemHrid: drop.itemHrid,
     count: drop.maxCount,
     rate: drop.dropRate,
     price: prices.bid(drop.itemHrid),
+    taxable: taxable(drop.itemHrid, data),
   };
+}
+
+function liquidateOutputs(
+  units: Record<string, number>,
+  data: NormalizedStrategyGameData,
+  prices: MarketPriceBook,
+): { complete: boolean; flows: StrategyFlow[] } {
+  const aggregated = new Map<string, StrategyFlow>();
+  for (const [itemHrid, unitsPerHour] of Object.entries(units)) {
+    const liquidation = expandStrategyLiquidation({ itemHrid, unitsPerHour, data, prices });
+    if (!liquidation.complete) return { complete: false, flows: [] };
+    for (const flow of liquidation.flows) {
+      const key = `${flow.itemHrid}::${flow.enhancementLevel}`;
+      const current = aggregated.get(key);
+      if (!current) aggregated.set(key, { ...flow });
+      else if (current.unitPrice === flow.unitPrice && current.market === flow.market) {
+        current.unitsPerHour += flow.unitsPerHour;
+      } else return { complete: false, flows: [] };
+    }
+  }
+  return { complete: true, flows: [...aggregated.values()] };
 }
 
 export function calculateManufactureAction(options: {
@@ -93,6 +120,7 @@ export function calculateManufactureAction(options: {
     itemHrid: item.itemHrid,
     count: item.count,
     price: prices.bid(item.itemHrid),
+    taxable: taxable(item.itemHrid, data),
   }));
   const teas: PricedCount[] = profile.actions[action].teas.map((itemHrid) => ({
     itemHrid,
@@ -107,24 +135,28 @@ export function calculateManufactureAction(options: {
     buffs,
     ingredients,
     products,
-    essenceDrops: drops(detail.essenceDropTable).map((drop) => pricedDrop(drop, prices)),
-    rareDrops: drops(detail.rareDropTable).map((drop) => pricedDrop(drop, prices)),
+    essenceDrops: drops(detail.essenceDropTable).map((drop) => pricedDrop(drop, prices, data)),
+    rareDrops: drops(detail.rareDropTable).map((drop) => pricedDrop(drop, prices, data)),
     teas,
   });
   const baseExperience = detail.experienceGain?.value ?? 0;
+  const liquidation = result.valid
+    ? liquidateOutputs(result.productUnitsPerHour, data, prices)
+    : { complete: false, flows: [] };
+  const valid = result.valid && liquidation.complete;
 
   return {
     id: `manufacture:${actionHrid}`,
     action,
     actionHrid,
     outputHrid: detail.outputItems[0]!.itemHrid,
-    valid: result.valid,
+    valid,
     actionsPerHour: result.actionsPerHour,
-    costPerHour: result.costPerHour,
-    incomePerHour: result.incomePerHour,
-    profitPerHour: result.profitPerHour,
+    costPerHour: valid ? result.costPerHour : null,
+    incomePerHour: valid ? result.incomePerHour : null,
+    profitPerHour: valid ? result.profitPerHour : null,
     experiencePerHour: baseExperience * (1 + buffs.Experience) * result.actionsPerHour,
     inputs: priceFlow(result.ingredientUnitsPerHour, 'ask', prices, data),
-    outputs: priceFlow(result.productUnitsPerHour, 'bid', prices, data),
+    outputs: liquidation.flows,
   };
 }

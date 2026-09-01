@@ -1,12 +1,15 @@
+import strategyDataJson from '../scripts/vendor/milkonomy/strategy-data.json';
 import { describe, expect, it } from 'vitest';
 import type { MarketKey, Snapshot } from '../src/core/types';
 import type { StrategyCandidate } from '../src/strategy/candidates';
 import { buildStrategyMarginSeries, repriceFixedCandidate } from '../src/strategy/margin-series';
-import { createMarketPriceBook } from '../src/strategy/price-book';
+import { normalizeStrategyGameData } from '../src/strategy/game-data';
+import { createMarketPriceBook, createStrategyPriceBook } from '../src/strategy/price-book';
 
 const HOUR = 3_600_000;
 const INPUT = '/items/input';
 const OUTPUT = '/items/output';
+const data = normalizeStrategyGameData(strategyDataJson);
 
 function snapshots(count: number, futureVolume = 1_000): Snapshot[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -143,31 +146,29 @@ describe('historical strategy margin series', () => {
     });
   });
 
-  it('reprices and taxes derived loot while keeping it outside liquidity', () => {
+  it('reprices derived currency leaves while keeping them untaxed', () => {
     const snapshot: Snapshot = {
       timestamp: 1,
       quotes: {
         [`${INPUT}::0` as MarketKey]: { a: 100, b: 95, p: 98, v: 1_000 },
         [`${OUTPUT}::0` as MarketKey]: { a: 220, b: 200, p: 210, v: 1_000 },
-        ['/items/medium_artisans_crate::0' as MarketKey]: { a: 300, b: 250, p: 275, v: null },
+        ['/items/bag_of_10_cowbells::0' as MarketKey]: { a: 2_000, b: 2_000, p: 2_000, v: 1_000 },
       },
     };
     const fixed = candidateAt(snapshot);
-    fixed.path[fixed.path.length - 1] = '/items/medium_artisans_crate';
-    fixed.steps[0]!.outputHrid = '/items/medium_artisans_crate';
-    fixed.steps[0]!.outputs = [{
-      itemHrid: '/items/medium_artisans_crate', enhancementLevel: 0,
-      unitsPerHour: 2, unitPrice: 500, market: false,
-    }];
+    fixed.steps[0]!.outputs.push(
+      { itemHrid: '/items/coin', enhancementLevel: 0, unitsPerHour: 10, unitPrice: 1, market: false },
+      { itemHrid: '/items/cowbell', enhancementLevel: 0, unitsPerHour: 2, unitPrice: 100, market: false },
+    );
 
-    const repriced = repriceFixedCandidate(fixed, createMarketPriceBook(snapshot));
+    const repriced = repriceFixedCandidate(fixed, createStrategyPriceBook(snapshot, data));
 
-    expect(repriced?.steps[0]?.outputs[0]?.unitPrice).toBe(250);
+    expect(repriced?.steps[0]?.outputs.find((flow) => flow.itemHrid === '/items/cowbell')?.unitPrice).toBe(200);
     expect(repriced).toMatchObject({
       costPerHour: 100,
-      incomePerHour: 475,
-      profitPerHour: 375,
-      profitPerDay: 9_000,
+      incomePerHour: 600,
+      profitPerHour: 500,
+      profitPerDay: 12_000,
       workingCapital24h: 2_400,
     });
   });

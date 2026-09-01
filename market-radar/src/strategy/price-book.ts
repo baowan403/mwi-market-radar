@@ -1,5 +1,6 @@
 import type { MarketKey, Snapshot } from '../core/types';
 import { isDerivedOpenableLootValue, type NormalizedStrategyGameData } from './game-data';
+import { expandStrategyLiquidation, expectedStrategyDrop } from './liquidation';
 
 export interface MarketPriceBook {
   ask(hrid: string, level?: number): number | null;
@@ -69,19 +70,40 @@ export function createStrategyPriceBook(
       level === 0
       && isDerivedOpenableLootValue(hrid, data)
     ) {
+      if (side === 'bid') {
+        const liquidation = expandStrategyLiquidation({
+          itemHrid: hrid,
+          unitsPerHour: 1,
+          data,
+          prices: { bid: (childHrid, childLevel = 0) => resolve('bid', childHrid, childLevel, nextVisiting) },
+        });
+        const value = liquidation.complete
+          ? liquidation.flows.reduce((sum, flow) => (
+            sum + flow.unitsPerHour * flow.unitPrice! * (flow.market ? 0.95 : 1)
+          ), 0)
+          : null;
+        cache.set(cacheKey, value);
+        return value;
+      }
+      // Ask remains a complete gross replacement-cost estimate; strategy liquidation uses bid only.
       const drops = data.openableLootDropMap[hrid];
       if (Array.isArray(drops) && drops.length > 0) {
         let total = 0;
-        let knownDrops = 0;
         for (const drop of drops) {
-          const price = resolve(side, drop.itemHrid, 0, nextVisiting);
-          if (price === null) continue;
-          knownDrops += 1;
-          total += price * ((drop.minCount + drop.maxCount) / 2) * drop.dropRate;
+          const expected = expectedStrategyDrop(drop);
+          if (expected === null || !data.itemsByHrid.has(expected.itemHrid)) {
+            cache.set(cacheKey, null);
+            return null;
+          }
+          const price = resolve(side, expected.itemHrid, 0, nextVisiting);
+          if (price === null) {
+            cache.set(cacheKey, null);
+            return null;
+          }
+          total += price * expected.multiplier;
         }
-        const value = knownDrops > 0 ? total : null;
-        cache.set(cacheKey, value);
-        return value;
+        cache.set(cacheKey, total);
+        return total;
       }
     }
     const market = side === 'ask' ? raw.ask(hrid, level) : raw.bid(hrid, level);

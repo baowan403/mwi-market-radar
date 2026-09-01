@@ -80,7 +80,7 @@ export function repriceFixedCandidate(
   if ([...inputValues, ...outputValues].some(({ price }) => !finitePrice(price))) return null;
   const costPerHour = inputValues.reduce((sum, { flow, price }) => sum + flow.unitsPerHour * price!, 0);
   const incomePerHour = outputValues.reduce((sum, { flow, price }) => (
-    sum + flow.unitsPerHour * price! * (flow.itemHrid === COIN_HRID ? 1 : SELL_TAX_FACTOR)
+    sum + flow.unitsPerHour * price! * (flow.market ? SELL_TAX_FACTOR : 1)
   ), 0);
   const profitPerHour = incomePerHour - costPerHour;
   const steps = candidate.steps.map((step) => ({

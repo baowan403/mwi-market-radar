@@ -4,13 +4,15 @@ import { describe, expect, it } from 'vitest';
 import { importPlayerProfile } from '../src/profile/import';
 import { calculateManufactureAction } from '../src/strategy/manufacture-adapter';
 import { normalizeStrategyGameData } from '../src/strategy/game-data';
-import { createMarketPriceBook } from '../src/strategy/price-book';
-import type { Snapshot } from '../src/core/types';
+import { createStrategyPriceBook } from '../src/strategy/price-book';
+import { evaluateRealizableStrategy } from '../src/strategy/realizable';
+import type { StrategyCandidate } from '../src/strategy/candidates';
+import type { MarketKey, Snapshot } from '../src/core/types';
 
 const data = normalizeStrategyGameData(strategyDataJson);
 const profile = importPlayerProfile(JSON.stringify(exporter), 0);
 
-function prices(outputBid: number | null = 300) {
+function prices(outputBid: number | null = 300, missingMoonstone = false) {
   const snapshot: Snapshot = {
     timestamp: 1,
     quotes: {
@@ -18,10 +20,30 @@ function prices(outputBid: number | null = 300) {
       '/items/redwood_lumber::0': { a: 320, b: outputBid, p: 310, v: 5_000 },
       '/items/crafting_essence::0': { a: 1_100, b: 1_000, p: 1_050, v: 1_000 },
       '/items/branch_of_insight::0': { a: 1_100_000, b: 1_000_000, p: 1_050_000, v: 10 },
-      '/items/medium_artisans_crate::0': { a: 550_000, b: 500_000, p: 525_000, v: 50 },
+      '/items/bag_of_10_cowbells::0': { a: 1_000, b: 1_000, p: 1_000, v: 1_000 },
+      '/items/shard_of_protection::0': { a: 10, b: 10, p: 10, v: 1_000 },
+      '/items/pearl::0': { a: 20, b: 20, p: 20, v: 1_000 },
+      '/items/amber::0': { a: 30, b: 30, p: 30, v: 1_000 },
+      '/items/garnet::0': { a: 40, b: 40, p: 40, v: 1_000 },
+      '/items/jade::0': { a: 50, b: 50, p: 50, v: 1_000 },
+      '/items/amethyst::0': { a: 60, b: 60, p: 60, v: 1_000 },
+      '/items/moonstone::0': { a: 70, b: missingMoonstone ? null : 70, p: 70, v: 1_000 },
     },
   };
-  return createMarketPriceBook(snapshot);
+  return createStrategyPriceBook(snapshot, data);
+}
+
+function history(step: ReturnType<typeof calculateManufactureAction>, omitHrid?: string): Snapshot[] {
+  const marketHrids = [...step.inputs, ...step.outputs]
+    .filter((flow) => flow.market && flow.itemHrid !== omitHrid)
+    .map((flow) => flow.itemHrid);
+  return Array.from({ length: 169 }, (_, index) => ({
+    timestamp: index * 3_600_000,
+    quotes: Object.fromEntries(marketHrids.map((hrid) => [
+      `${hrid}::0` as MarketKey,
+      { a: 100, b: 100, p: 100, v: 1_000_000 },
+    ])),
+  }));
 }
 
 describe('real manufacturing recipe adapter', () => {
@@ -41,9 +63,12 @@ describe('real manufacturing recipe adapter', () => {
     expect(result.inputs.some((item) => item.itemHrid === '/items/redwood_log')).toBe(true);
     expect(result.outputs.find((item) => item.itemHrid === '/items/redwood_lumber')?.market).toBe(true);
     expect(result.outputs.find((item) => item.itemHrid === '/items/crafting_essence')?.market).toBe(true);
-    expect(result.outputs.find((item) => item.itemHrid === '/items/medium_artisans_crate')?.market).toBe(false);
+    expect(result.outputs.some((item) => item.itemHrid === '/items/medium_artisans_crate')).toBe(false);
+    expect(result.outputs.find((item) => item.itemHrid === '/items/coin')?.market).toBe(false);
+    expect(result.outputs.find((item) => item.itemHrid === '/items/cowbell')?.market).toBe(false);
+    expect(result.outputs.find((item) => item.itemHrid === '/items/moonstone')?.market).toBe(true);
     expect(result.incomePerHour).toBeCloseTo(result.outputs.reduce((sum, flow) => (
-      sum + flow.unitsPerHour * flow.unitPrice! * 0.95
+      sum + flow.unitsPerHour * flow.unitPrice! * (flow.market ? 0.95 : 1)
     ), 0));
     expect(result.profitPerHour).not.toBeNull();
   });
@@ -58,6 +83,61 @@ describe('real manufacturing recipe adapter', () => {
 
     expect(result.valid).toBe(false);
     expect(result.profitPerHour).toBeNull();
+  });
+
+  it('fails closed when any contained loot leaf cannot be priced', () => {
+    const result = calculateManufactureAction({
+      actionHrid: '/actions/crafting/redwood_lumber',
+      profile,
+      data,
+      prices: prices(300, true),
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.outputs).toEqual([]);
+    expect(result.incomePerHour).toBeNull();
+    expect(result.profitPerHour).toBeNull();
+  });
+
+  it('makes every contained market leaf participate in realizable liquidity', () => {
+    const step = calculateManufactureAction({
+      actionHrid: '/actions/crafting/redwood_lumber', profile, data, prices: prices(),
+    });
+    const candidate: StrategyCandidate = {
+      id: step.id, kind: 'manufacture', title: 'Redwood Lumber',
+      path: ['/items/redwood_log', '/items/redwood_lumber'],
+      profitPerHour: step.profitPerHour!, profitPerDay: step.profitPerHour! * 24,
+      costPerHour: step.costPerHour!, incomePerHour: step.incomePerHour!,
+      workingCapital24h: step.costPerHour! * 24, steps: [step],
+    };
+
+    const liquid = evaluateRealizableStrategy(candidate, history(step));
+    const missingGem = evaluateRealizableStrategy(candidate, history(step, '/items/moonstone'));
+
+    expect(liquid.classification).toBe('long-run');
+    expect(liquid.theoreticalProfitPerDay).toBe(candidate.profitPerDay);
+    expect(missingGem.classification).toBe('insufficient');
+    expect(missingGem.bottleneckHrid).toBe('/items/moonstone');
+  });
+
+  it('keeps a nontradable coin recipe input outside market liquidity', () => {
+    const actionHrid = '/actions/crafting/redwood_lumber';
+    const detail = data.actionsByHrid.get(actionHrid)!;
+    const coinInputData = {
+      ...data,
+      actionsByHrid: new Map(data.actionsByHrid).set(actionHrid, {
+        ...detail,
+        inputItems: [{ itemHrid: '/items/coin', count: 1 }],
+      }),
+    };
+    const result = calculateManufactureAction({
+      actionHrid, profile, data: coinInputData, prices: prices(),
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.inputs).toEqual([expect.objectContaining({
+      itemHrid: '/items/coin', unitPrice: 1, market: false,
+    })]);
   });
 
   it('rejects non-manufacturing actions', () => {

@@ -19,14 +19,13 @@ export class StrategyDataError extends Error {
   }
 }
 
-const MARKET_BACKED_LOOT_HRIDS = new Set(['/items/bag_of_10_cowbells']);
-
 export function isDerivedOpenableLootValue(
   itemHrid: string,
   data: NormalizedStrategyGameData,
 ): boolean {
-  return !MARKET_BACKED_LOOT_HRIDS.has(itemHrid)
-    && data.itemsByHrid.get(itemHrid)?.categoryHrid === '/item_categories/loot'
+  const item = data.itemsByHrid.get(itemHrid);
+  return item !== undefined
+    && item.isTradable !== true
     && Array.isArray(data.openableLootDropMap[itemHrid])
     && data.openableLootDropMap[itemHrid].length > 0;
 }
@@ -61,6 +60,7 @@ function validateItems(value: Record<string, unknown>): Record<string, StrategyI
       || !key.startsWith('/items/')
       || typeof item.name !== 'string'
       || typeof item.categoryHrid !== 'string'
+      || (item.isTradable !== undefined && typeof item.isTradable !== 'boolean')
       || (item.itemLevel !== undefined && !finiteNonnegative(item.itemLevel))
     ) {
       throw new StrategyDataError();

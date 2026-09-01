@@ -4,14 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { importPlayerProfile } from '../src/profile/import';
 import { calculateCoinify, calculateDecompose } from '../src/strategy/alchemy';
 import { normalizeStrategyGameData } from '../src/strategy/game-data';
-import { createMarketPriceBook } from '../src/strategy/price-book';
+import { createStrategyPriceBook } from '../src/strategy/price-book';
 import { calculateWorkflow } from '../src/strategy/workflow';
 import type { Snapshot } from '../src/core/types';
 
 const data = normalizeStrategyGameData(strategyDataJson);
 const profile = importPlayerProfile(JSON.stringify(exporter), 0);
 
-function prices(missingPirateEssenceAsk = false) {
+function prices(missingPirateEssenceAsk = false, missingMoonstone = false) {
   const snapshot: Snapshot = {
     timestamp: 1,
     quotes: {
@@ -24,10 +24,18 @@ function prices(missingPirateEssenceAsk = false) {
       '/items/efficiency_tea::0': { a: 2_000, b: 1_800, p: 1_900, v: 1_000 },
       '/items/catalytic_tea::0': { a: 3_000, b: 2_800, p: 2_900, v: 1_000 },
       '/items/alchemy_essence::0': { a: 2_000, b: 1_800, p: 1_900, v: 10_000 },
-      '/items/large_artisans_crate::0': { a: 1_100_000, b: 1_000_000, p: 1_050_000, v: 100 },
+      '/items/bag_of_10_cowbells::0': { a: 1_000, b: 1_000, p: 1_000, v: 1_000 },
+      '/items/shard_of_protection::0': { a: 10, b: 10, p: 10, v: 1_000 },
+      '/items/mirror_of_protection::0': { a: 15, b: 15, p: 15, v: 1_000 },
+      '/items/pearl::0': { a: 20, b: 20, p: 20, v: 1_000 },
+      '/items/amber::0': { a: 30, b: 30, p: 30, v: 1_000 },
+      '/items/garnet::0': { a: 40, b: 40, p: 40, v: 1_000 },
+      '/items/jade::0': { a: 50, b: 50, p: 50, v: 1_000 },
+      '/items/amethyst::0': { a: 60, b: 60, p: 60, v: 1_000 },
+      '/items/moonstone::0': { a: 70, b: missingMoonstone ? null : 70, p: 70, v: 1_000 },
     },
   };
-  return createMarketPriceBook(snapshot);
+  return createStrategyPriceBook(snapshot, data);
 }
 
 describe('Milkonomy-compatible alchemy', () => {
@@ -51,9 +59,12 @@ describe('Milkonomy-compatible alchemy', () => {
     expect(prime.successRate).toBeGreaterThan(dedicated.successRate);
     expect(none.outputs.find((flow) => flow.itemHrid === '/items/pirate_essence')?.market).toBe(true);
     expect(none.outputs.find((flow) => flow.itemHrid === '/items/alchemy_essence')?.market).toBe(true);
-    expect(none.outputs.find((flow) => flow.itemHrid === '/items/large_artisans_crate')?.market).toBe(false);
+    expect(none.outputs.some((flow) => flow.itemHrid === '/items/large_artisans_crate')).toBe(false);
+    expect(none.outputs.find((flow) => flow.itemHrid === '/items/coin')?.market).toBe(false);
+    expect(none.outputs.find((flow) => flow.itemHrid === '/items/cowbell')?.market).toBe(false);
+    expect(none.outputs.find((flow) => flow.itemHrid === '/items/moonstone')?.market).toBe(true);
     expect(none.incomePerHour).toBeCloseTo(none.outputs.reduce((sum, flow) => (
-      sum + flow.unitsPerHour * flow.unitPrice! * 0.95
+      sum + flow.unitsPerHour * flow.unitPrice! * (flow.market ? 0.95 : 1)
     ), 0));
   });
 
@@ -84,6 +95,18 @@ describe('Milkonomy-compatible alchemy', () => {
       profile, data, prices: prices(true),
     });
     expect(result.valid).toBe(false);
+    expect(result.profitPerHour).toBeNull();
+  });
+
+  it('fails closed instead of using partial rare-crate value when one leaf quote is absent', () => {
+    const result = calculateDecompose({
+      itemHrid: '/items/pirate_refinement_shard', catalystRank: 0, enhancementLevel: 0,
+      profile, data, prices: prices(false, true),
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.outputs).toEqual([]);
+    expect(result.incomePerHour).toBeNull();
     expect(result.profitPerHour).toBeNull();
   });
 });

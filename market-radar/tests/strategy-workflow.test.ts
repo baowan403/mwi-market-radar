@@ -28,12 +28,17 @@ function step(
 
 describe('balanced multi-step workflows', () => {
   it('balances stage time and removes internal intermediates', () => {
-    const result = calculateWorkflow([
+    const source = [
       step('a-to-b', '/items/a', '/items/b', 2, 10, 20),
       step('b-to-c', '/items/b', '/items/c', 3, 20, 30),
       step('c-to-d', '/items/c', '/items/d', 5, 30, 40),
       step('d-to-e', '/items/d', '/items/e', 7, 40, 50),
-    ]);
+    ];
+    source[3]!.outputs.push({
+      itemHrid: '/items/cowbell', enhancementLevel: 0,
+      unitsPerHour: 2, unitPrice: 100, market: false,
+    });
+    const result = calculateWorkflow(source);
 
     expect(result.steps.map((item) => item.workFraction)).toEqual([
       1 / 39,
@@ -50,10 +55,10 @@ describe('balanced multi-step workflows', () => {
     });
     expect(result.inputs).toHaveLength(1);
     expect(result.inputs[0]?.itemHrid).toBe('/items/a');
-    expect(result.outputs).toHaveLength(1);
-    expect(result.outputs[0]?.itemHrid).toBe('/items/e');
+    expect(result.outputs).toHaveLength(2);
+    expect(result.outputs.map((flow) => flow.itemHrid)).toEqual(['/items/e', '/items/cowbell']);
     expect(result.costPerHour).toBeCloseTo(10 / 39);
-    expect(result.incomePerHour).toBeCloseTo(7 * 50 * 0.95 * 30 / 39);
+    expect(result.incomePerHour).toBeCloseTo((7 * 50 * 0.95 + 2 * 100) * 30 / 39);
     expect(result.profitPerHour).toBeCloseTo(result.incomePerHour! - result.costPerHour!);
   });
 

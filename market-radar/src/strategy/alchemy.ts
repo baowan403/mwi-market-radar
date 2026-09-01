@@ -1,7 +1,8 @@
 import type { PlayerProfile } from '../profile/types';
 import { actionBuffs } from './buffs';
 import type { ActionBuffs } from './buffs';
-import { isDerivedOpenableLootValue, type NormalizedStrategyGameData } from './game-data';
+import type { NormalizedStrategyGameData } from './game-data';
+import { expandStrategyLiquidation } from './liquidation';
 import type { MarketPriceBook } from './price-book';
 import type { StrategyFlow, StrategyStepResult } from './types';
 
@@ -135,6 +136,15 @@ function calculate(kind: 'decompose' | 'coinify', options: AlchemyOptions & { en
   const successfulActionsPerHour = actionsPerHour * rate;
   const inputs = new Map<string, StrategyFlow>();
   const outputs = new Map<string, StrategyFlow>();
+  let liquidationComplete = true;
+  const addLiquidation = (outputHrid: string, unitsPerHour: number): void => {
+    const result = expandStrategyLiquidation({ itemHrid: outputHrid, unitsPerHour, data, prices });
+    if (!result.complete) {
+      liquidationComplete = false;
+      return;
+    }
+    for (const flow of result.flows) addFlow(outputs, flow);
+  };
   const enhancementLevel = options.enhancementLevel ?? 0;
 
   addFlow(inputs, {
@@ -165,43 +175,29 @@ function calculate(kind: 'decompose' | 'coinify', options: AlchemyOptions & { en
 
   if (kind === 'decompose') {
     for (const output of item.decomposeItems) {
-      addFlow(outputs, {
-        itemHrid: output.itemHrid, enhancementLevel: 0,
-        unitsPerHour: output.count * item.bulkMultiplier * successfulActionsPerHour,
-        unitPrice: prices.bid(output.itemHrid), market: true,
-      });
+      addLiquidation(
+        output.itemHrid,
+        output.count * item.bulkMultiplier * successfulActionsPerHour,
+      );
     }
     if (enhancementLevel > 0) {
       const count = Math.round(2 * (0.5 + 0.1 * 1.05 ** item.itemLevel) * 2 ** enhancementLevel);
-      addFlow(outputs, {
-        itemHrid: '/items/enhancing_essence', enhancementLevel: 0,
-        unitsPerHour: count * successfulActionsPerHour,
-        unitPrice: prices.bid('/items/enhancing_essence'), market: true,
-      });
+      addLiquidation('/items/enhancing_essence', count * successfulActionsPerHour);
     }
   } else {
-    addFlow(outputs, {
-      itemHrid: COIN_HRID, enhancementLevel: 0,
-      unitsPerHour: item.sellPrice * 5 * item.bulkMultiplier * successfulActionsPerHour,
-      unitPrice: 1, market: false,
-    });
+    addLiquidation(COIN_HRID, item.sellPrice * 5 * item.bulkMultiplier * successfulActionsPerHour);
   }
 
   const rare = rareDrop(item.itemLevel, action.baseTimeCost);
-  addFlow(outputs, {
-    itemHrid: rare.itemHrid, enhancementLevel: 0,
-    unitsPerHour: actionsPerHour * rare.rate * (1 + buffs.RareFind),
-    unitPrice: prices.bid(rare.itemHrid), market: !isDerivedOpenableLootValue(rare.itemHrid, data),
-  });
-  addFlow(outputs, {
-    itemHrid: '/items/alchemy_essence', enhancementLevel: 0,
-    unitsPerHour: actionsPerHour * essenceRate(item.itemLevel, action.baseTimeCost) * (1 + buffs.EssenceFind),
-    unitPrice: prices.bid('/items/alchemy_essence'), market: true,
-  });
+  addLiquidation(rare.itemHrid, actionsPerHour * rare.rate * (1 + buffs.RareFind));
+  addLiquidation(
+    '/items/alchemy_essence',
+    actionsPerHour * essenceRate(item.itemLevel, action.baseTimeCost) * (1 + buffs.EssenceFind),
+  );
 
   const inputList = [...inputs.values()];
-  const outputList = [...outputs.values()];
-  const valid = [...inputList, ...outputList].every((flow) => (
+  const outputList = liquidationComplete ? [...outputs.values()] : [];
+  const valid = liquidationComplete && [...inputList, ...outputList].every((flow) => (
     typeof flow.unitPrice === 'number' && Number.isFinite(flow.unitPrice) && flow.unitPrice >= 0
   ));
   const costPerHour = valid
@@ -209,7 +205,7 @@ function calculate(kind: 'decompose' | 'coinify', options: AlchemyOptions & { en
     : null;
   const incomePerHour = valid
     ? outputList.reduce((sum, flow) => (
-      sum + flow.unitsPerHour * flow.unitPrice! * (flow.itemHrid === COIN_HRID ? 1 : SELL_TAX_FACTOR)
+      sum + flow.unitsPerHour * flow.unitPrice! * (flow.market ? SELL_TAX_FACTOR : 1)
     ), 0)
     : null;
   const baseExp = (kind === 'decompose' ? 1.4 : 1) * (10 + item.itemLevel);

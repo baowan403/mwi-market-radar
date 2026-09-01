@@ -94,4 +94,15 @@ describe('one-step manufacture parity', () => {
     expect(result.productUnitsPerHour['/items/essence']).toBeCloseTo(0.15);
     expect(result.productUnitsPerHour['/items/rare']).toBeCloseTo(0.02);
   });
+
+  it('does not tax a derived output whose price already represents net leaf liquidation', () => {
+    const result = calculateManufacture({
+      ...coinOutputInput,
+      products: [],
+      rareDrops: [{ itemHrid: '/items/crate', count: 1, price: 100, taxable: false }],
+    });
+
+    expect(result.incomePerHour).toBe(100);
+    expect(result.profitPerHour).toBe(100);
+  });
 });
