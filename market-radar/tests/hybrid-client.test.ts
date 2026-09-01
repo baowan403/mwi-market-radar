@@ -262,4 +262,25 @@ describe('hybrid dashboard client', () => {
       warningCode: null,
     });
   });
+
+  it('attaches a late local client and merges it on the next generation refresh', async () => {
+    const cloud = cloudClient([snapshot(100, 100)]);
+    const local = localClient([snapshot(100, 999), snapshot(200, 200)]);
+    const client = createHybridClient({ cloud, preferences: new MemoryPreferencesStore() });
+
+    await expect(client.bootstrap()).resolves.toMatchObject({
+      source: 'cloud',
+      latestTimestamp: 100,
+    });
+
+    client.setLocalClient(local);
+    const refreshed = await client.refresh();
+
+    expect(refreshed.source).toBe('cloud+local');
+    expect(refreshed.latestTimestamp).toBe(200);
+    await expect(client.listSnapshots()).resolves.toEqual([
+      snapshot(100, 100),
+      snapshot(200, 200),
+    ]);
+  });
 });

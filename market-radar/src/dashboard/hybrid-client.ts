@@ -45,6 +45,7 @@ export interface HybridRefreshOptions {
 export interface HybridClient extends DashboardClient {
   bootstrap(): Promise<HybridBootstrap>;
   refresh(options?: HybridRefreshOptions): Promise<HybridBootstrap>;
+  setLocalClient(client: DashboardClient | undefined): void;
   getSourceInfo(): HybridSourceInfo;
   destroy(): void;
 }
@@ -147,6 +148,7 @@ function statusFromSource(
 }
 
 export function createHybridClient(options: HybridClientOptions): HybridClient {
+  let localClient = options.local;
   let state: HybridState | null = null;
   let activeOperation: HybridOperation | null = null;
   let generation = 0;
@@ -253,15 +255,16 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
     operation.settled = false;
     operation.cancelled = false;
     const cloudRequest: CloudRequestOptions = { signal: controller.signal };
+    const currentLocalClient = localClient;
     const cloudPromise = safeCall(() => force
       ? options.cloud.refresh(cloudRequest)
       : options.cloud.load(cloudRequest));
-    const localListPromise = options.local === undefined
+    const localListPromise = currentLocalClient === undefined
       ? Promise.reject(new Error('local unavailable'))
-      : safeCall(() => options.local!.listSnapshots());
-    const localBootstrapPromise = options.local === undefined
+      : safeCall(() => currentLocalClient.listSnapshots());
+    const localBootstrapPromise = currentLocalClient === undefined
       ? Promise.reject(new Error('local unavailable'))
-      : safeCall(() => options.local!.bootstrap());
+      : safeCall(() => currentLocalClient.bootstrap());
     const pending = Promise.allSettled([
       cloudPromise,
       localListPromise,
@@ -365,6 +368,9 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
       const nextState = await loadData(true, requestOptions.signal);
       const nextPreferences = await loadPreferences();
       return buildBootstrap(nextState, nextPreferences);
+    },
+    setLocalClient: (client) => {
+      localClient = client;
     },
     getSourceInfo: () => ({
       ...(state?.sourceInfo ?? {

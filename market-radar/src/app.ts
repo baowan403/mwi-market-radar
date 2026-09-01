@@ -1,6 +1,7 @@
 import './styles.css';
 import { OFFICIAL_CATEGORIES, shortCategory } from './core/categories';
 import type {
+  BridgeBootstrap,
   CatalogData,
   CollectorStatus,
   Period,
@@ -31,9 +32,25 @@ import {
 import {
   buildHealthModel,
   POLL_FAILURE_MESSAGE,
+  renderDataSource,
   renderCollectorStatus,
   renderBridgeUnavailable,
+  type DashboardDataSourceInfo,
 } from './dashboard/status';
+import {
+  createCloudClient,
+} from './dashboard/cloud-client';
+import {
+  createHybridClient,
+  type HybridClient,
+  type HybridCloudClient,
+  type HybridBootstrap,
+} from './dashboard/hybrid-client';
+import {
+  createPreferencesStore,
+  MemoryPreferencesStore,
+  type PreferencesStore,
+} from './dashboard/preferences-store';
 import { renderMarketTable, ITEM_SELECTED_EVENT } from './dashboard/table';
 import {
   createItemDetailController,
@@ -58,6 +75,10 @@ const dashboardMarkup = `
       <div id="collector-status" class="collector-status" data-testid="collector-status" role="status" aria-live="polite">
         <span class="status-dot" aria-hidden="true"></span>
         <span class="status-summary">讀取採集狀態</span>
+      </div>
+      <div id="data-source" class="data-source" data-source="unavailable" aria-label="行情資料來源">
+        <span class="data-source-label" data-source-label="true">資料不可用</span>
+        <span class="data-source-detail" data-source-detail="true">等待可用資料來源</span>
       </div>
     </header>
 
@@ -114,6 +135,7 @@ interface DashboardState {
   maximumSpreadPct: number | null;
   officialCategories: Set<string>;
   statusError: string | null;
+  sourceInfo: DashboardDataSourceInfo | null;
 }
 
 const mountGenerations = new WeakMap<HTMLElement, number>();
@@ -124,6 +146,11 @@ export interface DashboardMountOptions {
   bridgeTarget?: BridgeDomTarget | null;
   waitForBridgeReady?: (target: BridgeDomTarget, options?: BridgeReadyWaitOptions) => Promise<boolean>;
   bridgeReadyTimeoutMs?: number;
+  cloudClient?: HybridCloudClient;
+  preferencesStore?: PreferencesStore;
+  createCloudClient?: (baseDataUrl: string | URL) => HybridCloudClient;
+  createPreferencesStore?: () => PreferencesStore;
+  createLocalClient?: (target: BridgeDomTarget) => DashboardClient;
   catalogLoader?: () => CatalogInput | Promise<CatalogInput>;
   chartFactory?: ItemChartFactory;
   pollMs?: number;
@@ -257,6 +284,7 @@ function renderToolbar(
   onMaximumSpread: (value: number | null) => void,
   onCategories: (categories: Set<string>) => void,
   onResetSort: () => void,
+  onRefresh?: () => void,
 ): void {
   target.replaceChildren();
 
@@ -375,6 +403,16 @@ function renderToolbar(
   reset.textContent = '排序重置';
   reset.addEventListener('click', onResetSort);
   target.append(reset);
+
+  if (onRefresh !== undefined) {
+    const refresh = createElement('button', 'toolbar-button cloud-refresh-button');
+    refresh.type = 'button';
+    refresh.dataset.cloudRefresh = 'true';
+    refresh.setAttribute('aria-busy', 'false');
+    refresh.textContent = '立即重新整理';
+    refresh.addEventListener('click', onRefresh);
+    target.append(refresh);
+  }
 }
 
 function renderDashboard(
@@ -382,18 +420,21 @@ function renderDashboard(
   client: DashboardClient,
   state: DashboardState,
   isActive: () => boolean,
+  provider?: HybridClient,
+  lifecycleSignal?: AbortSignal,
   chartFactory?: ItemChartFactory,
   now: () => number = () => Date.now(),
   pollMs = 60_000,
   setIntervalFn: (callback: () => void, delayMs: number) => unknown = (callback, delayMs) => globalThis.setInterval(callback, delayMs),
   clearIntervalFn: (handle: unknown) => void = (handle) => globalThis.clearInterval(handle as ReturnType<typeof setInterval>),
-): { detailController: ItemDetailController; destroy(): void } | null {
+): { detailController: ItemDetailController; refreshProvider(): Promise<void>; destroy(): void } | null {
   const nav = root.querySelector<HTMLElement>('#category-nav');
   const toolbar = root.querySelector<HTMLElement>('#toolbar');
   const content = root.querySelector<HTMLElement>('#content');
   const status = root.querySelector<HTMLElement>('#collector-status');
+  const source = root.querySelector<HTMLElement>('#data-source');
   const detailDialog = root.querySelector<HTMLDialogElement>('#item-detail');
-  if (!nav || !toolbar || !content || !status || !detailDialog) return null;
+  if (!nav || !toolbar || !content || !status || !source || !detailDialog) return null;
 
   let derivedCache: ReturnType<typeof deriveRows> | null = null;
   let mutationQueue: Promise<void> | null = null;
@@ -409,6 +450,8 @@ function renderDashboard(
   let pollInFlight = false;
   let pollTimer: unknown;
   let pollTimerActive = false;
+  let providerRefreshInFlight: Promise<void> | null = null;
+  let manualRefreshBusy = false;
 
   const invalidateDerived = (): void => {
     derivedCache = null;
@@ -449,6 +492,7 @@ function renderDashboard(
 
   const renderStatus = (): void => {
     if (!isActive()) return;
+    renderDataSource(source, state.sourceInfo);
     renderCollectorStatus(
       status,
       state.collectorStatus,
@@ -502,6 +546,71 @@ function renderDashboard(
         },
       },
     });
+  };
+
+  const updateRefreshButton = (): void => {
+    const refresh = toolbar.querySelector<HTMLButtonElement>('[data-cloud-refresh]');
+    if (!refresh) return;
+    refresh.disabled = manualRefreshBusy;
+    refresh.setAttribute('aria-busy', String(manualRefreshBusy));
+  };
+
+  const previousLatestTimestamp = (): number | null => state.snapshots.reduce<number | null>(
+    (latest, snapshot) => Number.isFinite(snapshot.timestamp)
+      && (latest === null || snapshot.timestamp > latest)
+      ? snapshot.timestamp
+      : latest,
+    null,
+  );
+
+  const refreshProviderData = (): Promise<void> => {
+    if (providerRefreshInFlight !== null) return providerRefreshInFlight;
+    if (provider === undefined) return Promise.resolve();
+
+    const pending = (async (): Promise<void> => {
+      await provider.refresh({
+        signal: lifecycleSignal,
+      });
+      const nextBootstrap: HybridBootstrap = await provider.bootstrap();
+      const nextSnapshots = await client.listSnapshots();
+      if (!isActive()) return;
+
+      const metadataChanged = nextBootstrap.latestTimestamp !== previousLatestTimestamp()
+        || nextBootstrap.snapshotCount !== state.snapshots.length;
+      state.collectorStatus = nextBootstrap.collectorStatus;
+      state.sourceInfo = nextBootstrap.sourceInfo;
+      state.statusError = null;
+      if (metadataChanged) {
+        state.snapshots = nextSnapshots;
+        state.pageIndex = 0;
+        invalidateDerived();
+        renderResultsOnly();
+      }
+      renderStatus();
+    })();
+    providerRefreshInFlight = pending;
+    void pending.then(() => {
+      if (providerRefreshInFlight === pending) providerRefreshInFlight = null;
+    }, () => {
+      if (providerRefreshInFlight === pending) providerRefreshInFlight = null;
+    });
+    return pending;
+  };
+
+  const onManualRefresh = (): void => {
+    if (provider === undefined || manualRefreshBusy || providerRefreshInFlight !== null) return;
+    manualRefreshBusy = true;
+    updateRefreshButton();
+    void refreshProviderData()
+      .catch(() => {
+        if (!isActive()) return;
+        state.statusError = POLL_FAILURE_MESSAGE;
+        renderStatus();
+      })
+      .finally(() => {
+        manualRefreshBusy = false;
+        updateRefreshButton();
+      });
   };
 
   const updatePeriodButtons = (): void => {
@@ -608,26 +717,23 @@ function renderDashboard(
     if (!isActive() || pollInFlight) return;
     pollInFlight = true;
     try {
-      const nextBootstrap = await client.bootstrap();
-      if (!isActive()) return;
-
-      const previousLatest = state.snapshots.reduce<number | null>(
-        (latest, snapshot) => Number.isFinite(snapshot.timestamp)
-          && (latest === null || snapshot.timestamp > latest)
-          ? snapshot.timestamp
-          : latest,
-        null,
-      );
-      state.collectorStatus = nextBootstrap.collectorStatus;
-      const metadataChanged = nextBootstrap.latestTimestamp !== previousLatest
-        || nextBootstrap.snapshotCount !== state.snapshots.length;
-
-      if (metadataChanged) {
-        const nextSnapshots = await client.listSnapshots();
+      if (provider !== undefined) {
+        await refreshProviderData();
+      } else {
+        const nextBootstrap = await client.bootstrap();
         if (!isActive()) return;
-        state.snapshots = nextSnapshots;
-        invalidateDerived();
-        renderResultsOnly();
+
+        const metadataChanged = nextBootstrap.latestTimestamp !== previousLatestTimestamp()
+          || nextBootstrap.snapshotCount !== state.snapshots.length;
+        state.collectorStatus = nextBootstrap.collectorStatus;
+
+        if (metadataChanged) {
+          const nextSnapshots = await client.listSnapshots();
+          if (!isActive()) return;
+          state.snapshots = nextSnapshots;
+          invalidateDerived();
+          renderResultsOnly();
+        }
       }
       state.statusError = null;
       renderStatus();
@@ -716,6 +822,7 @@ function renderDashboard(
       state.pageIndex = 0;
       renderResultsOnly();
     },
+    provider === undefined ? undefined : onManualRefresh,
   );
   renderStatus();
   renderResultsOnly();
@@ -726,6 +833,7 @@ function renderDashboard(
   pollTimerActive = true;
   return {
     detailController,
+    refreshProvider: refreshProviderData,
     destroy(): void {
       root.removeEventListener(ITEM_SELECTED_EVENT, onItemSelected);
       if (pollTimerActive) {
@@ -767,26 +875,59 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
   const target = options.bridgeTarget
     ?? (typeof document === 'undefined' ? null : document.documentElement);
   const catalogLoader = options.catalogLoader ?? defaultCatalogLoader;
-  let runtime: { detailController: ItemDetailController; destroy(): void } | null = null;
-  let waitController: AbortController | null = null;
+  const lifecycleController = typeof AbortController === 'undefined' ? null : new AbortController();
+  let runtime: {
+    detailController: ItemDetailController;
+    refreshProvider(): Promise<void>;
+    destroy(): void;
+  } | null = null;
+  let provider: HybridClient | null = null;
+  let preferences: PreferencesStore | null = null;
+  let localAttached = false;
+
+  const waitForLocalBridge = (): Promise<boolean> => {
+    if (target === null) return Promise.resolve(false);
+    return (options.waitForBridgeReady ?? defaultWaitForBridgeReady)(target, {
+      timeoutMs: options.bridgeReadyTimeoutMs,
+      signal: lifecycleController?.signal,
+    });
+  };
+
+  const attachLocalClient = (): void => {
+    if (provider === null || target === null || localAttached) return;
+    const local = (options.createLocalClient ?? createDashboardClient)(target);
+    provider.setLocalClient(local);
+    localAttached = true;
+  };
 
   try {
-    if (options.client === undefined) {
-      if (target === null) throw new Error('Missing bridge target');
-      waitController = typeof AbortController === 'undefined' ? null : new AbortController();
-      const ready = await (options.waitForBridgeReady ?? defaultWaitForBridgeReady)(target, {
-        timeoutMs: options.bridgeReadyTimeoutMs,
-        signal: waitController?.signal,
-      });
-      if (!ready) throw new Error('Bridge did not become ready');
+    let client: DashboardClient;
+    let bootstrap: BridgeBootstrap;
+    let snapshots: Snapshot[];
+    const catalogPromise = Promise.resolve().then(catalogLoader);
+
+    if (options.client !== undefined) {
+      client = options.client;
+      [bootstrap, snapshots] = await Promise.all([client.bootstrap(), client.listSnapshots()]);
+    } else {
+      preferences = options.preferencesStore
+        ?? options.createPreferencesStore?.()
+        ?? (typeof indexedDB === 'undefined' ? new MemoryPreferencesStore() : createPreferencesStore());
+      const cloud = options.cloudClient
+        ?? (options.createCloudClient ?? createCloudClient)(new URL('./data/', document.baseURI));
+      provider = createHybridClient({ cloud, preferences });
+
+      try {
+        [bootstrap, snapshots] = await Promise.all([provider.bootstrap(), provider.listSnapshots()]);
+      } catch {
+        const ready = await waitForLocalBridge();
+        if (!ready) throw new Error('No cloud or local market data');
+        attachLocalClient();
+        [bootstrap, snapshots] = await Promise.all([provider.bootstrap(), provider.listSnapshots()]);
+      }
+      client = provider;
     }
-    const client = options.client ?? (target === null ? null : createDashboardClient(target));
-    if (client === null) throw new Error('Missing bridge target');
-    const [bootstrap, snapshots, catalogInput] = await Promise.all([
-      client.bootstrap(),
-      client.listSnapshots(),
-      catalogLoader(),
-    ]);
+    const catalogInput = await catalogPromise;
     if (!isActive()) return { destroy: () => undefined };
 
     const settings = { ...bootstrap.settings };
@@ -807,18 +948,33 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       maximumSpreadPct: settings.maximumSpreadPct,
       officialCategories: new Set(),
       statusError: null,
+      sourceInfo: provider === null ? null : bootstrap.sourceInfo ?? null,
     };
     runtime = renderDashboard(
       root,
       client,
       state,
       isActive,
+      provider ?? undefined,
+      lifecycleController?.signal,
       options.chartFactory,
       options.now,
       options.pollMs,
       options.setInterval,
       options.clearInterval,
     );
+
+    if (provider !== null && !localAttached && target !== null) {
+      void waitForLocalBridge().then(async (ready) => {
+        if (!ready || !isActive() || provider === null || runtime === null) return;
+        try {
+          attachLocalClient();
+          await runtime.refreshProvider();
+        } catch {
+          // Keep the cloud rows and source label when the optional local bridge fails.
+        }
+      }).catch(() => undefined);
+    }
   } catch {
     if (isActive()) {
       renderBridgeUnavailable(status);
@@ -829,11 +985,13 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
   return {
     destroy(): void {
       destroyed = true;
-      waitController?.abort();
+      lifecycleController?.abort();
       if (mountGenerations.get(root) === mountGeneration) {
         mountGenerations.set(root, mountGeneration + 1);
       }
       runtime?.destroy();
+      provider?.destroy();
+      preferences?.close?.();
     },
   };
 }

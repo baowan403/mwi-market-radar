@@ -13,6 +13,22 @@ export const NO_SNAPSHOTS_MESSAGE = '尚無市場快照，請保持 MWI 分頁�
 export const STALE_COLLECTION_MESSAGE = '等待遊戲分頁／資料已停止更新';
 export const POLL_FAILURE_MESSAGE = '市場資料更新失敗，保留舊資料';
 
+export type DashboardDataSource = 'cloud' | 'cloud+local' | 'local-fallback' | 'unavailable';
+
+export interface DashboardDataSourceInfo {
+  source: Exclude<DashboardDataSource, 'unavailable'>;
+  latestTimestamp: number | null;
+  generatedAt: string | null;
+  stale: boolean;
+}
+
+export const DATA_SOURCE_LABELS: Record<DashboardDataSource, string> = {
+  cloud: '雲端共同行情',
+  'cloud+local': '雲端＋本機備援',
+  'local-fallback': '本機備援',
+  unavailable: '資料不可用',
+};
+
 export const MAX_DATE_MS = 8_640_000_000_000_000;
 
 const GAP_THRESHOLD_HOURS = 1.75;
@@ -235,4 +251,39 @@ export function renderBridgeUnavailable(target: HTMLElement, message = NO_BRIDGE
   summary.dataset.statusError = 'true';
   summary.textContent = message === NO_BRIDGE_MESSAGE ? message : NO_BRIDGE_MESSAGE;
   target.append(summary);
+}
+
+/** Render a fixed source label and safe cloud/local freshness metadata. */
+export function renderDataSource(
+  target: HTMLElement,
+  sourceInfo: DashboardDataSourceInfo | null,
+): void {
+  const source = sourceInfo?.source ?? 'unavailable';
+  target.replaceChildren();
+  target.dataset.source = source;
+
+  const label = document.createElement('span');
+  label.className = 'data-source-label';
+  label.dataset.sourceLabel = 'true';
+  label.textContent = DATA_SOURCE_LABELS[source];
+  target.append(label);
+
+  const detail = document.createElement('span');
+  detail.className = 'data-source-detail';
+  detail.dataset.sourceDetail = 'true';
+  if (sourceInfo === null) {
+    detail.textContent = '等待可用資料來源';
+  } else {
+    const parts: string[] = [];
+    if (sourceInfo.latestTimestamp !== null) {
+      parts.push(`最新 ${formatTaipeiTime(sourceInfo.latestTimestamp)}`);
+    }
+    if (sourceInfo.generatedAt !== null) {
+      const generatedAt = Date.parse(sourceInfo.generatedAt);
+      if (isDateRepresentable(generatedAt)) parts.push(`產生 ${formatTaipeiTime(generatedAt)}`);
+    }
+    if (sourceInfo.stale) parts.push('雲端資料已超過 2.5 小時');
+    detail.textContent = parts.join('；') || '尚無來源時間';
+  }
+  target.append(detail);
 }

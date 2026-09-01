@@ -102,6 +102,31 @@ h2 {
   white-space: nowrap;
 }
 
+.data-source {
+  display: grid;
+  gap: 3px;
+  min-width: 180px;
+  padding: 8px 11px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: rgb(11 16 24 / 45%);
+}
+
+.data-source-label {
+  color: var(--color-text);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.data-source-detail {
+  color: var(--color-muted);
+  font-size: 0.68rem;
+}
+
+.cloud-refresh-button[aria-busy='true'] {
+  cursor: wait;
+}
+
 .status-dot {
   width: 8px;
   height: 8px;
