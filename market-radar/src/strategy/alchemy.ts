@@ -1,5 +1,6 @@
 import type { PlayerProfile } from '../profile/types';
 import { actionBuffs } from './buffs';
+import type { ActionBuffs } from './buffs';
 import type { NormalizedStrategyGameData } from './game-data';
 import type { MarketPriceBook } from './price-book';
 import type { StrategyFlow, StrategyStepResult } from './types';
@@ -23,6 +24,7 @@ interface AlchemyOptions {
   profile: PlayerProfile;
   data: NormalizedStrategyGameData;
   prices: MarketPriceBook;
+  buffs?: ActionBuffs;
 }
 
 interface AlchemyItem {
@@ -124,7 +126,7 @@ function calculate(kind: 'decompose' | 'coinify', options: AlchemyOptions & { en
   const actionHrid = `/actions/alchemy/${kind === 'decompose' ? 'decompose' : 'coinify'}`;
   const action = data.actionsByHrid.get(actionHrid);
   if (!action) throw new Error('煉金策略無法使用');
-  const buffs = actionBuffs(profile, 'alchemy', data);
+  const buffs = options.buffs ?? actionBuffs(profile, 'alchemy', data);
   const rate = successRate(kind === 'decompose' ? 0.6 : 0.7, buffs.Level, item.itemLevel, buffs.Success, rank);
   const efficiency = 1 + Math.max(0, (buffs.Level - item.itemLevel) * 0.01) + buffs.Efficiency;
   const speed = 1 + buffs.Speed;

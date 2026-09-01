@@ -119,8 +119,7 @@ export function calculateWorkflow(sourceSteps: readonly StrategyStepResult[]): W
     steps.flatMap((step) => step.inputs),
     steps.flatMap((step) => step.outputs),
   );
-  const valid = sourceSteps.every((step) => step.valid)
-    && [...net.inputs, ...net.outputs].every((flow) => (
+  const valid = [...net.inputs, ...net.outputs].every((flow) => (
       typeof flow.unitPrice === 'number' && Number.isFinite(flow.unitPrice) && flow.unitPrice >= 0
     ));
   const costPerHour = valid

@@ -1,5 +1,5 @@
 import type { PlayerProfile, SkillingAction } from '../profile/types';
-import { actionBuffs } from './buffs';
+import { actionBuffs, type ActionBuffs } from './buffs';
 import type { NormalizedStrategyGameData } from './game-data';
 import { calculateManufacture, type PricedCount } from './manufacture';
 import type { MarketPriceBook } from './price-book';
@@ -61,6 +61,7 @@ export function calculateManufactureAction(options: {
   profile: PlayerProfile;
   data: NormalizedStrategyGameData;
   prices: MarketPriceBook;
+  buffs?: ActionBuffs;
 }): StrategyStepResult {
   const { actionHrid, profile, data, prices } = options;
   const action = actionFromHrid(actionHrid);
@@ -68,7 +69,8 @@ export function calculateManufactureAction(options: {
   if (!detail || !Array.isArray(detail.outputItems) || detail.outputItems.length === 0) {
     throw new StrategyRecipeError();
   }
-  const buffs = actionBuffs(profile, action, data);
+  const buffs = options.buffs ?? actionBuffs(profile, action, data);
+  if (buffs.Level < detail.levelRequirement.level) throw new StrategyRecipeError();
   const ingredients: PricedCount[] = [];
   if (typeof detail.upgradeItemHrid === 'string' && detail.upgradeItemHrid.startsWith('/items/')) {
     ingredients.push({
