@@ -79,7 +79,7 @@ describe('userscript startup diagnostics', () => {
 
     expect(target.documentElement.dataset).toEqual({
       mwiRadarScript: 'loaded',
-      mwiRadarVersion: '0.1.3',
+      mwiRadarVersion: '0.1.4',
       mwiRadarTransport: 'dom-event',
       mwiRadarRoute: 'mwi',
       mwiRadarState: 'started',
@@ -104,7 +104,7 @@ describe('userscript startup diagnostics', () => {
 
     expect(target.documentElement.dataset).toEqual({
       mwiRadarScript: 'loaded',
-      mwiRadarVersion: '0.1.3',
+      mwiRadarVersion: '0.1.4',
       mwiRadarTransport: 'dom-event',
       mwiRadarRoute: 'dashboard',
       mwiRadarState: 'started',
@@ -125,7 +125,7 @@ describe('userscript startup diagnostics', () => {
 
     expect(target.documentElement.dataset).toEqual({
       mwiRadarScript: 'loaded',
-      mwiRadarVersion: '0.1.3',
+      mwiRadarVersion: '0.1.4',
       mwiRadarTransport: 'dom-event',
       mwiRadarRoute: 'mwi',
       mwiRadarState: 'error',

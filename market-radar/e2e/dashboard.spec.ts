@@ -16,11 +16,11 @@ async function expectNoBrowserErrors(page: Page): Promise<void> {
   expect(errorsByPage.get(page) ?? []).toEqual([]);
 }
 
-async function loadFixture(page: Page): Promise<void> {
+async function loadFixture(page: Page, path = '/'): Promise<void> {
   installErrorGuard(page);
   await page.route('**/favicon.ico', (route) => route.fulfill({ status: 204, body: '' }));
   await page.addInitScript({ content: bridgeFixtureSource });
-  await page.goto('/');
+  await page.goto(path);
   await expect(page.locator('[data-market-table], .table-empty')).toBeVisible();
 }
 
@@ -147,4 +147,16 @@ test('missing bridge shows installation guidance and zero fake rows', async ({ p
   await expect(page.locator('#collector-status')).toContainText('尚未偵測到 MWI Market Radar 腳本', { timeout: 5_000 });
   await expect(page.locator('[data-market-row]')).toHaveCount(0);
   await expect(page.locator('#content')).toContainText('尚無可顯示的行情');
+});
+
+test('paginates a large market table without mounting every row', async ({ page }) => {
+  await loadFixture(page, '/?e2e-many');
+
+  await expect(page.locator('[data-market-row]')).toHaveCount(100);
+  await expect(page.locator('[data-pagination-page]').first()).toHaveText('第 1 / 4 頁・共 304 筆');
+  await expect(page.locator('[data-pagination-next]').first()).toBeEnabled();
+
+  await page.locator('[data-pagination-next]').first().click();
+  await expect(page.locator('[data-market-row]')).toHaveCount(100);
+  await expect(page.locator('[data-pagination-page]').first()).toHaveText('第 2 / 4 頁・共 304 筆');
 });

@@ -112,6 +112,28 @@ function rowByKey(root: HTMLElement, key: string): HTMLElement {
   return row;
 }
 
+function createManyRowFixture(count = 305): {
+  snapshots: Snapshot[];
+  bootstrap: BridgeBootstrap;
+} {
+  const quotes = Object.fromEntries(
+    Array.from({ length: count }, (_, index) => {
+      const key = `/items/page_${String(index).padStart(3, '0')}::0`;
+      return [key, { a: index + 2, b: index, p: index + 1, v: index + 1 }];
+    }),
+  ) as Snapshot['quotes'];
+  const pagedSnapshots: Snapshot[] = [{ timestamp: LATEST_TIMESTAMP, quotes }];
+  return {
+    snapshots: pagedSnapshots,
+    bootstrap: {
+      ...bootstrap,
+      watchlist: [],
+      latestTimestamp: LATEST_TIMESTAMP,
+      snapshotCount: pagedSnapshots.length,
+    },
+  };
+}
+
 async function flushAsyncWork(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
@@ -745,5 +767,89 @@ describe('mountDashboard', () => {
 
     expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
     expect(root.innerHTML).toBe(beforeDestroy);
+  });
+
+  it('renders 305 rows as three full pages and one final partial page', async () => {
+    const root = createRoot();
+    const fixture = createManyRowFixture();
+    await mountDashboard({
+      root,
+      client: createClient({
+        bootstrap: vi.fn().mockResolvedValue(fixture.bootstrap),
+        listSnapshots: vi.fn().mockResolvedValue(fixture.snapshots),
+      }),
+      catalogLoader: vi.fn().mockResolvedValue(catalog),
+    });
+
+    const pageLabel = (): string => root.querySelector<HTMLElement>('[data-pagination-page]')?.textContent ?? '';
+    const previous = (): HTMLButtonElement => root.querySelector<HTMLButtonElement>('[data-pagination-previous]') as HTMLButtonElement;
+    const next = (): HTMLButtonElement => root.querySelector<HTMLButtonElement>('[data-pagination-next]') as HTMLButtonElement;
+
+    expect(rows(root)).toHaveLength(100);
+    expect(pageLabel()).toBe('第 1 / 4 頁・共 305 筆');
+    expect(previous().disabled).toBe(true);
+    expect(next().disabled).toBe(false);
+
+    next().click();
+    expect(rows(root)).toHaveLength(100);
+    expect(pageLabel()).toBe('第 2 / 4 頁・共 305 筆');
+    expect(previous().disabled).toBe(false);
+
+    next().click();
+    expect(rows(root)).toHaveLength(100);
+    expect(pageLabel()).toBe('第 3 / 4 頁・共 305 筆');
+
+    next().click();
+    expect(rows(root)).toHaveLength(5);
+    expect(pageLabel()).toBe('第 4 / 4 頁・共 305 筆');
+    expect(next().disabled).toBe(true);
+  });
+
+  it('sorts and filters the full row set before slicing and resets to page one', async () => {
+    const root = createRoot();
+    const fixture = createManyRowFixture();
+    await mountDashboard({
+      root,
+      client: createClient({
+        bootstrap: vi.fn().mockResolvedValue(fixture.bootstrap),
+        listSnapshots: vi.fn().mockResolvedValue(fixture.snapshots),
+      }),
+      catalogLoader: vi.fn().mockResolvedValue(catalog),
+    });
+
+    root.querySelector<HTMLButtonElement>('[data-pagination-next]')?.click();
+    const pageLabel = (): string => root.querySelector<HTMLElement>('[data-pagination-page]')?.textContent ?? '';
+    expect(pageLabel()).toContain('第 2 / 4 頁');
+
+    root.querySelector<HTMLButtonElement>('[data-sort-field="price"]')?.click();
+    expect(pageLabel()).toContain('第 1 / 4 頁');
+    expect(rows(root)[0]?.dataset.marketKey).toBe('/items/page_304::0');
+
+    const search = root.querySelector<HTMLInputElement>('input[data-filter="search"]') as HTMLInputElement;
+    search.value = 'page_29';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(rows(root).length).toBeGreaterThan(0);
+    expect(rows(root).every((row) => row.dataset.marketKey?.includes('page_29'))).toBe(true);
+    expect(root.querySelector<HTMLElement>('[data-pagination-page]')?.textContent).toMatch(/^第 1 \/ 1 頁・共 \d+ 筆$/);
+  });
+
+  it('does not render pagination controls for an empty result', async () => {
+    const root = createRoot();
+    const fixture = createManyRowFixture();
+    await mountDashboard({
+      root,
+      client: createClient({
+        bootstrap: vi.fn().mockResolvedValue(fixture.bootstrap),
+        listSnapshots: vi.fn().mockResolvedValue(fixture.snapshots),
+      }),
+      catalogLoader: vi.fn().mockResolvedValue(catalog),
+    });
+
+    const search = root.querySelector<HTMLInputElement>('input[data-filter="search"]') as HTMLInputElement;
+    search.value = 'not-found';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(root.querySelector('.table-empty')?.textContent).toBe('目前篩選沒有符合項目');
+    expect(root.querySelector('[data-pagination]')).toBeNull();
   });
 });

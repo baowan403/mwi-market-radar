@@ -82,6 +82,8 @@ const PRIMARY_VIEWS: Array<{ key: PrimaryView; label: string }> = [
   { key: 'other', label: '其他' },
 ];
 
+export const PAGE_SIZE = 100;
+
 const OFFICIAL_CATEGORY_LABELS: Record<string, string> = {
   currency: '貨幣',
   loot: '戰利品',
@@ -105,6 +107,7 @@ interface DashboardState {
   view: PrimaryView;
   mode: RankingMode;
   sortState: SortState | null;
+  pageIndex: number;
   query: string;
   enhancementLevels: Set<number> | null;
   minimumVolume: number | null;
@@ -456,7 +459,12 @@ function renderDashboard(
 
   const renderResultsOnly = (): void => {
     if (!isActive()) return;
-    const visibleRows = currentRows().visible;
+    const allVisibleRows = currentRows().visible;
+    const totalRows = allVisibleRows.length;
+    const totalPages = totalRows === 0 ? 0 : Math.ceil(totalRows / PAGE_SIZE);
+    const pageIndex = totalPages === 0 ? 0 : Math.min(state.pageIndex, totalPages - 1);
+    state.pageIndex = Math.max(0, pageIndex);
+    const visibleRows = allVisibleRows.slice(state.pageIndex * PAGE_SIZE, (state.pageIndex + 1) * PAGE_SIZE);
     renderMarketTable(content, {
       rows: visibleRows,
       catalog: state.catalog,
@@ -466,6 +474,7 @@ function renderDashboard(
       onSort: (field) => {
         if (!isActive()) return;
         state.sortState = cycleSort(state.sortState, field);
+        state.pageIndex = 0;
         renderResultsOnly();
       },
       onTogglePin: (key) => {
@@ -480,6 +489,17 @@ function renderDashboard(
           const destination = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
           return moveWatchItem(watchlist, currentIndex, destination);
         }).catch(() => undefined);
+      },
+      pagination: totalRows === 0 ? undefined : {
+        pageIndex: state.pageIndex,
+        pageSize: PAGE_SIZE,
+        totalRows,
+        onPageChange: (nextPageIndex) => {
+          if (!isActive()) return;
+          const nextTotalPages = Math.ceil(totalRows / PAGE_SIZE);
+          state.pageIndex = Math.max(0, Math.min(nextTotalPages - 1, nextPageIndex));
+          renderResultsOnly();
+        },
       },
     });
   };
@@ -499,6 +519,7 @@ function renderDashboard(
     renderPrimaryNavigation(nav, state, (view) => {
       if (!isActive()) return;
       state.view = view;
+      state.pageIndex = 0;
       renderNavigationOnly();
       renderResultsOnly();
     });
@@ -646,6 +667,7 @@ function renderDashboard(
       if (!isActive()) return;
       state.mode = mode;
       state.sortState = null;
+      state.pageIndex = 0;
       updateModeButtons();
       renderResultsOnly();
     },
@@ -653,6 +675,7 @@ function renderDashboard(
       if (!isActive()) return;
       state.period = period;
       state.settings = { ...state.settings, period };
+      state.pageIndex = 0;
       invalidateDerived();
       updatePeriodButtons();
       renderResultsOnly();
@@ -660,31 +683,37 @@ function renderDashboard(
     (query) => {
       if (!isActive()) return;
       state.query = query;
+      state.pageIndex = 0;
       renderResultsOnly();
     },
     (levels) => {
       if (!isActive()) return;
       state.enhancementLevels = levels;
+      state.pageIndex = 0;
       renderResultsOnly();
     },
     (value) => {
       if (!isActive()) return;
       state.minimumVolume = value;
+      state.pageIndex = 0;
       renderResultsOnly();
     },
     (value) => {
       if (!isActive()) return;
       state.maximumSpreadPct = value;
+      state.pageIndex = 0;
       renderResultsOnly();
     },
     (categories) => {
       if (!isActive()) return;
       state.officialCategories = categories;
+      state.pageIndex = 0;
       renderResultsOnly();
     },
     () => {
       if (!isActive()) return;
       state.sortState = null;
+      state.pageIndex = 0;
       renderResultsOnly();
     },
   );
@@ -771,6 +800,7 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       view: 'all',
       mode: 'market',
       sortState: null,
+      pageIndex: 0,
       query: '',
       enhancementLevels: null,
       minimumVolume: settings.minimumVolume > 0 ? settings.minimumVolume : null,

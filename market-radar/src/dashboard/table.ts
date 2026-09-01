@@ -14,6 +14,14 @@ export interface MarketTableOptions {
   onSort(field: SortField): void;
   onTogglePin(key: DerivedMarketRow['key']): void;
   onMoveWatchItem?(key: DerivedMarketRow['key'], direction: 'up' | 'down'): void;
+  pagination?: MarketTablePagination;
+}
+
+export interface MarketTablePagination {
+  pageIndex: number;
+  pageSize: number;
+  totalRows: number;
+  onPageChange(pageIndex: number): void;
 }
 
 interface ColumnDefinition {
@@ -191,6 +199,60 @@ function appendNameCell(row: HTMLTableRowElement, marketRow: DerivedMarketRow): 
   row.append(cell);
 }
 
+function renderPaginationNav(
+  pagination: MarketTablePagination,
+  position: 'top' | 'bottom',
+): HTMLElement {
+  const pageSize = Number.isSafeInteger(pagination.pageSize) && pagination.pageSize > 0
+    ? pagination.pageSize
+    : 100;
+  const totalRows = Number.isSafeInteger(pagination.totalRows) && pagination.totalRows > 0
+    ? pagination.totalRows
+    : 0;
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  const pageIndex = Math.max(0, Math.min(
+    totalPages - 1,
+    Number.isSafeInteger(pagination.pageIndex) ? pagination.pageIndex : 0,
+  ));
+
+  const nav = document.createElement('nav');
+  nav.className = `pagination pagination-${position}`;
+  nav.dataset.pagination = 'true';
+  nav.dataset.paginationPosition = position;
+  nav.setAttribute('aria-label', '市場資料分頁');
+
+  const previous = document.createElement('button');
+  previous.type = 'button';
+  previous.className = 'toolbar-button pagination-button';
+  previous.dataset.paginationPrevious = 'true';
+  previous.setAttribute('aria-label', '上一頁');
+  previous.textContent = '上一頁';
+  previous.disabled = pageIndex === 0;
+  previous.addEventListener('click', () => pagination.onPageChange(pageIndex - 1));
+  nav.append(previous);
+
+  const status = document.createElement('span');
+  status.className = 'pagination-status';
+  status.dataset.paginationPage = 'true';
+  status.dataset.paginationCurrent = String(pageIndex + 1);
+  status.dataset.paginationPages = String(totalPages);
+  status.dataset.paginationTotal = String(totalRows);
+  status.textContent = `第 ${pageIndex + 1} / ${totalPages} 頁・共 ${totalRows} 筆`;
+  nav.append(status);
+
+  const next = document.createElement('button');
+  next.type = 'button';
+  next.className = 'toolbar-button pagination-button';
+  next.dataset.paginationNext = 'true';
+  next.setAttribute('aria-label', '下一頁');
+  next.textContent = '下一頁';
+  next.disabled = pageIndex >= totalPages - 1;
+  next.addEventListener('click', () => pagination.onPageChange(pageIndex + 1));
+  nav.append(next);
+
+  return nav;
+}
+
 export function renderMarketTable(target: HTMLElement, options: MarketTableOptions): void {
   target.replaceChildren();
   target.classList.add('table-scroll');
@@ -249,5 +311,7 @@ export function renderMarketTable(target: HTMLElement, options: MarketTableOptio
     body.append(row);
   }
   table.append(body);
+  if (options.pagination !== undefined) target.append(renderPaginationNav(options.pagination, 'top'));
   target.append(table);
+  if (options.pagination !== undefined) target.append(renderPaginationNav(options.pagination, 'bottom'));
 }

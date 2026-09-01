@@ -35,6 +35,15 @@ export const bridgeFixtureSource = String.raw`
     } },
   ];
 
+  if (new URL(window.location.href).searchParams.has('e2e-many')) {
+    const latest = snapshots[snapshots.length - 1];
+    if (latest !== undefined) {
+      for (let level = 1; level <= 300; level += 1) {
+        latest.quotes['/items/coin::' + level] = quote(200 + level, 10 + level);
+      }
+    }
+  }
+
   const defaultWatchlist = [];
   let watchlist = defaultWatchlist;
   try {
