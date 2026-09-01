@@ -371,7 +371,7 @@ describe('cloud client', () => {
     expect((error as Error).message).not.toContain('secret');
   });
 
-  it('reuses an identical manifest cache on non-force loads but rechecks the daily pack on force refresh', async () => {
+  it('refreshes an identical manifest and provenance without rechecking the daily pack', async () => {
     const data = await manifestAndFiles([snapshot(LATEST)]);
     const fetcher = vi.fn(async (input: string | URL) => {
       const url = String(input);
@@ -385,10 +385,10 @@ describe('cloud client', () => {
     await client.listSnapshots();
     await client.refresh({ force: true });
 
-    expect(fetcher).toHaveBeenCalledTimes(7);
+    expect(fetcher).toHaveBeenCalledTimes(6);
     expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/manifest.json'))).toHaveLength(2);
     expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith(`/${HISTORY_PROVENANCE_FILE}`))).toHaveLength(2);
-    expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/daily-history.txt'))).toHaveLength(2);
+    expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/daily-history.txt'))).toHaveLength(1);
     expect(fetcher.mock.calls.filter(([input]) => String(input).includes('/snapshots/'))).toHaveLength(1);
   });
 
@@ -503,7 +503,7 @@ describe('cloud client', () => {
       hourly,
     ]);
     daily = await encodeDailyHistoryPack(createDailyHistoryPack([repairedDaily], GENERATED_AT));
-    await expect(client.refresh()).resolves.toMatchObject({
+    await expect(client.refresh({ refreshDaily: true })).resolves.toMatchObject({
       snapshots: [
         { timestamp: repairedDaily.timestamp, quotes: { [KEY]: { p: 80 } } },
         hourly,
@@ -531,7 +531,7 @@ describe('cloud client', () => {
 
     await client.listSnapshots();
     daily = 'mwi-radar:gzip-json:v1:not-valid';
-    await expect(client.refresh()).rejects.toMatchObject({ code: 'cloud_data_invalid' });
+    await expect(client.refresh({ refreshDaily: true })).rejects.toMatchObject({ code: 'cloud_data_invalid' });
     await expect(client.load()).resolves.toMatchObject({
       snapshots: [
         { timestamp: savedDaily.timestamp, quotes: { [KEY]: { p: 70 } } },
@@ -567,7 +567,7 @@ describe('cloud client', () => {
     await client.load();
     calls.length = 0;
     delayForcedManifest = true;
-    const refresh = client.refresh();
+    const refresh = client.refresh({ refreshDaily: true });
     await Promise.resolve();
     expect(calls).toEqual(['https://example.test/cloud/manifest.json']);
     releaseManifest();

@@ -352,9 +352,11 @@ async function publishDailyHistory(
   await publishEncodedDailyHistory(dataDir, encoded, fileSystem);
 }
 
-function hasEveryUtcHour(values: readonly Snapshot[]): boolean {
-  const hours = new Set(values.map((value) => new Date(value.timestamp).getUTCHours()));
-  return hours.size === 24;
+function isRetentionClippedDate(date: string, latestTimestamp: number | null): boolean {
+  if (latestTimestamp === null) return false;
+  const cutoff = latestTimestamp - CLOUD_RETENTION_MS;
+  const cutoffDate = new Date(cutoff).toISOString().slice(0, 10);
+  return date === cutoffDate && cutoff > Date.parse(`${cutoffDate}T00:00:00.000Z`);
 }
 
 async function rebuildCurrentDailyHistory(
@@ -368,7 +370,9 @@ async function rebuildCurrentDailyHistory(
   const existingDates = new Set(current.summaries.map((summary) => summary.date));
   const entries = manifest.snapshots.filter((entry) => {
     const entryDate = new Date(entry.timestamp).toISOString().slice(0, 10);
-    return entryDate < date && !existingDates.has(entryDate);
+    return entryDate < date
+      && !existingDates.has(entryDate)
+      && !isRetentionClippedDate(entryDate, manifest.latestTimestamp);
   });
   if (entries.length === 0) return;
   const byDate = new Map<string, Snapshot[]>();
@@ -388,7 +392,6 @@ async function rebuildCurrentDailyHistory(
   if (byDate.size === 0) return;
   let next = current;
   for (const values of byDate.values()) {
-    if (!hasEveryUtcHour(values)) continue;
     next = upsertDailySummary(next, aggregateDailySummary(values), manifest.generatedAt);
   }
   if (isDeepStrictEqual(next.summaries, current.summaries)) return;
@@ -432,7 +435,8 @@ async function prepareCompletedDailyHistory(
     manifest.generatedAt,
   );
   for (const values of byDate.values()) {
-    if (!hasEveryUtcHour(values)) continue;
+    const date = new Date(values[0]!.timestamp).toISOString().slice(0, 10);
+    if (isRetentionClippedDate(date, manifest.latestTimestamp)) continue;
     next = upsertDailySummary(next, aggregateDailySummary(values), manifest.generatedAt);
   }
   if (isDeepStrictEqual(next.summaries, current.pack.summaries)) return null;

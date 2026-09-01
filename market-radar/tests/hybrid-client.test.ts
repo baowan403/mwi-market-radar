@@ -198,9 +198,13 @@ describe('hybrid dashboard client', () => {
     const client = createHybridClient({ cloud, local, preferences });
 
     await client.bootstrap();
-    await client.refresh();
+    await client.refresh({ refreshDaily: true });
     await expect(client.listSnapshots()).resolves.toEqual([snapshot(100, 100)]);
     expect(cloud.refresh).toHaveBeenCalledTimes(1);
+    expect(cloud.refresh).toHaveBeenCalledWith(expect.objectContaining({
+      refreshDaily: true,
+      signal: expect.any(AbortSignal),
+    }));
     expect(local.bootstrap).toHaveBeenCalledTimes(2);
     expect(local.listSnapshots).toHaveBeenCalledTimes(2);
     await expect(client.bootstrap()).resolves.toMatchObject({ watchlist: [{ key: '/items/pinned::0', order: 0 }] });

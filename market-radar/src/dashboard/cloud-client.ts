@@ -70,6 +70,7 @@ export interface CloudMarketData {
 export interface CloudRequestOptions {
   signal?: AbortSignal;
   force?: boolean;
+  refreshDaily?: boolean;
 }
 
 export interface CloudTimerApi {
@@ -549,9 +550,9 @@ export function createCloudClient(
     });
   }
 
-  function loadShared(force: boolean): Promise<CloudMarketData> {
+  function loadShared(force: boolean, refreshDaily: boolean): Promise<CloudMarketData> {
     if (activeOperation !== null) return activeOperation.promise;
-    if (!force && cache !== null) return Promise.resolve(cachedData());
+    if (!force && !refreshDaily && cache !== null) return Promise.resolve(cachedData());
     const controller = new AbortController();
     const operation = {} as CloudOperation;
     operation.controller = controller;
@@ -578,7 +579,7 @@ export function createCloudClient(
       const hourly = await downloadEntries(manifest.snapshots, controller.signal, cache);
       const dailyDate = manifest.generatedAt.slice(0, 10);
       let dailyPack = cache?.dailyDate === dailyDate ? cache.dailyPack : null;
-      if (force || signatureChanged || cache?.dailyDate !== dailyDate) {
+      if (refreshDaily || signatureChanged || cache?.dailyDate !== dailyDate) {
         const dailyText = await requestText(
           resolveDailyHistoryUrl(base), controller.signal, 'daily', CLOUD_MAX_DAILY_HISTORY_BYTES,
         );
@@ -635,8 +636,9 @@ export function createCloudClient(
   async function load(optionsForRequest: CloudRequestOptions = {}): Promise<CloudMarketData> {
     if (optionsForRequest.signal?.aborted) throw cancelled();
     const force = optionsForRequest.force === true;
-    if (!force && activeOperation === null && cache !== null) return cachedData();
-    const operationPromise = loadShared(force);
+    const refreshDaily = optionsForRequest.refreshDaily === true;
+    if (!force && !refreshDaily && activeOperation === null && cache !== null) return cachedData();
+    const operationPromise = loadShared(force, refreshDaily);
     const operation = activeOperation;
     if (operation === null) return operationPromise;
     return attachSubscriber(operation, optionsForRequest.signal);

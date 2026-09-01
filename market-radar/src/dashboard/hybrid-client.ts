@@ -42,6 +42,7 @@ export interface HybridClientOptions {
 
 export interface HybridRefreshOptions {
   signal?: AbortSignal;
+  refreshDaily?: boolean;
 }
 
 export interface HybridClient extends DashboardClient {
@@ -261,7 +262,7 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
     });
   };
 
-  const loadData = (force: boolean, signal?: AbortSignal): Promise<HybridState> => {
+  const loadData = (force: boolean, signal?: AbortSignal, refreshDaily = false): Promise<HybridState> => {
     if (destroyed) return Promise.reject(new HybridMarketError('no_data'));
     if (signal?.aborted) return Promise.reject(new HybridMarketError('cancelled'));
     if (!force) {
@@ -277,7 +278,7 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
     operation.consumers = 0;
     operation.settled = false;
     operation.cancelled = false;
-    const cloudRequest: CloudRequestOptions = { signal: controller.signal };
+    const cloudRequest: CloudRequestOptions = { signal: controller.signal, refreshDaily };
     const currentLocalClient = localClient;
     const cloudPromise = safeCall(() => force
       ? options.cloud.refresh(cloudRequest)
@@ -404,7 +405,7 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
       preferences = nextPreferences;
     },
     refresh: async (requestOptions = {}) => {
-      const nextState = await loadData(true, requestOptions.signal);
+      const nextState = await loadData(true, requestOptions.signal, requestOptions.refreshDaily);
       const nextPreferences = await loadPreferences();
       return buildBootstrap(nextState, nextPreferences);
     },

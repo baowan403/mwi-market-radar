@@ -628,13 +628,14 @@ function renderDashboard(
     null,
   );
 
-  const refreshProviderData = (): Promise<void> => {
+  const refreshProviderData = (refreshDaily = false): Promise<void> => {
     if (providerRefreshInFlight !== null) return providerRefreshInFlight;
     if (provider === undefined) return Promise.resolve();
 
     const pending = (async (): Promise<void> => {
       await provider.refresh({
         signal: lifecycleSignal,
+        refreshDaily,
       });
       const nextBootstrap: HybridBootstrap = await provider.bootstrap();
       const nextSnapshots = await client.listSnapshots();
@@ -648,7 +649,7 @@ function renderDashboard(
         ? PREFERENCES_WARNING_MESSAGE
         : null;
       state.statusError = null;
-      if (metadataChanged) {
+      if (refreshDaily || metadataChanged) {
         state.snapshots = nextSnapshots;
         state.pageIndex = 0;
         invalidateDerived();
@@ -669,7 +670,7 @@ function renderDashboard(
     if (provider === undefined || manualRefreshBusy || providerRefreshInFlight !== null) return;
     manualRefreshBusy = true;
     updateRefreshButton();
-    void refreshProviderData()
+    void refreshProviderData(true)
       .catch(() => {
         if (!isActive()) return;
         state.statusError = POLL_FAILURE_MESSAGE;

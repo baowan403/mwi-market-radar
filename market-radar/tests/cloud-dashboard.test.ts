@@ -250,6 +250,10 @@ describe('cloud dashboard provider', () => {
     refresh?.click();
     refresh?.click();
     expect(cloud.refresh).toHaveBeenCalledTimes(1);
+    expect(cloud.refresh).toHaveBeenCalledWith(expect.objectContaining({
+      refreshDaily: true,
+      signal: expect.any(AbortSignal),
+    }));
     expect(refresh?.disabled).toBe(true);
     expect(refresh?.getAttribute('aria-busy')).toBe('true');
 
@@ -305,12 +309,43 @@ describe('cloud dashboard provider', () => {
     const table = root.querySelector('table');
     poll();
     await flushAsyncWork();
+    expect(cloud.refresh).toHaveBeenLastCalledWith(expect.objectContaining({
+      refreshDaily: false,
+      signal: expect.any(AbortSignal),
+    }));
     expect(root.querySelector('table')).toBe(table);
 
     current = [snapshot(2_000, 20)];
     poll();
     await flushAsyncWork();
     expect(root.querySelector('[data-market-row="/items/alpha::0"]')?.textContent).toContain('20');
+    handle.destroy();
+  });
+
+  it('replaces unchanged-metadata snapshots after a manual daily repair and rerenders the 7D trend', async () => {
+    const root = createRoot();
+    const latest = Date.parse('2026-09-01T12:00:00.000Z');
+    const oldSnapshots = [snapshot(latest - 7 * 24 * 60 * 60 * 1_000, 50), snapshot(latest, 100)];
+    const repairedSnapshots = [snapshot(latest - 7 * 24 * 60 * 60 * 1_000, 80), snapshot(latest, 100)];
+    const cloud = cloudClient(oldSnapshots, {
+      refresh: vi.fn().mockResolvedValue(cloudData(repairedSnapshots)),
+    });
+    const handle = await mountDashboard({
+      root,
+      bridgeTarget: document.createElement('div'),
+      cloudClient: cloud,
+      preferencesStore: new MemoryPreferencesStore(),
+      catalogLoader: vi.fn().mockResolvedValue(CATALOG),
+      waitForBridgeReady: vi.fn(() => new Promise<boolean>(() => undefined)),
+    });
+    const trend = (): string | null => root.querySelector<HTMLElement>('[data-change-period="7d"]')?.textContent ?? null;
+    expect(trend()).toBe('▲ 100%');
+
+    root.querySelector<HTMLButtonElement>('[data-cloud-refresh]')?.click();
+    await flushAsyncWork();
+
+    expect(trend()).toBe('▲ 25%');
+    expect(cloud.refresh).toHaveBeenCalledWith(expect.objectContaining({ refreshDaily: true }));
     handle.destroy();
   });
 
