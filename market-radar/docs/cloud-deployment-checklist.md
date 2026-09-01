@@ -38,7 +38,7 @@
 - [ ] Asia/Taipei 執行時間：
 - [ ] imported UTC range／snapshot count：
 - [ ] 最小 keys per snapshot：
-- [ ] latest official overlap comparisons／mismatch：`____`／`0`
+- [ ] latest official overlap comparisons／mismatch：`____`／`____`
 - [ ] `history-provenance.json` validation：
 - [ ] `market-data` commit SHA：
 - [ ] workflow run URL：
