@@ -1,4 +1,5 @@
 import { CATEGORY_GROUPS } from '../core/categories';
+import { catalogItemName, catalogSearchText } from '../core/catalog';
 import { priceBasis, spreadPct, type PriceQuality } from '../core/price';
 import {
   calculateChange,
@@ -96,6 +97,8 @@ export function normalizeCatalog(input: CatalogInput): NormalizedCatalog {
     categoriesByHrid.set(raw.hrid, {
       hrid: raw.hrid,
       name: raw.name,
+      ...(typeof raw.nameZhHant === 'string' ? { nameZhHant: raw.nameZhHant } : {}),
+      ...(typeof raw.nameEn === 'string' ? { nameEn: raw.nameEn } : {}),
       sortIndex: finiteSortIndex(raw.sortIndex, index),
     });
   }
@@ -107,6 +110,8 @@ export function normalizeCatalog(input: CatalogInput): NormalizedCatalog {
     itemsByHrid.set(raw.hrid, {
       hrid: raw.hrid,
       name: raw.name,
+      ...(typeof raw.nameZhHant === 'string' || raw.nameZhHant === null ? { nameZhHant: raw.nameZhHant } : {}),
+      ...(typeof raw.nameEn === 'string' ? { nameEn: raw.nameEn } : {}),
       categoryHrid: typeof raw.categoryHrid === 'string' ? raw.categoryHrid : UNKNOWN_CATEGORY_HRID,
       sortIndex: finiteSortIndex(raw.sortIndex, index),
     });
@@ -252,7 +257,10 @@ export function deriveRows(
     const marketKey = key as MarketKey;
     const rowWithoutFlags: MarketRow = {
       key,
-      name: catalogItem?.name ?? fallbackItemName(parsedKey.itemHrid),
+      name: catalogItem === undefined ? fallbackItemName(parsedKey.itemHrid) : catalogItemName(catalogItem),
+      searchText: catalogItem === undefined
+        ? `${fallbackItemName(parsedKey.itemHrid)} ${parsedKey.itemHrid}`.toLocaleLowerCase('zh-Hant')
+        : catalogSearchText(catalogItem),
       categoryHrid: catalogItem?.categoryHrid ?? UNKNOWN_CATEGORY_HRID,
       enhancementLevel: parsedKey.enhancementLevel,
       price: basis.value,

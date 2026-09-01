@@ -20,6 +20,19 @@ const officialCategoryHrids = [
 
 const itemMapFileName = 'itemDetailMap.json';
 const categoryMapFileName = 'itemCategoryDetailMap.json';
+const translations = readJson(path.join(projectDirectory, 'scripts', 'vendor', 'milkonomy', 'zh-tw.json'));
+const categoryZhHant = {
+  '/item_categories/currency': '貨幣',
+  '/item_categories/loot': '戰利品',
+  '/item_categories/scroll': '卷軸',
+  '/item_categories/labyrinth': '迷宮',
+  '/item_categories/dungeon_key': '地下城鑰匙',
+  '/item_categories/food': '食物',
+  '/item_categories/drink': '飲料',
+  '/item_categories/ability_book': '技能書',
+  '/item_categories/equipment': '裝備',
+  '/item_categories/resource': '資源',
+};
 
 function ancestorDirectories(startDirectory) {
   const directories = [];
@@ -105,7 +118,13 @@ function buildCatalog(dataDirectory) {
     if (typeof category.name !== 'string' || !Number.isFinite(category.sortIndex)) {
       throw new Error(`Official category has invalid fields in ${categoryMapFileName}: ${hrid}`);
     }
-    return { hrid, name: category.name, sortIndex: category.sortIndex };
+    return {
+      hrid,
+      name: categoryZhHant[hrid],
+      nameZhHant: categoryZhHant[hrid],
+      nameEn: category.name,
+      sortIndex: category.sortIndex,
+    };
   }).sort((left, right) => left.sortIndex - right.sortIndex || compareText(left.hrid, right.hrid));
 
   const officialCategories = new Set(officialCategoryHrids);
@@ -125,9 +144,12 @@ function buildCatalog(dataDirectory) {
     ) {
       throw new Error(`Official item has invalid fields in ${itemMapFileName}: ${String(item.hrid)}`);
     }
+    const nameZhHant = typeof translations[item.name] === 'string' ? translations[item.name] : null;
     items.push({
       hrid: item.hrid,
-      name: item.name,
+      name: nameZhHant || item.name,
+      nameZhHant,
+      nameEn: item.name,
       categoryHrid: item.categoryHrid,
       sortIndex: item.sortIndex,
     });

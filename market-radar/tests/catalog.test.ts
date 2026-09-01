@@ -30,6 +30,14 @@ describe('MWI item catalog', () => {
     expect(new Set(itemHrids).size).toBe(itemHrids.length);
   });
 
+  it('provides Chinese-first bilingual names without changing HRID identity', () => {
+    const translated = catalog.items.filter((item) => item.nameZhHant);
+
+    expect(translated.length).toBeGreaterThan(100);
+    expect(catalog.items.every((item) => typeof item.nameEn === 'string' && item.nameEn.length > 0)).toBe(true);
+    expect(catalog.categories.every((category) => typeof category.nameZhHant === 'string')).toBe(true);
+  });
+
   it('sorts categories by sortIndex and items by category, sortIndex, then hrid', () => {
     const sortedCategories = [...catalog.categories].sort(
       (left, right) => left.sortIndex - right.sortIndex,

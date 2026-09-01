@@ -98,6 +98,8 @@ export type BridgeResponse<T = unknown> = BridgeSuccessResponse<T> | BridgeError
 export interface CatalogItem {
   hrid: string;
   name: string;
+  nameZhHant?: string | null;
+  nameEn?: string;
   categoryHrid: string;
   sortIndex: number;
 }
@@ -105,6 +107,8 @@ export interface CatalogItem {
 export interface CatalogCategory {
   hrid: string;
   name: string;
+  nameZhHant?: string;
+  nameEn?: string;
   sortIndex: number;
 }
 

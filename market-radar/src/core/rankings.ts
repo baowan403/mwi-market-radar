@@ -5,6 +5,7 @@ import type { PriceQuality } from './price';
 export interface MarketRow {
   key: string;
   name: string;
+  searchText?: string;
   categoryHrid: string;
   enhancementLevel: number;
   price: number | null;
@@ -214,7 +215,8 @@ export function filterRows(rows: readonly MarketRow[], filters: RowFilters = {})
   const hasMaximumSpread = typeof maximumSpreadPct === 'number' && Number.isFinite(maximumSpreadPct);
 
   return rows.filter((row) => {
-    if (query && !`${row.name} ${row.key}`.toLowerCase().includes(query)) return false;
+    const searchText = row.searchText ?? `${row.name} ${row.key}`.toLowerCase();
+    if (query && !searchText.includes(query)) return false;
     if (hasCategories && !matchesCategory(row, filters.categories!)) return false;
     if (hasEnhancements && !filters.enhancementLevels!.has(row.enhancementLevel)) return false;
 

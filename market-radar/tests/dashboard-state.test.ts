@@ -24,12 +24,12 @@ const HOUR = 3_600_000;
 
 const catalog: CatalogData = {
   categories: [
-    { hrid: '/item_categories/equipment', name: 'Equipment', sortIndex: 2 },
-    { hrid: '/item_categories/food', name: 'Food', sortIndex: 1 },
+    { hrid: '/item_categories/equipment', name: '裝備', nameZhHant: '裝備', nameEn: 'Equipment', sortIndex: 2 },
+    { hrid: '/item_categories/food', name: '食物', nameZhHant: '食物', nameEn: 'Food', sortIndex: 1 },
   ],
   items: [
-    { hrid: '/items/gloves', name: '時空手套', categoryHrid: '/item_categories/equipment', sortIndex: 2 },
-    { hrid: '/items/apple', name: '紅蘋果', categoryHrid: '/item_categories/food', sortIndex: 1 },
+    { hrid: '/items/gloves', name: '時空手套', nameZhHant: '時空手套', nameEn: 'Chrono Gloves', categoryHrid: '/item_categories/equipment', sortIndex: 2 },
+    { hrid: '/items/apple', name: '紅蘋果', nameZhHant: '紅蘋果', nameEn: 'Apple', categoryHrid: '/item_categories/food', sortIndex: 1 },
   ],
 };
 
@@ -59,7 +59,11 @@ describe('dashboard state', () => {
     const normalized = normalizeCatalog(catalog);
 
     expect(normalized.itemsByHrid.get('/items/gloves')).toEqual(catalog.items[0]);
-    expect(normalized.categoriesByHrid.get('/item_categories/food')?.name).toBe('Food');
+    expect(normalized.categoriesByHrid.get('/item_categories/food')).toMatchObject({
+      name: '食物',
+      nameZhHant: '食物',
+      nameEn: 'Food',
+    });
     expect(normalized.items).toEqual(catalog.items);
   });
 
@@ -227,6 +231,7 @@ describe('dashboard filters and pins', () => {
     expect(filterViewRows(rows, { view: 'resource' })).toEqual([]);
     expect(filterViewRows(rows, { view: 'consumable' }).map((row) => row.key)).toEqual(['/items/apple::0']);
     expect(filterViewRows(rows, { view: 'equipment', query: '手套' }).map((row) => row.key)).toEqual(['/items/gloves::7']);
+    expect(filterViewRows(rows, { view: 'equipment', query: 'Chrono' }).map((row) => row.key)).toEqual(['/items/gloves::7']);
     expect(filterViewRows(rows, {
       categories: new Set(['/item_categories/food']),
       minimumVolume: 10,
