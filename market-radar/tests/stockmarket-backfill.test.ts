@@ -28,6 +28,7 @@ describe('stockmarket backfill aggregation', () => {
       '/items/zeta::1': { a: 10, b: 9, p: 9.5, v: 2 },
       '/items/zeta::2': { a: 10, b: 9, p: 9.5, v: 2 },
     } }]);
+    expect(Object.keys(result[0]!.quotes)).toEqual(['/items/alpha::0', '/items/zeta::1', '/items/zeta::2']);
   });
 
   it('keeps the inclusive seven-day boundary and preserves millisecond timestamps', () => {
@@ -55,6 +56,7 @@ describe('stockmarket backfill aggregation', () => {
     expect(buildBackfillSnapshots(new Map([['a', [duplicate, { ...duplicate }]]]), latest, { minimumHours: 1, minimumQuotes: 1 })).toHaveLength(1);
     expect(() => buildBackfillSnapshots(new Map([['a', [duplicate, { ...duplicate, a: 11 }]]]), latest, { minimumHours: 1, minimumQuotes: 1 })).toThrow(/duplicate|conflict/i);
     expect(() => buildBackfillSnapshots(new Map([['wrong', [row('a', 0, latest)]]]), latest, { minimumHours: 1, minimumQuotes: 1 })).toThrow(/item/i);
+    expect(() => buildBackfillSnapshots(new Map([['a', [row('a', 0, latest, { a: Number.NaN })]]]), latest, { minimumHours: 1, minimumQuotes: 1 })).toThrow(/quote/i);
   });
 
   it('is deterministic regardless of map and row order', () => {
@@ -68,7 +70,7 @@ describe('official overlap validation', () => {
   it('lets exact overlap succeed, counts fields, and makes official snapshot authoritative', () => {
     const imported = snapshot(latest, { a: 10, b: 9, p: 1, v: 2 });
     const official = snapshot(latest, { a: 10, b: 9, p: 99, v: 88 });
-    const result = validateOfficialOverlap([snapshot(latest - HOUR), imported], [official]);
+    const result = validateOfficialOverlap([imported, snapshot(latest - HOUR)], [official]);
     expect(result.comparisons).toBe(2);
     expect(result.snapshots).toEqual([snapshot(latest - HOUR), official]);
     expect(result.snapshots[1]).not.toBe(official);
@@ -84,8 +86,11 @@ describe('official overlap validation', () => {
     const imported = [snapshot(latest - HOUR), snapshot(latest)];
     const official = [snapshot(latest), snapshot(latest)];
     expect(() => validateOfficialOverlap(imported, official)).toThrow(/duplicate.*timestamp/i);
-    const before = JSON.stringify(imported);
-    validateOfficialOverlap(imported, [snapshot(latest)]);
-    expect(JSON.stringify(imported)).toBe(before);
+    const officialInput = [snapshot(latest)];
+    const importedBefore = JSON.stringify(imported);
+    const officialBefore = JSON.stringify(officialInput);
+    validateOfficialOverlap(imported, officialInput);
+    expect(JSON.stringify(imported)).toBe(importedBefore);
+    expect(JSON.stringify(officialInput)).toBe(officialBefore);
   });
 });

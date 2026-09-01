@@ -3,6 +3,7 @@ import type { StockmarketHistoryPoint } from './stockmarket-schema';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1_000;
 const SAFE_ITEM_NAME = /^[a-z0-9_]+$/;
+const compareStrings = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0;
 
 export interface BackfillGates {
   minimumHours: number;
@@ -44,19 +45,25 @@ export function buildBackfillSnapshots(
   const cutoff = latestOfficialTimestamp - SEVEN_DAYS_MS;
   const byTimestamp = new Map<number, Map<MarketKey, Quote>>();
 
-  for (const [mapItem, rows] of [...rowsByItem.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+  for (const [mapItem, rows] of [...rowsByItem.entries()].sort(([a], [b]) => compareStrings(a, b))) {
     if (!SAFE_ITEM_NAME.test(mapItem)) fail('item name is invalid');
-    for (const row of rows) {
+    const copiedRows = [...rows].sort((left, right) => left.timestamp - right.timestamp
+      || left.level - right.level
+      || compareStrings(JSON.stringify(left), JSON.stringify(right)));
+    for (const row of copiedRows) {
       if (row.itemName !== mapItem || !SAFE_ITEM_NAME.test(row.itemName)) fail('item name mismatch');
       if (!validTimestamp(row.timestamp)) fail('row timestamp is invalid');
       if (!Number.isSafeInteger(row.level) || row.level < 0) fail('row level is invalid');
+      for (const value of [row.a, row.b, row.p, row.v]) {
+        if (value !== null && (typeof value !== 'number' || !Number.isFinite(value) || value < 0)) fail('quote value is invalid');
+      }
       if (row.timestamp > latestOfficialTimestamp) fail('history contains future data');
       if (row.timestamp < cutoff) continue;
       const key = `/items/${mapItem}::${row.level}` as MarketKey;
       const quotes = byTimestamp.get(row.timestamp) ?? new Map<MarketKey, Quote>();
       const incoming = cloneQuote(row);
       const existing = quotes.get(key);
-      if (existing && JSON.stringify(existing) !== JSON.stringify(incoming)) fail('duplicate row conflict');
+      if (existing && (existing.a !== incoming.a || existing.b !== incoming.b || existing.p !== incoming.p || existing.v !== incoming.v)) fail('duplicate row conflict');
       if (!existing) quotes.set(key, incoming);
       byTimestamp.set(row.timestamp, quotes);
     }
@@ -65,7 +72,7 @@ export function buildBackfillSnapshots(
   const snapshots = [...byTimestamp.entries()].sort(([a], [b]) => a - b).map(([timestamp, quoteMap]) => {
     if (quoteMap.size < gates.minimumQuotes) fail(`requires at least ${gates.minimumQuotes} quotes per snapshot`);
     const quotes: Record<MarketKey, Quote> = {};
-    for (const [key, quote] of [...quoteMap.entries()].sort(([a], [b]) => a.localeCompare(b))) quotes[key] = cloneQuote(quote);
+    for (const [key, quote] of [...quoteMap.entries()].sort(([a], [b]) => compareStrings(a, b))) quotes[key] = cloneQuote(quote);
     return { timestamp, quotes };
   });
   if (snapshots.length < gates.minimumHours) fail(`requires at least ${gates.minimumHours} hours`);
@@ -74,6 +81,7 @@ export function buildBackfillSnapshots(
 
 export interface OfficialOverlapResult {
   snapshots: Snapshot[];
+  /** Counts each individual ask or bid field where timestamp+key overlap and both values are non-null. */
   comparisons: number;
 }
 
