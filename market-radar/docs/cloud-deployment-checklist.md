@@ -33,19 +33,19 @@
 
 ## 一次性授權七日回填的實際證據（Task 8 執行後填寫）
 
-> 此區所有欄位必須在唯一一次 `backfill_stockmarket_7d=true` 的 successful manual run 後填入；現在不要填入或推測數值。先以預設 `false` push/deploy，再手動執行一次；queued/running 時不可重複觸發，並必須驗證下一個 scheduled run 是 official-only。
+> 此區只記錄已觀測的 production 證據。Run #25 在入口列上限、Run #27 在真實歷史密度 gate 安全失敗，兩次都未發布 data/provenance；依實測修正後，Run #29 是唯一成功寫入的 authorized backfill。queued/running 時沒有重複觸發。
 
-> 公開歷史 compatibility probe（不是 production 回填證據）：872 item names、169 eligible timestamps、每小時 key 數 min 398／median 508／max 3101／latest 3085；因此歷史快照 gate 是 350 keys，而最新官方 overlap 仍需至少 1000 個 ask/bid comparisons。下列 actual run 欄位保持空白直到成功 manual run。
+> 公開歷史 compatibility probe（不是 production 回填證據）：872 item names、169 eligible timestamps、每小時 key 數 min 398／median 508／max 3101／latest 3085；因此歷史快照 gate 是 350 keys，而最新官方 overlap 仍需至少 1000 個 ask/bid comparisons。
 
-- [ ] Asia/Taipei 執行時間：
-- [ ] imported UTC range／snapshot count：
-- [ ] required historical keys／observed minimum keys：`350`／`____`
-- [ ] latest official overlap comparisons／mismatch：`____`／`____`
-- [ ] `history-provenance.json` validation：
-- [ ] `market-data` commit SHA：
-- [ ] workflow run URL：
-- [ ] 公開頁 1D／3D／7D 與 source label：
-- [ ] 下一個 scheduled official-only run 的 URL／證明：
+- [x] Asia/Taipei 執行時間：2026-09-02 06:01:38（fetch/provenance）；Run #29 06:01 開始、5m00s success。
+- [x] imported UTC range／snapshot count：`2026-08-25T22:06:00.000Z` → `2026-09-01T21:06:00.000Z`／168；逐時連續、non-hourly gaps 0。
+- [x] required historical keys／observed minimum keys：`350`／`399`（median 510／max 3101／latest 3083）。
+- [x] latest official overlap comparisons／mismatch：`27937`／`0`。
+- [x] `history-provenance.json` validation：HTTP 200，strict schema v1；source `stockmarket-xin`／permission `owner-confirmed`／live source `mwi-official`。
+- [x] `market-data` commit SHA：`7c601dfc132b204cfffb35ece02a5d6e48b78bef`。
+- [x] workflow run URL：`https://github.com/baowan403/mwi-market-radar/actions/runs/33564151428`（Run #29；build/deploy success；rollback skipped）。
+- [x] 公開頁 1D／3D／7D 與 source label：紅杉木板 `▼ 1.14%`／`▼ 1.32%`／`▼ 2.56%`；`歷史回填：牛牛股市；最新行情：MWI 官方`；168 snapshots；無觀測缺口。
+- [x] 下一個 scheduled official-only run 的 URL／證明：`https://github.com/baowan403/mwi-market-radar/actions/runs/33570289157`（Run #31；`on: schedule`；官方採集 2s；牛牛回填步驟 0s／未執行；build/deploy success）。公開 manifest 推進至 `2026-09-02 07:06:00`，provenance `fetchedAt/range/count/overlap` 完全不變。
 
 ## Deploy failure 與 data rollback
 
@@ -83,8 +83,8 @@ Fresh `npm run build`（TypeScript check、dashboard build、userscript build）
 
 | 相對路徑 | bytes | SHA-256 |
 | --- | ---: | --- |
-| `dist/index.html` | 484 | `FC90A899BDE7F011330FE13881FD8026CA3AA4D08CF920FAB2269987AC519A5A` |
-| `dist/assets/index-DMILNqTp.js` | 349345 | `A4CCB2B1B355E088A58EF0EE6B061BBEB453B4DAAFBCB438A43AC89DD9D098A2` |
+| `dist/index.html` | 484 | `B68509AA1D094E081AEC96BF11B903D3E7E8CF4FC4CFE7984F9B1400698E982E` |
+| `dist/assets/index--QrfMmo3.js` | 351856 | `A4238F6B164491B989AC680C139EB8E1FD0D41DFE48E67E589769364282867B6` |
 | `dist/assets/index-N-TwkADt.css` | 22566 | `3782B9CCF5739000B6E64F065681AD4D585CD6D7B7FA256CC6C3216A58D1E645` |
 | `dist/mwi-market-radar.user.js` | 59684 | `FF2651E685691A8636079D7922A5B37A090DFE0762699EDDCF8C8D201E0605AB` |
 | `public/catalog.json` | 222753 | `847354A0C867A09E53C3ED9898470897ECDA926600F9B351900368F4E25D3BF0` |
@@ -96,6 +96,8 @@ Fresh `npm run build`（TypeScript check、dashboard build、userscript build）
 | 2026-09-01 14:37 | local public fixture，無 MWI／無網路 | `1787645160000`（`2026-08-25T08:06:00.000Z`） | `2026-09-01T06:37:26.560Z` | 1；`snapshots/1787645160000.txt`；235 bytes | manifest `96C91D591EAE8AB5ED881A199759607FE282F7B0518EB429DD2DE304BAAA3521`；snapshot `764D4BCB1E64EBE6A1AD978335471C59565DC19FF293503F0745DD672B7D5CD6`；第二次完全相同 | first updated／second unchanged／validate 0；unit 31 files／395 tests；build 雙 artifact；final E2E 31 passed／1 skipped |
 | 2026-09-01 | local synthetic retention，無 MWI／無網路 | `1788220800000`；boundary `1787529600000`；older `1787529599999` | fixed synthetic generatedAt per update | final 2；`snapshots/1787529600000.txt`、`snapshots/1788220800000.txt`；older removed | manifest `FE8FB657301D92B1E23B4666E1FC221B198B064CDDD23D233D3C5861E6A59A1E`；snapshot hashes 見上方 | validate 0；exact 8-day boundary retained、older by 1 ms removed；只使用 synthetic data |
 | 2026-09-01 17:06 | GitHub workflow_dispatch run `33490440289` | official `2026-09-01 17:06:00` | `2026-09-01 17:06:11` | `market-data` branch `6bdfc3e`；公開 3,084 targets | GitHub build、data validation、Pages artifact、deploy 全部 success | Pages source GitHub Actions；415 unit tests；公開 cloud source 實頁驗證成功 |
+| 2026-09-02 06:01 | authorized stockmarket.xin 7D backfill；GitHub Run #29 | official/latest `2026-09-02 05:06:00` | `2026-09-02 06:01:38` | 168 hourly snapshots；range `2026-08-26 06:06` → `2026-09-02 05:06` Asia/Taipei；min/median/max keys `399/510/3101` | provenance overlap `27937`／mismatch `0`；market-data `7c601dfc132b204cfffb35ece02a5d6e48b78bef` | build/deploy success；source label、紅杉 1D/3D/7D、0 gaps verified；後續 Run #31 official-only verified |
+| 2026-09-02 07:16 | scheduled official-only Run #31 | official/latest `2026-09-02 07:06:00` | `2026-09-02 07:17:04` | manifest 169 snapshots；authorized provenance still 168-snapshot bootstrap range | provenance unchanged；backfill step 0s／not executed | build/deploy success；證明後續排程只採集 MWI 官方資料 |
 
 ## 完成條件
 
