@@ -72,10 +72,10 @@ interface RealizableStrategy {
 
 **Files:** `src/strategy/signals.ts`, `tests/strategy-signals.test.ts`, `src/strategy/view.ts`
 
-- [ ] Test expanding margin with rising volume, price-only rise without volume, input inflation, spread widening, and margin reversal.
-- [ ] Emit `execute`, `prepare`, `wait`, `sell`, or `stop`, plus reasons, confidence, and explicit invalidation thresholds.
-- [ ] Under 7 days: no trend. 7–29 days: low confidence. ≥30 days with passing backtest: medium/high allowed.
-- [ ] Commit `feat: add explainable strategy trend signals`.
+- [x] Test expanding margin with rising volume, price-only rise without volume, input inflation, spread widening, and margin reversal.
+- [x] Emit `execute`, `prepare`, `wait`, `sell`, or `stop`, plus reasons, confidence, and explicit invalidation thresholds.
+- [x] Under 7 days: no trend. 7–29 days: low confidence. ≥30 days with passing backtest: medium/high allowed.
+- [x] Commit `feat: add explainable strategy trend signals`.
 
 ### Task 6: Walk-forward backtest and longer daily history
 

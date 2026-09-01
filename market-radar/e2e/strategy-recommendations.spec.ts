@@ -33,12 +33,20 @@ test('imports a profile and persists personalized strategy recommendations witho
   await expect(page.getByRole('columnheader', { name: '可實現日利' })).toBeVisible();
   await expect(page.locator('[data-strategy-row]').first()).toContainText('安全批量');
   await expect(page.locator('[data-strategy-row]').first()).toContainText('市場占比');
+  await expect(page.locator('[data-strategy-row]').first().locator('[data-strategy-signal="wait"]')).toContainText('等待');
+  await expect(page.locator('[data-strategy-row]').first()).toContainText('信心 無');
   const classificationStyle = await page.locator('.strategy-classification').first().evaluate((element) => ({
     background: getComputedStyle(element).backgroundColor,
     radius: Number.parseFloat(getComputedStyle(element).borderTopLeftRadius),
   }));
   expect(classificationStyle.background).not.toBe('rgba(0, 0, 0, 0)');
   expect(classificationStyle.radius).toBeGreaterThan(0);
+  const signalStyle = await page.locator('.strategy-signal').first().evaluate((element) => ({
+    background: getComputedStyle(element).backgroundColor,
+    radius: Number.parseFloat(getComputedStyle(element).borderTopLeftRadius),
+  }));
+  expect(signalStyle.background).not.toBe('rgba(0, 0, 0, 0)');
+  expect(signalStyle.radius).toBeGreaterThan(0);
   await expect(page.locator('[data-strategy-row*="redwood"]').first()).toBeVisible();
 
   await page.locator('[data-strategy-scope="limited"]').click();

@@ -2,6 +2,7 @@ import type { Snapshot } from '../core/types';
 import type { PlayerProfile } from '../profile/types';
 import { buildStrategyCandidates, type StrategyCandidate, type StrategyCandidateResult } from './candidates';
 import type { NormalizedStrategyGameData } from './game-data';
+import { buildStrategyMarginSeries, repriceFixedCandidate } from './margin-series';
 import { createStrategyPriceBook } from './price-book';
 import {
   evaluateRealizableStrategy,
@@ -9,6 +10,12 @@ import {
   type RealizableStrategy,
 } from './realizable';
 import type { StrategyPinStore } from './store';
+import {
+  strategyTrendSignal,
+  type StrategySignal,
+  type StrategySignalAction,
+  type StrategySignalConfidence,
+} from './signals';
 import type { StrategyFlow, StrategyStepResult } from './types';
 
 export interface StrategyView {
@@ -63,6 +70,21 @@ const CLASSIFICATION_LABELS: Record<LiquidityClassification, string> = {
   insufficient: '資料不足',
 };
 
+const SIGNAL_LABELS: Record<StrategySignalAction, string> = {
+  execute: '執行',
+  prepare: '準備',
+  wait: '等待',
+  sell: '出售',
+  stop: '停止',
+};
+
+const CONFIDENCE_LABELS: Record<StrategySignalConfidence, string> = {
+  none: '無',
+  low: '低',
+  medium: '中',
+  high: '高',
+};
+
 type StrategyScope = 'actionable' | 'limited';
 
 interface AssessedStrategy {
@@ -88,6 +110,7 @@ function renderNoProfile(options: StrategyViewOptions): void {
 
 function strategyRow(
   assessed: AssessedStrategy,
+  signal: StrategySignal,
   pinned: Set<string>,
   options: StrategyViewOptions,
 ): HTMLTableRowElement {
@@ -131,6 +154,31 @@ function strategyRow(
   classification.textContent = CLASSIFICATION_LABELS[liquidity.classification];
   classificationCell.append(classification);
   row.append(classificationCell);
+
+  const signalCell = element('td', 'strategy-signal-cell');
+  const signalBadge = element('span', 'strategy-signal');
+  signalBadge.dataset.strategySignal = signal.action;
+  signalBadge.textContent = SIGNAL_LABELS[signal.action];
+  const confidence = element('span', 'strategy-signal-confidence');
+  confidence.textContent = `信心 ${CONFIDENCE_LABELS[signal.confidence]}`;
+  const signalDetails = element('details', 'strategy-signal-details');
+  const signalSummary = element('summary');
+  signalSummary.textContent = '理由與失效';
+  const reasons = element('ul');
+  for (const reason of signal.reasons) {
+    const item = element('li');
+    item.textContent = reason;
+    reasons.append(item);
+  }
+  const invalidation = element('ul', 'strategy-invalidation');
+  for (const condition of signal.invalidation) {
+    const item = element('li');
+    item.textContent = `失效：${condition}`;
+    invalidation.append(item);
+  }
+  signalDetails.append(signalSummary, reasons, invalidation);
+  signalCell.append(signalBadge, confidence, signalDetails);
+  row.append(signalCell);
 
   const theoretical = element('td', 'strategy-profit-theoretical');
   theoretical.textContent = money(liquidity.theoreticalProfitPerDay);
@@ -216,7 +264,10 @@ function renderResults(
   pinned: Set<string>,
   options: StrategyViewOptions,
   snapshots: readonly Snapshot[],
+  data: NormalizedStrategyGameData,
   scope: StrategyScope = 'actionable',
+  signalCache = new Map<string, StrategySignal>(),
+  priceBookCache = new Map<number, ReturnType<typeof createStrategyPriceBook>>(),
 ): void {
   options.target.replaceChildren();
   const header = element('header', 'strategy-header');
@@ -261,7 +312,9 @@ function renderResults(
     button.dataset.strategyScope = key;
     button.setAttribute('aria-pressed', String(scope === key));
     button.textContent = `${label} ${count}`;
-    button.addEventListener('click', () => renderResults(result, pinned, options, snapshots, key));
+    button.addEventListener('click', () => renderResults(
+      result, pinned, options, snapshots, data, key, signalCache, priceBookCache,
+    ));
     scopeNav.append(button);
   }
   options.target.append(scopeNav);
@@ -289,14 +342,33 @@ function renderResults(
   const table = element('table', 'strategy-table');
   const head = element('thead');
   const headerRow = element('tr');
-  for (const label of ['自選', '策略路徑', '判定', '理論日利', '可實現日利', '安全執行', '市場承接', '24h 資金', '假設']) {
+  for (const label of ['自選', '策略路徑', '判定', '趨勢', '理論日利', '可實現日利', '安全執行', '市場承接', '24h 資金', '假設']) {
     const cell = element('th');
     cell.textContent = label;
     headerRow.append(cell);
   }
   head.append(headerRow);
   const body = element('tbody');
-  for (const candidate of chosen.slice(0, 100)) body.append(strategyRow(candidate, pinned, options));
+  for (const assessedCandidate of chosen.slice(0, 100)) {
+    let signal = signalCache.get(assessedCandidate.candidate.id);
+    if (!signal) {
+      const series = buildStrategyMarginSeries({
+        strategyId: assessedCandidate.candidate.id,
+        snapshots,
+        candidateAtSnapshot: (snapshot) => {
+          let prices = priceBookCache.get(snapshot.timestamp);
+          if (!prices) {
+            prices = createStrategyPriceBook(snapshot, data);
+            priceBookCache.set(snapshot.timestamp, prices);
+          }
+          return repriceFixedCandidate(assessedCandidate.candidate, prices);
+        },
+      });
+      signal = strategyTrendSignal(series);
+      signalCache.set(assessedCandidate.candidate.id, signal);
+    }
+    body.append(strategyRow(assessedCandidate, signal, pinned, options));
+  }
   table.append(head, body);
   scroll.append(table);
   options.target.append(scroll);
@@ -328,7 +400,7 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
         const [data, pins] = await Promise.all([options.loadGameData(), options.pinStore.list()]);
         if (destroyed || current !== generation) return;
         const result = calculate({ profile, data, prices: createStrategyPriceBook(snapshot, data) });
-        renderResults(result, new Set(pins), options, snapshots);
+        renderResults(result, new Set(pins), options, snapshots, data);
       } catch {
         if (!destroyed && current === generation) options.target.textContent = '策略資料無法使用，請稍後再試。';
       }

@@ -40,7 +40,9 @@ function history(volumes: Record<string, number>, count = 169): Snapshot[] {
     timestamp: index * 3_600_000,
     quotes: Object.fromEntries(Object.entries(volumes).map(([hrid, volume]) => [
       `${hrid}::0` as MarketKey,
-      { a: 110, b: 100, p: 105, v: volume },
+      hrid.includes('output')
+        ? { a: 310, b: 300, p: 305, v: volume }
+        : { a: 110, b: 100, p: 105, v: volume },
     ])),
   }));
 }
@@ -178,6 +180,8 @@ describe('strategy recommendation view', () => {
     expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('可長掛');
     expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('限量製作');
     expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('12,000');
+    expect(target.querySelector('[data-strategy-row="long"] [data-strategy-signal="wait"]')?.textContent).toContain('等待');
+    expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('信心 低');
     expect(target.textContent).toContain('安全批量');
     expect(target.textContent).toContain('市場占比');
 

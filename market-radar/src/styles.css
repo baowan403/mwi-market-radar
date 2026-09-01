@@ -947,7 +947,7 @@ summary:focus-visible {
 
 .strategy-table {
   width: 100%;
-  min-width: 1420px;
+  min-width: 1590px;
   border-collapse: collapse;
   font-size: 0.8rem;
 }
@@ -1049,6 +1049,83 @@ summary:focus-visible {
   border-color: rgb(145 160 182 / 26%);
   background: rgb(145 160 182 / 8%);
   color: var(--color-muted);
+}
+
+.strategy-signal-cell {
+  display: grid;
+  min-width: 150px;
+  gap: 5px;
+  text-align: left !important;
+  white-space: normal;
+}
+
+.strategy-signal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-width: 54px;
+  min-height: 25px;
+  padding: 4px 8px;
+  border: 1px solid var(--color-line);
+  border-radius: 7px;
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.strategy-signal[data-strategy-signal="execute"] {
+  border-color: rgb(54 201 143 / 32%);
+  background: rgb(54 201 143 / 11%);
+  color: var(--color-down);
+}
+
+.strategy-signal[data-strategy-signal="prepare"] {
+  border-color: rgb(120 169 255 / 32%);
+  background: rgb(120 169 255 / 11%);
+  color: var(--color-info);
+}
+
+.strategy-signal[data-strategy-signal="wait"] {
+  border-color: rgb(145 160 182 / 28%);
+  background: rgb(145 160 182 / 8%);
+  color: var(--color-muted);
+}
+
+.strategy-signal[data-strategy-signal="sell"] {
+  border-color: rgb(240 180 91 / 34%);
+  background: rgb(240 180 91 / 11%);
+  color: var(--color-warning);
+}
+
+.strategy-signal[data-strategy-signal="stop"] {
+  border-color: rgb(255 90 98 / 32%);
+  background: rgb(255 90 98 / 11%);
+  color: var(--color-up);
+}
+
+.strategy-signal-confidence {
+  color: var(--color-muted);
+  font-size: 0.7rem;
+}
+
+.strategy-signal-details summary {
+  cursor: pointer;
+  color: var(--color-accent);
+  font-size: 0.72rem;
+}
+
+.strategy-signal-details ul {
+  min-width: 280px;
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.strategy-signal-details .strategy-invalidation {
+  color: var(--color-warning);
 }
 
 .strategy-metrics {

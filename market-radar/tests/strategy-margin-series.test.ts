@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { MarketKey, Snapshot } from '../src/core/types';
 import type { StrategyCandidate } from '../src/strategy/candidates';
-import { buildStrategyMarginSeries } from '../src/strategy/margin-series';
+import { buildStrategyMarginSeries, repriceFixedCandidate } from '../src/strategy/margin-series';
+import { createMarketPriceBook } from '../src/strategy/price-book';
 
 const HOUR = 3_600_000;
 const INPUT = '/items/input';
@@ -65,6 +66,7 @@ describe('historical strategy margin series', () => {
       complete: true,
       classification: 'long-run',
     });
+    expect(series.at(-1)?.spreadPct).toBeCloseTo(5 / 176.5 * 100);
   });
 
   it('does not let a future volume or price change alter an earlier margin point', () => {
@@ -96,8 +98,48 @@ describe('historical strategy margin series', () => {
       realizableProfitPerDay: null,
       bottleneckHrid: null,
       bottleneckSafeUnitsPerHour: null,
+      spreadPct: null,
       complete: false,
       classification: 'insufficient',
+    });
+  });
+
+  it('reprices only external workflow edges and cancels an unquoted internal intermediate', () => {
+    const snapshot: Snapshot = {
+      timestamp: 1,
+      quotes: {
+        ['/items/raw::0' as MarketKey]: { a: 100, b: 90, p: 95, v: 1_000 },
+        ['/items/final::0' as MarketKey]: { a: 310, b: 300, p: 305, v: 1_000 },
+      },
+    };
+    const fixed: StrategyCandidate = {
+      id: 'workflow:fixed', kind: 'workflow', title: 'fixed',
+      path: ['/items/raw', '/items/intermediate', '/items/final'],
+      costPerHour: 1, incomePerHour: 2, profitPerHour: 1, profitPerDay: 24, workingCapital24h: 24,
+      steps: [
+        {
+          id: 'one', action: 'crafting', actionHrid: '/actions/crafting/one', outputHrid: '/items/intermediate',
+          valid: true, actionsPerHour: 1, costPerHour: 1, incomePerHour: 1, profitPerHour: 0, experiencePerHour: 1,
+          inputs: [{ itemHrid: '/items/raw', enhancementLevel: 0, unitsPerHour: 1, unitPrice: 1, market: true }],
+          outputs: [{ itemHrid: '/items/intermediate', enhancementLevel: 0, unitsPerHour: 2, unitPrice: 1, market: true }],
+        },
+        {
+          id: 'two', action: 'crafting', actionHrid: '/actions/crafting/two', outputHrid: '/items/final',
+          valid: true, actionsPerHour: 1, costPerHour: 1, incomePerHour: 2, profitPerHour: 1, experiencePerHour: 1,
+          inputs: [{ itemHrid: '/items/intermediate', enhancementLevel: 0, unitsPerHour: 2, unitPrice: 1, market: true }],
+          outputs: [{ itemHrid: '/items/final', enhancementLevel: 0, unitsPerHour: 1, unitPrice: 2, market: true }],
+        },
+      ],
+    };
+
+    const repriced = repriceFixedCandidate(fixed, createMarketPriceBook(snapshot));
+    expect(repriced).toMatchObject({
+      id: 'workflow:fixed',
+      costPerHour: 100,
+      incomePerHour: 285,
+      profitPerHour: 185,
+      profitPerDay: 4_440,
+      workingCapital24h: 2_400,
     });
   });
 });

@@ -1,6 +1,11 @@
-import type { Snapshot } from '../core/types';
+import { spreadPct as calculateSpreadPct } from '../core/price';
+import type { MarketKey, Snapshot } from '../core/types';
 import type { StrategyCandidate } from './candidates';
+import type { MarketPriceBook } from './price-book';
 import { evaluateRealizableStrategy, type LiquidityClassification } from './realizable';
+import type { StrategyFlow } from './types';
+
+const SELL_TAX_FACTOR = 0.95;
 
 export interface StrategyMarginPoint {
   timestamp: number;
@@ -11,6 +16,7 @@ export interface StrategyMarginPoint {
   realizableProfitPerDay: number | null;
   bottleneckHrid: string | null;
   bottleneckSafeUnitsPerHour: number | null;
+  spreadPct: number | null;
   complete: boolean;
   classification: LiquidityClassification;
 }
@@ -19,6 +25,77 @@ export interface StrategyMarginSeriesOptions {
   strategyId: string;
   snapshots: readonly Snapshot[];
   candidateAtSnapshot(snapshot: Snapshot): StrategyCandidate | null;
+}
+
+function flowKey(flow: StrategyFlow): string {
+  return `${flow.itemHrid}::${flow.enhancementLevel}`;
+}
+
+function aggregate(flows: readonly StrategyFlow[]): Map<string, StrategyFlow> {
+  const result = new Map<string, StrategyFlow>();
+  for (const flow of flows) {
+    const key = flowKey(flow);
+    const current = result.get(key);
+    if (current) current.unitsPerHour += flow.unitsPerHour;
+    else result.set(key, { ...flow });
+  }
+  return result;
+}
+
+function externalFlows(candidate: StrategyCandidate): { inputs: StrategyFlow[]; outputs: StrategyFlow[] } {
+  const inputs = aggregate(candidate.steps.flatMap((step) => step.inputs));
+  const outputs = aggregate(candidate.steps.flatMap((step) => step.outputs));
+  for (const [key, input] of inputs) {
+    const output = outputs.get(key);
+    if (!output) continue;
+    const canceled = Math.min(input.unitsPerHour, output.unitsPerHour);
+    input.unitsPerHour -= canceled;
+    output.unitsPerHour -= canceled;
+  }
+  return {
+    inputs: [...inputs.values()].filter((flow) => flow.unitsPerHour > 1e-10),
+    outputs: [...outputs.values()].filter((flow) => flow.unitsPerHour > 1e-10),
+  };
+}
+
+function flowPrice(flow: StrategyFlow, side: 'input' | 'output', prices: MarketPriceBook): number | null {
+  if (!flow.market) return flow.unitPrice;
+  return side === 'input'
+    ? prices.ask(flow.itemHrid, flow.enhancementLevel)
+    : prices.bid(flow.itemHrid, flow.enhancementLevel);
+}
+
+function finitePrice(value: number | null): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+export function repriceFixedCandidate(
+  candidate: StrategyCandidate,
+  prices: MarketPriceBook,
+): StrategyCandidate | null {
+  const external = externalFlows(candidate);
+  const inputValues = external.inputs.map((flow) => ({ flow, price: flowPrice(flow, 'input', prices) }));
+  const outputValues = external.outputs.map((flow) => ({ flow, price: flowPrice(flow, 'output', prices) }));
+  if ([...inputValues, ...outputValues].some(({ price }) => !finitePrice(price))) return null;
+  const costPerHour = inputValues.reduce((sum, { flow, price }) => sum + flow.unitsPerHour * price!, 0);
+  const incomePerHour = outputValues.reduce((sum, { flow, price }) => (
+    sum + flow.unitsPerHour * price! * (flow.market ? SELL_TAX_FACTOR : 1)
+  ), 0);
+  const profitPerHour = incomePerHour - costPerHour;
+  const steps = candidate.steps.map((step) => ({
+    ...step,
+    inputs: step.inputs.map((flow) => ({ ...flow, unitPrice: flowPrice(flow, 'input', prices) })),
+    outputs: step.outputs.map((flow) => ({ ...flow, unitPrice: flowPrice(flow, 'output', prices) })),
+  }));
+  return {
+    ...candidate,
+    steps,
+    costPerHour,
+    incomePerHour,
+    profitPerHour,
+    profitPerDay: profitPerHour * 24,
+    workingCapital24h: costPerHour * 24,
+  };
 }
 
 function emptyPoint(timestamp: number, strategyId: string): StrategyMarginPoint {
@@ -31,6 +108,7 @@ function emptyPoint(timestamp: number, strategyId: string): StrategyMarginPoint 
     realizableProfitPerDay: null,
     bottleneckHrid: null,
     bottleneckSafeUnitsPerHour: null,
+    spreadPct: null,
     complete: false,
     classification: 'insufficient',
   };
@@ -55,6 +133,14 @@ export function buildStrategyMarginSeries(options: StrategyMarginSeriesOptions):
     const safePerHour = liquidity.safeBatchUnits === null
       ? null
       : liquidity.safeBatchUnits / 24;
+    const bottleneckFlow = liquidity.bottleneckHrid === null
+      ? null
+      : candidate.steps
+        .flatMap((step) => [...step.inputs, ...step.outputs])
+        .find((flow) => flow.market && flow.itemHrid === liquidity.bottleneckHrid) ?? null;
+    const quote = bottleneckFlow === null
+      ? null
+      : snapshot.quotes[`${bottleneckFlow.itemHrid}::${bottleneckFlow.enhancementLevel}` as MarketKey] ?? null;
     return {
       timestamp: snapshot.timestamp,
       strategyId: options.strategyId,
@@ -64,6 +150,7 @@ export function buildStrategyMarginSeries(options: StrategyMarginSeriesOptions):
       realizableProfitPerDay: liquidity.realizableProfitPerDay,
       bottleneckHrid: liquidity.bottleneckHrid,
       bottleneckSafeUnitsPerHour: safePerHour,
+      spreadPct: quote === null ? null : calculateSpreadPct(quote),
       complete: liquidity.classification !== 'insufficient' && liquidity.realizableProfitPerDay !== null,
       classification: liquidity.classification,
     };
