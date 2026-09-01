@@ -132,6 +132,18 @@ describe('market radar Pages workflow', () => {
       'test "$(git rev-parse HEAD^{tree})" = "$(git rev-parse "$PREVIOUS_DATA_SHA^{tree}")"',
     );
     expect(rollback).not.toContain('test "$(git rev-parse HEAD)" = "$PREVIOUS_DATA_SHA"');
+    expect(rollback).toContain("git config user.name 'github-actions[bot]'");
+    expect(rollback).toContain(
+      "git config user.email '41898282+github-actions[bot]@users.noreply.github.com'",
+    );
+    expect(rollback.indexOf("git config user.name 'github-actions[bot]'")).toBeLessThan(
+      rollback.indexOf('git revert --no-edit "$DATA_COMMIT_SHA"'),
+    );
+    expect(
+      rollback.indexOf(
+        "git config user.email '41898282+github-actions[bot]@users.noreply.github.com'",
+      ),
+    ).toBeLessThan(rollback.indexOf('git revert --no-edit "$DATA_COMMIT_SHA"'));
     expect(rollback).toContain('git push origin HEAD:market-data');
   });
 

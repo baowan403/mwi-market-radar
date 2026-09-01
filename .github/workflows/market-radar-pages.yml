@@ -198,6 +198,8 @@ jobs:
           test "$CURRENT_SHA" = "$DATA_COMMIT_SHA"
           test "$PREVIOUS_DATA_SHA" != ""
           git switch --detach "$CURRENT_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git revert --no-edit "$DATA_COMMIT_SHA"
           test "$(git rev-parse HEAD^{tree})" = "$(git rev-parse "$PREVIOUS_DATA_SHA^{tree}")"
           git push origin HEAD:market-data
