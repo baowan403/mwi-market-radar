@@ -43,7 +43,7 @@ describe('stockmarket backfill aggregation', () => {
   });
 
   it('rejects sparse snapshots and invalid gates', () => {
-    expect(() => buildBackfillSnapshots(new Map([['a', [row('a', 0, latest)]]]), latest)).toThrow(/hours/i);
+    expect(() => buildBackfillSnapshots(new Map([['a', [row('a', 0, latest)]]]), latest, { minimumHours: 2, minimumQuotes: 1 })).toThrow(/hours/i);
     expect(() => buildBackfillSnapshots(new Map([['a', [row('a', 0, latest)]]]), latest, { minimumHours: 1, minimumQuotes: 2 })).toThrow(/quotes/i);
     expect(() => buildBackfillSnapshots(new Map(), latest, { minimumHours: 0, minimumQuotes: 1 })).toThrow(/gate/i);
     expect(() => buildBackfillSnapshots(new Map(), latest, { minimumHours: 1.5, minimumQuotes: 1 })).toThrow(/gate/i);
