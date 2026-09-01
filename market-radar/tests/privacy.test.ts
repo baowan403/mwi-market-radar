@@ -43,12 +43,22 @@ describe('production privacy boundary', () => {
     for (const location of fetchLocations) {
       const allowed = location.path.endsWith('official-client.ts')
         || location.path.endsWith('cloud-client.ts')
+        || (location.path.endsWith('stockmarket-client.ts') && location.line.includes('options.fetcher ?? globalThis.fetch'))
         || (location.path.endsWith('app.ts') && (
           location.line.includes("fetch('./catalog.json'")
           || location.line.includes("fetch('./strategy-data.json'")
         ));
       expect(allowed, `${location.path}:${location.index}`).toBe(true);
     }
+  });
+
+  it('authorizes only the fixed public stockmarket backfill origin and paths', () => {
+    const source = readFileSync(resolve(sourceRoot, 'backfill/stockmarket-client.ts'), 'utf8');
+    expect(source).toContain("const ORIGIN = 'https://www.stockmarket.xin';");
+    expect(source).toContain('`${ORIGIN}/api/latest-status`');
+    expect(source).toContain('`${ORIGIN}/api/item/${encodeURIComponent(name)}/history?limit=200`');
+    expect(source).not.toMatch(/options\.(?:origin|baseUrl|url)/);
+    expect(source).not.toMatch(/fetcher\s*\(\s*options\./);
   });
 
   it('keeps local player profiles out of cloud, collector, userscript, and network calls', () => {
