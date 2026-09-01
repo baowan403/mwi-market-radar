@@ -65,6 +65,12 @@ import {
   updateRankingModeButtons,
   type RankingMode,
 } from './dashboard/rankings-view';
+import { createProfilePanel, type ProfilePanel } from './profile/panel';
+import {
+  createMemoryProfileStore,
+  createProfileStore as createIndexedProfileStore,
+  type ProfileStore,
+} from './profile/store';
 
 const dashboardMarkup = `
   <div class="radar-shell">
@@ -82,6 +88,10 @@ const dashboardMarkup = `
         <span class="data-source-label" data-source-label="true">資料不可用</span>
         <span class="data-source-detail" data-source-detail="true">等待可用資料來源</span>
       </div>
+      <div class="profile-control">
+        <span id="profile-summary" class="profile-summary">尚未導入角色</span>
+        <button id="profile-open" class="toolbar-button" type="button">角色快照</button>
+      </div>
     </header>
 
     <nav id="category-nav" class="category-nav" data-testid="category-nav" aria-label="市場分類"></nav>
@@ -91,6 +101,7 @@ const dashboardMarkup = `
     <section id="content" class="content" data-testid="content"></section>
 
     <dialog id="item-detail" aria-label="物品詳情" hidden></dialog>
+    <dialog id="profile-dialog" aria-label="角色快照" hidden></dialog>
   </div>
 `;
 
@@ -153,6 +164,8 @@ export interface DashboardMountOptions {
   preferencesStore?: PreferencesStore;
   createCloudClient?: (baseDataUrl: string | URL) => HybridCloudClient;
   createPreferencesStore?: () => PreferencesStore;
+  profileStore?: ProfileStore;
+  createProfileStore?: () => ProfileStore;
   createLocalClient?: (target: BridgeDomTarget) => DashboardClient;
   catalogLoader?: () => CatalogInput | Promise<CatalogInput>;
   chartFactory?: ItemChartFactory;
@@ -932,6 +945,20 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
   } | null = null;
   let provider: HybridClient | null = null;
   let preferences: PreferencesStore | null = null;
+  const profileStore = options.profileStore
+    ?? options.createProfileStore?.()
+    ?? (typeof indexedDB === 'undefined' ? createMemoryProfileStore() : createIndexedProfileStore());
+  const profileOpen = root.querySelector<HTMLButtonElement>('#profile-open');
+  const profileSummary = root.querySelector<HTMLElement>('#profile-summary');
+  const profileDialog = root.querySelector<HTMLDialogElement>('#profile-dialog');
+  if (!profileOpen || !profileSummary || !profileDialog) throw new Error('Profile shell is incomplete');
+  const profilePanel: ProfilePanel = createProfilePanel({
+    openButton: profileOpen,
+    summary: profileSummary,
+    dialog: profileDialog,
+    store: profileStore,
+    now: options.now,
+  });
   let localAttached = false;
 
   const waitForLocalBridge = (): Promise<boolean> => {
@@ -977,7 +1004,11 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       client = provider;
     }
     const catalogInput = await catalogPromise;
-    if (!isActive()) return { destroy: () => undefined };
+    if (!isActive()) {
+      profilePanel.destroy();
+      profileStore.close();
+      return { destroy: () => undefined };
+    }
 
     const settings = { ...bootstrap.settings };
     const state: DashboardState = {
@@ -1044,6 +1075,8 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       runtime?.destroy();
       provider?.destroy();
       preferences?.close?.();
+      profilePanel.destroy();
+      profileStore.close();
     },
   };
 }

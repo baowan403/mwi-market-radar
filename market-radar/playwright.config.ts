@@ -51,6 +51,15 @@ export default defineConfig({
       },
       testMatch: /(^|[\\/])cloud-dashboard\.spec\.ts$/,
     },
+    {
+      name: 'chrome-profile-import',
+      use: {
+        ...devices['Desktop Chrome'],
+        channel: 'chrome',
+        viewport: { width: 1280, height: 800 },
+      },
+      testMatch: /(^|[\\/])profile-import\.spec\.ts$/,
+    },
   ],
   webServer: {
     command: 'npm run build && npm run preview -- --host 127.0.0.1',
