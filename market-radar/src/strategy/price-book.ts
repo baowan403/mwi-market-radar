@@ -1,5 +1,5 @@
 import type { MarketKey, Snapshot } from '../core/types';
-import type { NormalizedStrategyGameData } from './game-data';
+import { isDerivedOpenableLootValue, type NormalizedStrategyGameData } from './game-data';
 
 export interface MarketPriceBook {
   ask(hrid: string, level?: number): number | null;
@@ -65,11 +65,9 @@ export function createStrategyPriceBook(
     if (cache.has(cacheKey)) return cache.get(cacheKey) ?? null;
     if (visiting.has(cacheKey)) return null;
     const nextVisiting = new Set(visiting).add(cacheKey);
-    const item = record(data.itemsByHrid.get(hrid));
     if (
       level === 0
-      && item?.categoryHrid === '/item_categories/loot'
-      && hrid !== '/items/bag_of_10_cowbells'
+      && isDerivedOpenableLootValue(hrid, data)
     ) {
       const drops = data.openableLootDropMap[hrid];
       if (Array.isArray(drops) && drops.length > 0) {

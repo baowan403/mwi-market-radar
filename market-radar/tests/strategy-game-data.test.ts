@@ -2,7 +2,11 @@ import source from '../scripts/vendor/milkonomy/source.json';
 import translations from '../scripts/vendor/milkonomy/zh-tw.json';
 import strategyData from '../scripts/vendor/milkonomy/strategy-data.json';
 import { describe, expect, it } from 'vitest';
-import { normalizeStrategyGameData, StrategyDataError } from '../src/strategy/game-data';
+import {
+  isDerivedOpenableLootValue,
+  normalizeStrategyGameData,
+  StrategyDataError,
+} from '../src/strategy/game-data';
 
 describe('pinned Milkonomy reference artifacts', () => {
   it('pins the reviewed MIT source and keeps deterministic metadata', () => {
@@ -44,5 +48,14 @@ describe('pinned Milkonomy reference artifacts', () => {
     expect(normalized.itemsByHrid.size).toBeGreaterThan(100);
     expect(normalized.actionsByHrid.size).toBeGreaterThan(100);
     expect(() => normalizeStrategyGameData({ gameVersion: 'bad' })).toThrow(StrategyDataError);
+  });
+
+  it('distinguishes derived openable loot from the market-backed cowbell bag exception', () => {
+    const normalized = normalizeStrategyGameData(strategyData);
+
+    expect(isDerivedOpenableLootValue('/items/medium_artisans_crate', normalized)).toBe(true);
+    expect(isDerivedOpenableLootValue('/items/large_artisans_crate', normalized)).toBe(true);
+    expect(isDerivedOpenableLootValue('/items/bag_of_10_cowbells', normalized)).toBe(false);
+    expect(isDerivedOpenableLootValue('/items/crafting_essence', normalized)).toBe(false);
   });
 });

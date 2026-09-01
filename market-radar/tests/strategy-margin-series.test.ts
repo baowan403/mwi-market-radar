@@ -142,4 +142,33 @@ describe('historical strategy margin series', () => {
       workingCapital24h: 2_400,
     });
   });
+
+  it('reprices and taxes derived loot while keeping it outside liquidity', () => {
+    const snapshot: Snapshot = {
+      timestamp: 1,
+      quotes: {
+        [`${INPUT}::0` as MarketKey]: { a: 100, b: 95, p: 98, v: 1_000 },
+        [`${OUTPUT}::0` as MarketKey]: { a: 220, b: 200, p: 210, v: 1_000 },
+        ['/items/medium_artisans_crate::0' as MarketKey]: { a: 300, b: 250, p: 275, v: null },
+      },
+    };
+    const fixed = candidateAt(snapshot);
+    fixed.path[fixed.path.length - 1] = '/items/medium_artisans_crate';
+    fixed.steps[0]!.outputHrid = '/items/medium_artisans_crate';
+    fixed.steps[0]!.outputs = [{
+      itemHrid: '/items/medium_artisans_crate', enhancementLevel: 0,
+      unitsPerHour: 2, unitPrice: 500, market: false,
+    }];
+
+    const repriced = repriceFixedCandidate(fixed, createMarketPriceBook(snapshot));
+
+    expect(repriced?.steps[0]?.outputs[0]?.unitPrice).toBe(250);
+    expect(repriced).toMatchObject({
+      costPerHour: 100,
+      incomePerHour: 475,
+      profitPerHour: 375,
+      profitPerDay: 9_000,
+      workingCapital24h: 2_400,
+    });
+  });
 });

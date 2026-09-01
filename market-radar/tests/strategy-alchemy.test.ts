@@ -49,8 +49,12 @@ describe('Milkonomy-compatible alchemy', () => {
     expect(none.outputHrid).toBe('/items/pirate_essence');
     expect(dedicated.successRate).toBeGreaterThan(none.successRate);
     expect(prime.successRate).toBeGreaterThan(dedicated.successRate);
-    expect(none.outputs.some((flow) => flow.itemHrid === '/items/alchemy_essence')).toBe(true);
-    expect(none.outputs.some((flow) => flow.itemHrid === '/items/large_artisans_crate')).toBe(true);
+    expect(none.outputs.find((flow) => flow.itemHrid === '/items/pirate_essence')?.market).toBe(true);
+    expect(none.outputs.find((flow) => flow.itemHrid === '/items/alchemy_essence')?.market).toBe(true);
+    expect(none.outputs.find((flow) => flow.itemHrid === '/items/large_artisans_crate')?.market).toBe(false);
+    expect(none.incomePerHour).toBeCloseTo(none.outputs.reduce((sum, flow) => (
+      sum + flow.unitsPerHour * flow.unitPrice! * 0.95
+    ), 0));
   });
 
   it('coinifies to untaxed coins and composes decompose to coinify', () => {

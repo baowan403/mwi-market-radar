@@ -6,6 +6,7 @@ import { evaluateRealizableStrategy, type LiquidityClassification } from './real
 import type { StrategyFlow } from './types';
 
 const SELL_TAX_FACTOR = 0.95;
+const COIN_HRID = '/items/coin';
 
 export interface StrategyMarginPoint {
   timestamp: number;
@@ -59,7 +60,7 @@ function externalFlows(candidate: StrategyCandidate): { inputs: StrategyFlow[]; 
 }
 
 function flowPrice(flow: StrategyFlow, side: 'input' | 'output', prices: MarketPriceBook): number | null {
-  if (!flow.market) return flow.unitPrice;
+  if (flow.itemHrid === COIN_HRID) return flow.unitPrice;
   return side === 'input'
     ? prices.ask(flow.itemHrid, flow.enhancementLevel)
     : prices.bid(flow.itemHrid, flow.enhancementLevel);
@@ -79,7 +80,7 @@ export function repriceFixedCandidate(
   if ([...inputValues, ...outputValues].some(({ price }) => !finitePrice(price))) return null;
   const costPerHour = inputValues.reduce((sum, { flow, price }) => sum + flow.unitsPerHour * price!, 0);
   const incomePerHour = outputValues.reduce((sum, { flow, price }) => (
-    sum + flow.unitsPerHour * price! * (flow.market ? SELL_TAX_FACTOR : 1)
+    sum + flow.unitsPerHour * price! * (flow.itemHrid === COIN_HRID ? 1 : SELL_TAX_FACTOR)
   ), 0);
   const profitPerHour = incomePerHour - costPerHour;
   const steps = candidate.steps.map((step) => ({

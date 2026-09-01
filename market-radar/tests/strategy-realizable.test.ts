@@ -80,6 +80,32 @@ describe('liquidity-adjusted realizable strategy', () => {
     expect(result.realizableProfitPerDay).toBeNull();
   });
 
+  it('ignores a derived loot output with no market history and keeps theoretical profit', () => {
+    const value = candidate(1, 10);
+    value.steps[1]!.outputs.push({
+      itemHrid: '/items/medium_artisans_crate', enhancementLevel: 0,
+      unitsPerHour: 0.1, unitPrice: 500_000, market: false,
+    });
+    const result = evaluateRealizableStrategy(value, snapshots({
+      '/items/input': 1_000,
+      '/items/output': 1_000,
+    }));
+
+    expect(result.classification).toBe('long-run');
+    expect(result.bottleneckHrid).not.toBe('/items/medium_artisans_crate');
+    expect(result.theoreticalProfitPerDay).toBe(value.profitPerDay);
+  });
+
+  it('still reports insufficient for a market output with no volume history', () => {
+    const result = evaluateRealizableStrategy(candidate(1, 1), snapshots({
+      '/items/input': 1_000,
+    }));
+
+    expect(result.classification).toBe('insufficient');
+    expect(result.bottleneckHrid).toBe('/items/output');
+    expect(result.bottleneckSide).toBe('output');
+  });
+
   it('uses the narrowest of multiple market inputs instead of checking only the final output', () => {
     const value = candidate(1, 1);
     value.steps[0]!.inputs.push({

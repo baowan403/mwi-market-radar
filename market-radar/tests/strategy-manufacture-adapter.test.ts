@@ -39,7 +39,12 @@ describe('real manufacturing recipe adapter', () => {
     expect(result.actionsPerHour).toBeGreaterThan(0);
     expect(result.experiencePerHour).toBeGreaterThan(0);
     expect(result.inputs.some((item) => item.itemHrid === '/items/redwood_log')).toBe(true);
-    expect(result.outputs.some((item) => item.itemHrid === '/items/crafting_essence')).toBe(true);
+    expect(result.outputs.find((item) => item.itemHrid === '/items/redwood_lumber')?.market).toBe(true);
+    expect(result.outputs.find((item) => item.itemHrid === '/items/crafting_essence')?.market).toBe(true);
+    expect(result.outputs.find((item) => item.itemHrid === '/items/medium_artisans_crate')?.market).toBe(false);
+    expect(result.incomePerHour).toBeCloseTo(result.outputs.reduce((sum, flow) => (
+      sum + flow.unitsPerHour * flow.unitPrice! * 0.95
+    ), 0));
     expect(result.profitPerHour).not.toBeNull();
   });
 

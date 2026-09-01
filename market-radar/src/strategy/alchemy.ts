@@ -1,7 +1,7 @@
 import type { PlayerProfile } from '../profile/types';
 import { actionBuffs } from './buffs';
 import type { ActionBuffs } from './buffs';
-import type { NormalizedStrategyGameData } from './game-data';
+import { isDerivedOpenableLootValue, type NormalizedStrategyGameData } from './game-data';
 import type { MarketPriceBook } from './price-book';
 import type { StrategyFlow, StrategyStepResult } from './types';
 
@@ -191,7 +191,7 @@ function calculate(kind: 'decompose' | 'coinify', options: AlchemyOptions & { en
   addFlow(outputs, {
     itemHrid: rare.itemHrid, enhancementLevel: 0,
     unitsPerHour: actionsPerHour * rare.rate * (1 + buffs.RareFind),
-    unitPrice: prices.bid(rare.itemHrid), market: true,
+    unitPrice: prices.bid(rare.itemHrid), market: !isDerivedOpenableLootValue(rare.itemHrid, data),
   });
   addFlow(outputs, {
     itemHrid: '/items/alchemy_essence', enhancementLevel: 0,
@@ -208,7 +208,9 @@ function calculate(kind: 'decompose' | 'coinify', options: AlchemyOptions & { en
     ? inputList.reduce((sum, flow) => sum + flow.unitsPerHour * flow.unitPrice!, 0)
     : null;
   const incomePerHour = valid
-    ? outputList.reduce((sum, flow) => sum + flow.unitsPerHour * flow.unitPrice! * (flow.market ? SELL_TAX_FACTOR : 1), 0)
+    ? outputList.reduce((sum, flow) => (
+      sum + flow.unitsPerHour * flow.unitPrice! * (flow.itemHrid === COIN_HRID ? 1 : SELL_TAX_FACTOR)
+    ), 0)
     : null;
   const baseExp = (kind === 'decompose' ? 1.4 : 1) * (10 + item.itemLevel);
 

@@ -1,6 +1,6 @@
 import type { PlayerProfile, SkillingAction } from '../profile/types';
 import { actionBuffs, type ActionBuffs } from './buffs';
-import type { NormalizedStrategyGameData } from './game-data';
+import { isDerivedOpenableLootValue, type NormalizedStrategyGameData } from './game-data';
 import { calculateManufacture, type PricedCount } from './manufacture';
 import type { MarketPriceBook } from './price-book';
 import type { DropItem, StrategyActionDetail, StrategyFlow, StrategyStepResult } from './types';
@@ -37,13 +37,14 @@ function priceFlow(
   units: Record<string, number>,
   side: 'ask' | 'bid',
   prices: MarketPriceBook,
+  data: NormalizedStrategyGameData,
 ): StrategyFlow[] {
   return Object.entries(units).map(([itemHrid, unitsPerHour]) => ({
     itemHrid,
     enhancementLevel: 0,
     unitsPerHour,
     unitPrice: side === 'ask' ? prices.ask(itemHrid) : prices.bid(itemHrid),
-    market: true,
+    market: side === 'ask' || !isDerivedOpenableLootValue(itemHrid, data),
   }));
 }
 
@@ -123,7 +124,7 @@ export function calculateManufactureAction(options: {
     incomePerHour: result.incomePerHour,
     profitPerHour: result.profitPerHour,
     experiencePerHour: baseExperience * (1 + buffs.Experience) * result.actionsPerHour,
-    inputs: priceFlow(result.ingredientUnitsPerHour, 'ask', prices),
-    outputs: priceFlow(result.productUnitsPerHour, 'bid', prices),
+    inputs: priceFlow(result.ingredientUnitsPerHour, 'ask', prices, data),
+    outputs: priceFlow(result.productUnitsPerHour, 'bid', prices, data),
   };
 }
