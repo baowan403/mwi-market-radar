@@ -91,8 +91,9 @@ describe('stockmarket.xin schema', () => {
   });
 
   it('caps latest-status and per-item history response rows', () => {
-    expect(parseStockmarketItemNames({ data: Array.from({ length: 5000 }, (_, index) => ({ item_name: `item_${index}` })) })).toHaveLength(5000);
-    expect(() => parseStockmarketItemNames({ data: Array.from({ length: 5001 }, (_, index) => ({ item_name: `item_${index}` })) })).toThrow('Invalid stockmarket item list');
+    const currentScale = Array.from({ length: 5358 }, (_, index) => ({ item_name: `item_${index % 5357}` }));
+    expect(parseStockmarketItemNames({ data: currentScale })).toEqual(Array.from({ length: 5357 }, (_, index) => `item_${index}`).sort());
+    expect(() => parseStockmarketItemNames({ data: Array.from({ length: 10001 }, (_, index) => ({ item_name: `item_${index}` })) })).toThrow('Invalid stockmarket item list');
 
     const history = Array.from({ length: 500 }, (_, timestamp) => ({
       item_name: 'arcane_log', level: 0, timestamp, price_a: 1, price_b: 2, price_p: 3, volume: 4,

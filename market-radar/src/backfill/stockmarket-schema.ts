@@ -7,7 +7,7 @@ export interface StockmarketHistoryPoint extends Quote {
 }
 
 const SAFE_ITEM_NAME = /^[a-z0-9_]+$/;
-const MAX_LATEST_STATUS_ROWS = 5_000;
+export const MAX_LATEST_STATUS_ROWS = 10_000;
 const MAX_HISTORY_ROWS = 500;
 
 function record(value: unknown, message: string): Record<string, unknown> {
