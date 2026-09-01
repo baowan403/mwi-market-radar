@@ -41,6 +41,7 @@ describe('production privacy boundary', () => {
     expect(fetchLocations.length).toBeGreaterThan(0);
     for (const location of fetchLocations) {
       const allowed = location.path.endsWith('official-client.ts')
+        || location.path.endsWith('cloud-client.ts')
         || (location.path.endsWith('app.ts') && location.line.includes("fetch('./catalog.json'"));
       expect(allowed, `${location.path}:${location.index}`).toBe(true);
     }

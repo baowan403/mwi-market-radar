@@ -66,7 +66,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  for (const store of stores) store.close();
+  for (const store of stores) store.close?.();
   stores = [];
   await deleteDatabase();
 });
@@ -127,7 +127,7 @@ describe('IndexedDB preferences', () => {
     stores.push(first);
     await first.setWatchlist(watchlist);
     await first.setSettings(settings);
-    first.close();
+    first.close?.();
 
     const second = createPreferencesStore();
     stores.push(second);
@@ -188,7 +188,7 @@ describe('IndexedDB preferences', () => {
     await expect(store.setWatchlist(duplicate as unknown as WatchItem[])).rejects.toMatchObject({ code: 'preference_data' });
     await expect(store.setSettings({ ...settings, maximumSpreadPct: -1 })).rejects.toMatchObject({ code: 'preference_data' });
 
-    store.close();
+    store.close?.();
     const error = await store.setWatchlist([{ key: '/items/private::7', order: 0 }]).catch((cause: unknown) => cause);
     expect(error).toBeInstanceOf(PreferenceStoreError);
     expect((error as Error).message).not.toContain('private');

@@ -36,7 +36,8 @@ export interface PreferencesStore {
   setWatchlist(value: WatchItem[]): Promise<void>;
   getSettings(): Promise<RadarSettings>;
   setSettings(value: RadarSettings): Promise<void>;
-  close(): void;
+  /** Concrete adapters may expose lifecycle cleanup; providers need not. */
+  close?(): void;
 }
 
 export interface PreferencesStoreOptions {

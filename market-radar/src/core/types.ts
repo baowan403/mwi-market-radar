@@ -38,12 +38,26 @@ export interface CollectorStatus {
   lastErrorCode: string | null;
 }
 
+export type DashboardSource = 'cloud' | 'cloud+local' | 'local-fallback';
+
+export interface DashboardSourceInfo {
+  source: DashboardSource;
+  stale: boolean;
+  warningCode: 'cloud_stale' | null;
+  warning?: string | null;
+  generatedAt: string | null;
+  latestTimestamp: number | null;
+}
+
 export interface BridgeBootstrap {
   watchlist: WatchItem[];
   settings: RadarSettings;
   collectorStatus: CollectorStatus;
   latestTimestamp: number | null;
   snapshotCount: number;
+  /** Optional source metadata supplied by cloud/hybrid dashboard clients. */
+  source?: DashboardSource;
+  sourceInfo?: DashboardSourceInfo;
 }
 
 export type BridgeRequest =
