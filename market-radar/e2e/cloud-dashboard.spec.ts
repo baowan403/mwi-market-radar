@@ -1,15 +1,24 @@
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type ConsoleMessage, type Page, type TestInfo } from '@playwright/test';
 import { createCloudFixture, type CloudFixture, type CloudFixtureOptions } from './cloud-fixture';
 
 const errorsByPage = new WeakMap<Page, string[]>();
 const OPTIONAL_PROVENANCE_404 = 'Failed to load resource: the server responded with a status of 404 (Not Found)';
+
+function isExpectedMissingProvenance404(message: ConsoleMessage): boolean {
+  if (message.text() !== OPTIONAL_PROVENANCE_404) return false;
+  try {
+    return new URL(message.location().url, 'http://fixture.invalid').pathname.endsWith('/data/history-provenance.json');
+  } catch {
+    return false;
+  }
+}
 
 function installErrorGuard(page: Page, allowMissingProvenance = false): void {
   const errors: string[] = [];
   errorsByPage.set(page, errors);
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
   page.on('console', (message) => {
-    if (message.type() === 'error' && !(allowMissingProvenance && message.text() === OPTIONAL_PROVENANCE_404)) {
+    if (message.type() === 'error' && !(allowMissingProvenance && isExpectedMissingProvenance404(message))) {
       errors.push(`console: ${message.text()}`);
     }
   });
