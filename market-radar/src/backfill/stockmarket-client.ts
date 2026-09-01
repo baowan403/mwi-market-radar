@@ -21,7 +21,7 @@ function normalizeConcurrency(value: number | undefined): number {
 }
 
 function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError';
+  return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError');
 }
 
 async function defaultSleep(milliseconds: number): Promise<void> {

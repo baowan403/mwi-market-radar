@@ -45,14 +45,27 @@ describe('stockmarket client', () => {
   });
 
   it('retries 503 with exact increasing delays', async () => {
-    let attempts = 0; const delays: number[] = [];
+    let attempts = 0; const backoffs: number[] = []; const pacing: number[] = [];
     const fetcher = vi.fn(async (input: string | URL, _init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith('latest-status')) return response(list('ore'));
-      attempts++; return attempts < 3 ? response({}, 503) : response({ item: 'ore', history: [point('ore')] });
+      attempts++; return attempts < 4 ? response({}, 503) : response({ item: 'ore', history: [point('ore')] });
+    });
+    await createStockmarketClient({ fetcher, sleep: async (ms) => { (ms === 100 ? pacing : backoffs).push(ms); } }).loadAll();
+    expect(attempts).toBe(4); expect(backoffs).toEqual([500, 1000, 1500]); expect(pacing).toEqual([100]);
+  });
+
+  it('retries TimeoutError from AbortSignal.timeout', async () => {
+    let attempts = 0; const delays: number[] = [];
+    const fetcher = vi.fn(async (input: string | URL, _init?: RequestInit) => {
+      if (String(input).endsWith('latest-status')) return response(list('ore'));
+      attempts++;
+      if (attempts === 1) throw new DOMException('The operation timed out', 'TimeoutError');
+      return response({ item: 'ore', history: [] });
     });
     await createStockmarketClient({ fetcher, sleep: async (ms) => { delays.push(ms); } }).loadAll();
-    expect(attempts).toBe(3); expect(delays).toEqual([500, 1000, 100]);
+    expect(attempts).toBe(2);
+    expect(delays).toEqual([500, 100]);
   });
 
   it('retries AbortError, but only attempts a 404 once', async () => {
