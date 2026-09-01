@@ -3,7 +3,13 @@ import type { PlayerProfile } from '../profile/types';
 import { buildStrategyCandidates, type StrategyCandidate, type StrategyCandidateResult } from './candidates';
 import type { NormalizedStrategyGameData } from './game-data';
 import { createStrategyPriceBook } from './price-book';
+import {
+  evaluateRealizableStrategy,
+  type LiquidityClassification,
+  type RealizableStrategy,
+} from './realizable';
 import type { StrategyPinStore } from './store';
+import type { StrategyFlow, StrategyStepResult } from './types';
 
 export interface StrategyView {
   render(): Promise<void>;
@@ -13,7 +19,7 @@ export interface StrategyView {
 export interface StrategyViewOptions {
   target: HTMLElement;
   getProfile(): PlayerProfile | null;
-  getSnapshot(): Snapshot | null;
+  getSnapshots(): readonly Snapshot[];
   loadGameData(): Promise<NormalizedStrategyGameData>;
   pinStore: StrategyPinStore;
   calculate?: typeof buildStrategyCandidates;
@@ -31,6 +37,14 @@ function money(value: number): string {
   return new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 0 }).format(value);
 }
 
+function quantity(value: number): string {
+  return new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 2 }).format(value);
+}
+
+function metric(value: number | null, suffix = ''): string {
+  return value === null || !Number.isFinite(value) ? '—' : `${quantity(value)}${suffix}`;
+}
+
 function kindLabel(kind: StrategyCandidate['kind']): string {
   return {
     manufacture: '單步製造',
@@ -39,6 +53,21 @@ function kindLabel(kind: StrategyCandidate['kind']): string {
     coinify: '點金',
     'decompose-coinify': '分解 → 點金',
   }[kind];
+}
+
+const CLASSIFICATION_LABELS: Record<LiquidityClassification, string> = {
+  'long-run': '可長掛',
+  'small-test': '小量試單',
+  limited: '限量製作',
+  reject: '不建議',
+  insufficient: '資料不足',
+};
+
+type StrategyScope = 'actionable' | 'limited';
+
+interface AssessedStrategy {
+  candidate: StrategyCandidate;
+  liquidity: RealizableStrategy;
 }
 
 function renderNoProfile(options: StrategyViewOptions): void {
@@ -58,12 +87,14 @@ function renderNoProfile(options: StrategyViewOptions): void {
 }
 
 function strategyRow(
-  candidate: StrategyCandidate,
+  assessed: AssessedStrategy,
   pinned: Set<string>,
   options: StrategyViewOptions,
 ): HTMLTableRowElement {
+  const { candidate, liquidity } = assessed;
   const row = element('tr');
   row.dataset.strategyRow = candidate.id;
+  row.dataset.liquidityClassification = liquidity.classification;
 
   const pinCell = element('td');
   const pin = element('button', 'pin-button');
@@ -94,23 +125,54 @@ function strategyRow(
   strategyCell.append(type, title, path);
   row.append(strategyCell);
 
-  for (const [value, className] of [
-    [candidate.profitPerDay, 'strategy-profit'],
-    [candidate.profitPerHour, 'strategy-profit-hour'],
-    [candidate.workingCapital24h, 'strategy-capital'],
-  ] as const) {
-    const cell = element('td', className);
-    cell.textContent = money(value);
-    row.append(cell);
-  }
+  const classificationCell = element('td');
+  const classification = element('span', 'strategy-classification');
+  classification.dataset.classification = liquidity.classification;
+  classification.textContent = CLASSIFICATION_LABELS[liquidity.classification];
+  classificationCell.append(classification);
+  row.append(classificationCell);
+
+  const theoretical = element('td', 'strategy-profit-theoretical');
+  theoretical.textContent = money(liquidity.theoreticalProfitPerDay);
+  row.append(theoretical);
+  const realizable = element('td', 'strategy-profit');
+  realizable.textContent = liquidity.realizableProfitPerDay === null
+    ? '—'
+    : money(liquidity.realizableProfitPerDay);
+  row.append(realizable);
+
+  const safeCell = element('td', 'strategy-metrics');
+  const safeHours = element('span');
+  safeHours.textContent = `可執行 ${metric(liquidity.safeHoursPerDay, ' h/日')}`;
+  const safeBatch = element('span');
+  safeBatch.textContent = `安全批量 ${metric(liquidity.safeBatchUnits, '/日')}`;
+  safeCell.append(safeHours, safeBatch);
+  row.append(safeCell);
+
+  const marketCell = element('td', 'strategy-metrics');
+  const share = element('span');
+  share.textContent = `市場占比 ${metric(liquidity.marketSharePct, '%')}`;
+  const sellThrough = element('span');
+  sellThrough.textContent = `售出估計 ${metric(liquidity.sellThroughDays, ' 日')}`;
+  const bottleneck = element('span');
+  bottleneck.textContent = liquidity.bottleneckHrid === null
+    ? '瓶頸 無市場交易邊'
+    : `瓶頸 ${liquidity.bottleneckSide === 'input' ? '買入' : '賣出'} ${options.itemName(liquidity.bottleneckHrid)}`;
+  marketCell.append(share, sellThrough, bottleneck);
+  row.append(marketCell);
+
+  const capital = element('td', 'strategy-capital');
+  capital.textContent = money(candidate.workingCapital24h);
+  row.append(capital);
+
   const stepCell = element('td');
   const details = element('details', 'strategy-steps');
   const summary = element('summary');
-  summary.textContent = `${candidate.steps.length} 步`;
+  summary.textContent = `${candidate.steps.length} 步與假設`;
   const list = element('ol');
   for (const step of candidate.steps) {
     const item = element('li');
-    item.textContent = `${step.action}｜${options.itemName(step.outputHrid)}｜${money(step.profitPerHour ?? 0)}/h`;
+    item.append(stepAssumptions(step, options));
     list.append(item);
   }
   details.append(summary, list);
@@ -119,47 +181,122 @@ function strategyRow(
   return row;
 }
 
+function flowAssumption(
+  flow: StrategyFlow,
+  side: '投入' | '產出',
+  options: StrategyViewOptions,
+): string {
+  const price = flow.unitPrice === null ? '內部流轉' : `單價 ${money(flow.unitPrice)}`;
+  return `${side} ${options.itemName(flow.itemHrid)} ${quantity(flow.unitsPerHour)}/h・${price}`;
+}
+
+function stepAssumptions(step: StrategyStepResult, options: StrategyViewOptions): HTMLElement {
+  const wrapper = element('div', 'strategy-step-assumptions');
+  const headline = element('strong');
+  headline.textContent = `${step.action}｜${options.itemName(step.outputHrid)}｜${quantity(step.actionsPerHour)} 次/h`;
+  const economics = element('span');
+  economics.textContent = `成本 ${metric(step.costPerHour, '/h')}・收入 ${metric(step.incomePerHour, '/h')}・利潤 ${metric(step.profitPerHour, '/h')}`;
+  const flows = element('ul');
+  for (const input of step.inputs) {
+    const line = element('li');
+    line.textContent = flowAssumption(input, '投入', options);
+    flows.append(line);
+  }
+  for (const output of step.outputs) {
+    const line = element('li');
+    line.textContent = flowAssumption(output, '產出', options);
+    flows.append(line);
+  }
+  wrapper.append(headline, economics, flows);
+  return wrapper;
+}
+
 function renderResults(
   result: StrategyCandidateResult,
   pinned: Set<string>,
   options: StrategyViewOptions,
+  snapshots: readonly Snapshot[],
+  scope: StrategyScope = 'actionable',
 ): void {
   options.target.replaceChildren();
   const header = element('header', 'strategy-header');
   const heading = element('h2');
   heading.textContent = '策略推薦';
   const warning = element('p', 'strategy-warning');
-  warning.textContent = '目前為理論收益，尚未套用市場承接量；安全批量與可實現日利將在下一階段加入。';
+  warning.textContent = '可實現日利採所有市場買賣邊的 3D／7D 成交量中位數與 5% 安全市占估算；這是成交量承接估計，不等同訂單簿深度或滑價保證。市場賣出按現行 5% 稅計算，點金不課市場稅。';
   header.append(heading, warning);
   options.target.append(header);
 
-  const positive = result.candidates.filter((candidate) => candidate.profitPerDay > 0);
-  positive.sort((left, right) => {
-    const byPinned = Number(pinned.has(right.id)) - Number(pinned.has(left.id));
-    return byPinned || right.profitPerDay - left.profitPerDay;
+  const assessed = result.candidates
+    .filter((candidate) => candidate.profitPerDay > 0)
+    .map((candidate) => ({ candidate, liquidity: evaluateRealizableStrategy(candidate, snapshots) }));
+  const actionable = assessed.filter(({ liquidity }) => (
+    liquidity.classification !== 'reject'
+    && liquidity.classification !== 'insufficient'
+    && (liquidity.realizableProfitPerDay ?? 0) > 0
+  ));
+  const limited = assessed.filter(({ liquidity }) => (
+    liquidity.classification === 'reject' || liquidity.classification === 'insufficient'
+  ));
+  const chosen = scope === 'actionable' ? actionable : limited;
+  chosen.sort((left, right) => {
+    const byPinned = Number(pinned.has(right.candidate.id)) - Number(pinned.has(left.candidate.id));
+    if (byPinned) return byPinned;
+    if (scope === 'limited' && left.liquidity.classification !== right.liquidity.classification) {
+      return left.liquidity.classification === 'insufficient' ? -1 : 1;
+    }
+    const leftProfit = left.liquidity.realizableProfitPerDay ?? left.liquidity.theoreticalProfitPerDay;
+    const rightProfit = right.liquidity.realizableProfitPerDay ?? right.liquidity.theoreticalProfitPerDay;
+    return rightProfit - leftProfit || left.candidate.id.localeCompare(right.candidate.id);
   });
-  if (positive.length === 0) {
+
+  const scopeNav = element('nav', 'strategy-scopes');
+  scopeNav.setAttribute('aria-label', '策略承接分類');
+  for (const [key, label, count] of [
+    ['actionable', '可執行', actionable.length],
+    ['limited', '觀察／排除', limited.length],
+  ] as const) {
+    const button = element('button', 'strategy-scope-button');
+    button.type = 'button';
+    button.dataset.strategyScope = key;
+    button.setAttribute('aria-pressed', String(scope === key));
+    button.textContent = `${label} ${count}`;
+    button.addEventListener('click', () => renderResults(result, pinned, options, snapshots, key));
+    scopeNav.append(button);
+  }
+  options.target.append(scopeNav);
+
+  if (assessed.length === 0) {
     const empty = element('p', 'strategy-no-result');
     empty.textContent = '目前價格下沒有資料完整且理論收益為正的策略。';
     options.target.append(empty);
     return;
   }
 
+  if (chosen.length === 0) {
+    const empty = element('p', 'strategy-no-result');
+    empty.textContent = scope === 'actionable'
+      ? '目前沒有通過成交量承接門檻的正收益策略；請查看「觀察／排除」了解資料不足或不建議的原因。'
+      : '目前沒有資料不足或超過安全市占的策略。';
+    options.target.append(empty);
+    return;
+  }
+
   const meta = element('p', 'strategy-meta');
-  meta.textContent = `顯示前 ${Math.min(100, positive.length)} / ${positive.length} 條正收益策略`;
+  meta.textContent = `顯示前 ${Math.min(100, chosen.length)} / ${chosen.length} 條；預設依可實現日利排序`;
   options.target.append(meta);
   const scroll = element('div', 'strategy-table-scroll');
   const table = element('table', 'strategy-table');
   const head = element('thead');
   const headerRow = element('tr');
-  for (const label of ['自選', '策略路徑', '理論日利', '每小時利潤', '24h 資金', '步驟']) {
+  for (const label of ['自選', '策略路徑', '判定', '理論日利', '可實現日利', '安全執行', '市場承接', '24h 資金', '假設']) {
     const cell = element('th');
     cell.textContent = label;
     headerRow.append(cell);
   }
   head.append(headerRow);
   const body = element('tbody');
-  for (const candidate of positive.slice(0, 100)) body.append(strategyRow(candidate, pinned, options));
+  for (const candidate of chosen.slice(0, 100)) body.append(strategyRow(candidate, pinned, options));
   table.append(head, body);
   scroll.append(table);
   options.target.append(scroll);
@@ -178,7 +315,10 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
         renderNoProfile(options);
         return;
       }
-      const snapshot = options.getSnapshot();
+      const snapshots = options.getSnapshots();
+      const snapshot = snapshots.reduce<Snapshot | null>((latest, item) => (
+        latest === null || item.timestamp > latest.timestamp ? item : latest
+      ), null);
       if (!snapshot) {
         options.target.textContent = '尚無市場快照，無法計算策略。';
         return;
@@ -188,7 +328,7 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
         const [data, pins] = await Promise.all([options.loadGameData(), options.pinStore.list()]);
         if (destroyed || current !== generation) return;
         const result = calculate({ profile, data, prices: createStrategyPriceBook(snapshot, data) });
-        renderResults(result, new Set(pins), options);
+        renderResults(result, new Set(pins), options, snapshots);
       } catch {
         if (!destroyed && current === generation) options.target.textContent = '策略資料無法使用，請稍後再試。';
       }

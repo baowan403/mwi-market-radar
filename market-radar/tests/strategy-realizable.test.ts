@@ -79,4 +79,39 @@ describe('liquidity-adjusted realizable strategy', () => {
     expect(result.classification).toBe('insufficient');
     expect(result.realizableProfitPerDay).toBeNull();
   });
+
+  it('uses the narrowest of multiple market inputs instead of checking only the final output', () => {
+    const value = candidate(1, 1);
+    value.steps[0]!.inputs.push({
+      itemHrid: '/items/rare_input', enhancementLevel: 0, unitsPerHour: 10, unitPrice: 110, market: true,
+    });
+    const result = evaluateRealizableStrategy(value, snapshots({
+      '/items/input': 1_000,
+      '/items/rare_input': 100,
+      '/items/output': 1_000,
+    }));
+
+    expect(result.classification).toBe('small-test');
+    expect(result.marketSharePct).toBe(10);
+    expect(result.bottleneckHrid).toBe('/items/rare_input');
+    expect(result.bottleneckSide).toBe('input');
+    expect(result.safeHoursPerDay).toBe(12);
+  });
+
+  it('rejects a profitable equipment output whose observed market cannot absorb one-per-hour production', () => {
+    const value = candidate(0.01, 1);
+    value.path[value.path.length - 1] = '/items/slow_equipment';
+    value.steps[1]!.outputs[0] = {
+      itemHrid: '/items/slow_equipment', enhancementLevel: 0, unitsPerHour: 1, unitPrice: 100, market: true,
+    };
+    const result = evaluateRealizableStrategy(value, snapshots({
+      '/items/input': 1_000,
+      '/items/slow_equipment': 2,
+    }));
+
+    expect(result.classification).toBe('reject');
+    expect(result.marketSharePct).toBe(50);
+    expect(result.safeHoursPerDay).toBeCloseTo(2.4);
+    expect(result.sellThroughDays).toBe(0.5);
+  });
 });

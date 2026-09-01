@@ -5,12 +5,45 @@ import { createMemoryStrategyPinStore } from '../src/strategy/store';
 import { createStrategyView } from '../src/strategy/view';
 import type { StrategyCandidateResult } from '../src/strategy/candidates';
 import type { PlayerProfile } from '../src/profile/types';
-import type { Snapshot } from '../src/core/types';
+import type { MarketKey, Snapshot } from '../src/core/types';
+import type { StrategyStepResult } from '../src/strategy/types';
 
 const profile = {
   id: 'character:1', name: '測試牛', actions: { alchemy: { playerLevel: 103 } },
 } as unknown as PlayerProfile;
 const snapshot: Snapshot = { timestamp: 1, quotes: {} };
+
+function marketStep(
+  id: string,
+  inputHrid: string,
+  outputHrid: string,
+  unitsPerHour: number,
+): StrategyStepResult {
+  return {
+    id,
+    action: 'crafting',
+    actionHrid: `/actions/crafting/${id}`,
+    outputHrid,
+    valid: true,
+    actionsPerHour: 1,
+    costPerHour: 1_000,
+    incomePerHour: 2_000,
+    profitPerHour: 1_000,
+    experiencePerHour: 100,
+    inputs: [{ itemHrid: inputHrid, enhancementLevel: 0, unitsPerHour, unitPrice: 100, market: true }],
+    outputs: [{ itemHrid: outputHrid, enhancementLevel: 0, unitsPerHour, unitPrice: 200, market: true }],
+  };
+}
+
+function history(volumes: Record<string, number>, count = 169): Snapshot[] {
+  return Array.from({ length: count }, (_, index) => ({
+    timestamp: index * 3_600_000,
+    quotes: Object.fromEntries(Object.entries(volumes).map(([hrid, volume]) => [
+      `${hrid}::0` as MarketKey,
+      { a: 110, b: 100, p: 105, v: volume },
+    ])),
+  }));
+}
 const calculated: StrategyCandidateResult = {
   diagnostics: [],
   candidates: [
@@ -38,7 +71,7 @@ describe('strategy recommendation view', () => {
     const view = createStrategyView({
       target,
       getProfile: () => null,
-      getSnapshot: () => snapshot,
+      getSnapshots: () => [snapshot],
       loadGameData: vi.fn(),
       pinStore: createMemoryStrategyPinStore(),
       calculate: vi.fn(),
@@ -59,7 +92,7 @@ describe('strategy recommendation view', () => {
     const view = createStrategyView({
       target,
       getProfile: () => profile,
-      getSnapshot: () => snapshot,
+      getSnapshots: () => [snapshot],
       loadGameData: async () => ({
         shopItemDetailMap: {},
         openableLootDropMap: {},
@@ -79,7 +112,8 @@ describe('strategy recommendation view', () => {
     });
 
     await view.render();
-    expect(target.textContent).toContain('尚未套用市場承接量');
+    expect(target.textContent).toContain('成交量承接估計');
+    expect(target.textContent).toContain('可實現日利');
     expect(target.textContent).toContain('48,000,000');
     expect(target.textContent).toContain('紅杉原木 → 紅杉木板 → 紅杉弓');
     expect(target.textContent).toContain('72,000,000');
@@ -87,6 +121,72 @@ describe('strategy recommendation view', () => {
     pin.click();
     await vi.waitFor(async () => expect(await pinStore.list()).toEqual(['workflow:redwood']));
     await vi.waitFor(() => expect(pin.getAttribute('aria-pressed')).toBe('true'));
+    view.destroy();
+  });
+
+  it('ranks actionable strategies by realizable profit and separates reject or insufficient rows', async () => {
+    const target = document.createElement('section');
+    const snapshots = history({
+      '/items/long_input': 1_000,
+      '/items/long_output': 1_000,
+      '/items/limited_input': 1_000,
+      '/items/limited_output': 1_000,
+      '/items/reject_input': 1_000,
+      '/items/reject_output': 1_000,
+    });
+    const result: StrategyCandidateResult = {
+      diagnostics: [],
+      candidates: [
+        {
+          id: 'long', kind: 'manufacture', title: 'long', path: ['/items/long_input', '/items/long_output'],
+          profitPerHour: 1_000, profitPerDay: 24_000, costPerHour: 1_000, incomePerHour: 2_000,
+          workingCapital24h: 24_000, steps: [marketStep('long', '/items/long_input', '/items/long_output', 10)],
+        },
+        {
+          id: 'limited', kind: 'manufacture', title: 'limited', path: ['/items/limited_input', '/items/limited_output'],
+          profitPerHour: 2_000, profitPerDay: 48_000, costPerHour: 1_000, incomePerHour: 3_000,
+          workingCapital24h: 24_000, steps: [marketStep('limited', '/items/limited_input', '/items/limited_output', 200)],
+        },
+        {
+          id: 'reject', kind: 'manufacture', title: 'reject', path: ['/items/reject_input', '/items/reject_output'],
+          profitPerHour: 3_000, profitPerDay: 72_000, costPerHour: 1_000, incomePerHour: 4_000,
+          workingCapital24h: 24_000, steps: [marketStep('reject', '/items/reject_input', '/items/reject_output', 500)],
+        },
+        {
+          id: 'insufficient', kind: 'manufacture', title: 'insufficient', path: ['/items/missing_input', '/items/missing_output'],
+          profitPerHour: 4_000, profitPerDay: 96_000, costPerHour: 1_000, incomePerHour: 5_000,
+          workingCapital24h: 24_000, steps: [marketStep('insufficient', '/items/missing_input', '/items/missing_output', 1)],
+        },
+      ],
+    };
+    const view = createStrategyView({
+      target,
+      getProfile: () => profile,
+      getSnapshots: () => snapshots,
+      loadGameData: async () => ({ shopItemDetailMap: {}, openableLootDropMap: {}, itemsByHrid: new Map() }) as never,
+      pinStore: createMemoryStrategyPinStore(),
+      calculate: () => result,
+      itemName: (hrid) => hrid.split('/').at(-1) ?? hrid,
+      onImportProfile: vi.fn(),
+    });
+
+    await view.render();
+    expect(target.querySelector('[data-strategy-scope="actionable"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow)).toEqual([
+      'long', 'limited',
+    ]);
+    expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('可長掛');
+    expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('限量製作');
+    expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('12,000');
+    expect(target.textContent).toContain('安全批量');
+    expect(target.textContent).toContain('市場占比');
+
+    (target.querySelector('[data-strategy-scope="limited"]') as HTMLButtonElement).click();
+    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow)).toEqual([
+      'insufficient', 'reject',
+    ]);
+    expect(target.querySelector('[data-strategy-row="reject"]')?.textContent).toContain('不建議');
+    expect(target.querySelector('[data-strategy-row="insufficient"]')?.textContent).toContain('資料不足');
     view.destroy();
   });
 });

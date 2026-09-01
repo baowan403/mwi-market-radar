@@ -69,6 +69,15 @@ export default defineConfig({
       },
       testMatch: /(^|[\\/])strategy-recommendations\.spec\.ts$/,
     },
+    {
+      name: 'chrome-strategy-recommendations-mobile',
+      use: {
+        channel: 'chrome',
+        viewport: { width: 393, height: 851 },
+        isMobile: false,
+      },
+      testMatch: /(^|[\\/])strategy-recommendations\.spec\.ts$/,
+    },
   ],
   webServer: {
     command: 'npm run build && npm run preview -- --host 127.0.0.1',

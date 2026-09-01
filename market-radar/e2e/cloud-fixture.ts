@@ -11,6 +11,7 @@ export interface CloudFixtureOptions {
   corruptTimestamp?: number | null;
   stale?: boolean;
   strategyQuotes?: boolean;
+  historyHours?: number;
 }
 
 export interface CloudFixture {
@@ -83,10 +84,13 @@ export async function createCloudFixture(options: CloudFixtureOptions = {}): Pro
   let snapshotFetches = 0;
   let corruptTimestamp = options.corruptTimestamp ?? null;
   let currentManifest: CloudManifest;
+  const historyHours = Number.isSafeInteger(options.historyHours) && (options.historyHours ?? 0) >= 1
+    ? options.historyHours!
+    : 24;
 
-  for (let index = 24; index >= 0; index -= 1) {
+  for (let index = historyHours; index >= 0; index -= 1) {
     const timestamp = latestTimestamp - index * HOUR;
-    const current = createSnapshot(timestamp, 24 - index, index === 0, options.strategyQuotes === true);
+    const current = createSnapshot(timestamp, historyHours - index, index === 0, options.strategyQuotes === true);
     const encoded = await encodeDayChunk([current]);
     const file = `snapshots/${timestamp}.txt` as `snapshots/${number}.txt`;
     snapshots.push(current);

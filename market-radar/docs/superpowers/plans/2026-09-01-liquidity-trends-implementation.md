@@ -14,30 +14,30 @@
 
 **Files:** `src/strategy/liquidity.ts`, `tests/strategy-liquidity.test.ts`
 
-- [ ] Test 3D/7D hourly medians, insufficient samples, one-sided quotes, missing volume, and a one-day volume spike.
-- [ ] Implement `marketCapacity(key, snapshots)` using positive hourly samples in each window.
+- [x] Test 3D/7D hourly medians, insufficient samples, one-sided quotes, missing volume, and a one-day volume spike.
+- [x] Implement `marketCapacity(key, snapshots)` using non-negative hourly samples in each window so zero-volume periods are not silently discarded.
 
 ```ts
 safeUnitsPerHour = 0.05 * Math.min(median3d, median7d)
 ```
 
-- [ ] Require at least 24 valid 3D samples and 72 valid 7D samples; otherwise confidence is insufficient and long-hang is false.
-- [ ] Commit `feat: calculate robust market capacity`.
+- [x] Require at least 24 valid 3D samples and 72 valid 7D samples; otherwise confidence is insufficient and long-hang is false.
+- [x] Commit `feat: calculate robust market capacity`.
 
 ### Task 2: Apply capacity to every strategy edge
 
 **Files:** `src/strategy/realizable.ts`, `tests/strategy-realizable.test.ts`, `src/strategy/candidates.ts`
 
-- [ ] Test output bottleneck, input bottleneck, multiple inputs, coin/nonmarket flows, and equipment with low daily volume.
-- [ ] For every market flow compute `playerUnitsPerHour / median7d` and safe throughput ratio.
-- [ ] The strategy bottleneck is the minimum safe ratio across all market inputs and outputs.
-- [ ] Return:
+- [x] Test output bottleneck, input bottleneck, multiple inputs, coin/nonmarket flows, and equipment with low daily volume.
+- [x] For every market flow compute `playerUnitsPerHour / median7d` and safe throughput ratio.
+- [x] The strategy bottleneck is the minimum safe ratio across all market inputs and outputs.
+- [x] Return:
 
 ```ts
 interface RealizableStrategy {
   theoreticalProfitPerDay: number;
-  realizableProfitPerDay: number;
-  safeHoursPerDay: number;
+  realizableProfitPerDay: number | null;
+  safeHoursPerDay: number | null;
   safeBatchUnits: number | null;
   sellThroughDays: number | null;
   marketSharePct: number | null;
@@ -46,18 +46,18 @@ interface RealizableStrategy {
 }
 ```
 
-- [ ] Classification: ≤5% long-run; >5–10% small-test; >10–25% limited; >25% reject; missing samples insufficient.
-- [ ] Commit `feat: calculate realizable strategy profit`.
+- [x] Classification: ≤5% long-run; >5–10% small-test; >10–25% limited; >25% reject; missing samples insufficient.
+- [x] Commit `feat: calculate realizable strategy profit`.
 
 ### Task 3: Publish actionable liquidity recommendations
 
 **Files:** `src/strategy/view.ts`, `src/styles.css`, `tests/strategy-view.test.ts`, `e2e/strategy-recommendations.spec.ts`
 
-- [ ] Replace the theoretical-only warning with side-by-side theoretical and realizable daily profit.
-- [ ] Add safe hours, safe batch, estimated sell-through days, market share, bottleneck, and classification.
-- [ ] Default ranking uses realizable profit; rejected/insufficient strategies move to a separate limited-opportunity filter and never appear as long-run recommendations.
-- [ ] Preserve the exact assumptions in expandable details.
-- [ ] Commit `feat: show liquidity-adjusted recommendations`.
+- [x] Replace the theoretical-only warning with side-by-side theoretical and realizable daily profit.
+- [x] Add safe hours, safe batch, estimated sell-through days, market share, bottleneck, and classification.
+- [x] Default ranking uses realizable profit; rejected/insufficient strategies move to a separate limited-opportunity filter and never appear as long-run recommendations.
+- [x] Preserve the exact assumptions in expandable details.
+- [x] Commit `feat: show liquidity-adjusted recommendations`.
 
 ### Task 4: Build historical strategy margin series
 

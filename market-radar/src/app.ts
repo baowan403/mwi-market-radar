@@ -1149,9 +1149,7 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
     strategyView = createStrategyView({
       target: content,
       getProfile: () => profilePanel.getActiveProfile(),
-      getSnapshot: () => state.snapshots.reduce<Snapshot | null>((latest, snapshot) => (
-        latest === null || snapshot.timestamp > latest.timestamp ? snapshot : latest
-      ), null),
+      getSnapshots: () => state.snapshots,
       loadGameData: loadStrategyData,
       pinStore: strategyPinStore,
       itemName: (hrid) => {
@@ -1160,6 +1158,7 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       },
       onImportProfile: () => { void profilePanel.open(); },
     });
+    if (strategySurfaceActive) void strategyView.render();
 
     if (provider !== null && !localAttached && target !== null) {
       void waitForLocalBridge().then(async (ready) => {

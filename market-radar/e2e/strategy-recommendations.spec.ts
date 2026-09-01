@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 import { createCloudFixture } from './cloud-fixture';
 
 test('imports a profile and persists personalized strategy recommendations without profile egress', async ({ page }) => {
-  const fixture = await createCloudFixture({ strategyQuotes: true });
+  const fixture = await createCloudFixture({ strategyQuotes: true, historyHours: 72 });
   await fixture.install(page);
   await page.route('**/favicon.ico', (route) => route.fulfill({ status: 204, body: '' }));
   const requestBodies: string[] = [];
@@ -22,12 +22,31 @@ test('imports a profile and persists personalized strategy recommendations witho
   await expect(page.locator('#profile-summary')).toContainText('測試牛一號');
 
   await page.locator('[data-product-surface="strategy"]').click();
-  await expect(page.locator('.strategy-warning')).toContainText('尚未套用市場承接量');
+  await expect(page.locator('#category-nav')).toBeHidden();
+  await expect(page.locator('#toolbar')).toBeHidden();
+  await expect(page.locator('.strategy-warning')).toContainText('成交量承接估計');
+  await expect(page.locator('[data-strategy-scope="actionable"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('[data-strategy-row]')).not.toHaveCount(0);
+  await expect(page.locator('[data-strategy-row][data-liquidity-classification="reject"]')).toHaveCount(0);
+  await expect(page.locator('[data-strategy-row][data-liquidity-classification="insufficient"]')).toHaveCount(0);
+  await expect(page.getByRole('columnheader', { name: '理論日利' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: '可實現日利' })).toBeVisible();
+  await expect(page.locator('[data-strategy-row]').first()).toContainText('安全批量');
+  await expect(page.locator('[data-strategy-row]').first()).toContainText('市場占比');
+  const classificationStyle = await page.locator('.strategy-classification').first().evaluate((element) => ({
+    background: getComputedStyle(element).backgroundColor,
+    radius: Number.parseFloat(getComputedStyle(element).borderTopLeftRadius),
+  }));
+  expect(classificationStyle.background).not.toBe('rgba(0, 0, 0, 0)');
+  expect(classificationStyle.radius).toBeGreaterThan(0);
   await expect(page.locator('[data-strategy-row*="redwood"]').first()).toBeVisible();
-  await expect(page.locator('[data-strategy-row*="pirate_refinement_shard"]').first()).toBeVisible();
 
-  const firstPin = page.locator('[data-strategy-pin]').first();
+  await page.locator('[data-strategy-scope="limited"]').click();
+  await expect(page.locator('[data-strategy-row]')).not.toHaveCount(0);
+  await expect(page.locator('[data-strategy-row*="pirate_refinement_shard"]').first()).toBeVisible();
+  await page.locator('[data-strategy-scope="actionable"]').click();
+
+  const firstPin = page.locator('[data-strategy-row*="redwood"] [data-strategy-pin]').first();
   const strategyId = await firstPin.getAttribute('data-strategy-pin');
   await firstPin.click();
   await expect(firstPin).toHaveAttribute('aria-pressed', 'true');
