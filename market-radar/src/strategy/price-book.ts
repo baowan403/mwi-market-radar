@@ -55,6 +55,12 @@ export function createStrategyPriceBook(
     visiting: Set<string>,
   ): number | null => {
     if (hrid === '/items/coin') return 1;
+    if (hrid === '/items/cowbell') {
+      const bagPrice = side === 'ask'
+        ? raw.ask('/items/bag_of_10_cowbells')
+        : raw.bid('/items/bag_of_10_cowbells');
+      return bagPrice === null || bagPrice <= 0 ? 40_000 : bagPrice / 10;
+    }
     const cacheKey = `${side}:${hrid}:${level}`;
     if (cache.has(cacheKey)) return cache.get(cacheKey) ?? null;
     if (visiting.has(cacheKey)) return null;

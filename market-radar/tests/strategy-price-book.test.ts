@@ -67,4 +67,55 @@ describe('strategy market price book', () => {
     expect(book.ask('/items/tool')).toBe(5_000);
     expect(book.bid('/items/tool')).toBe(5_500);
   });
+
+  it('values cowbells from the tradable bag of ten like Milkonomy', () => {
+    const extended: Snapshot = {
+      ...snapshot,
+      quotes: {
+        ...snapshot.quotes,
+        '/items/bag_of_10_cowbells::0': { a: 1_125_000, b: 1_115_000, p: 1_124_269, v: 0 },
+      },
+    };
+    const items = new Map<string, unknown>([
+      ['/items/medium_artisans_crate', {
+        hrid: '/items/medium_artisans_crate',
+        categoryHrid: '/item_categories/loot',
+      }],
+      ['/items/cowbell', { hrid: '/items/cowbell', categoryHrid: '/item_categories/currency' }],
+      ['/items/bag_of_10_cowbells', {
+        hrid: '/items/bag_of_10_cowbells',
+        categoryHrid: '/item_categories/loot',
+      }],
+    ]);
+    const data = {
+      itemsByHrid: items,
+      openableLootDropMap: {
+        '/items/medium_artisans_crate': [
+          { itemHrid: '/items/cowbell', dropRate: 0.1, minCount: 3, maxCount: 5 },
+          { itemHrid: '/items/cowbell', dropRate: 0.01, minCount: 20, maxCount: 40 },
+        ],
+      },
+      shopItemDetailMap: {},
+    } as unknown as NormalizedStrategyGameData;
+    const book = createStrategyPriceBook(extended, data);
+
+    expect(book.ask('/items/cowbell')).toBe(112_500);
+    expect(book.bid('/items/cowbell')).toBe(111_500);
+    expect(book.bid('/items/medium_artisans_crate')).toBe(78_050);
+  });
+
+  it('uses Milkonomy cowbell fallback when the bag has no quote', () => {
+    const items = new Map<string, unknown>([
+      ['/items/cowbell', { hrid: '/items/cowbell', categoryHrid: '/item_categories/currency' }],
+    ]);
+    const data = {
+      itemsByHrid: items,
+      openableLootDropMap: {},
+      shopItemDetailMap: {},
+    } as unknown as NormalizedStrategyGameData;
+    const book = createStrategyPriceBook(snapshot, data);
+
+    expect(book.ask('/items/cowbell')).toBe(40_000);
+    expect(book.bid('/items/cowbell')).toBe(40_000);
+  });
 });
