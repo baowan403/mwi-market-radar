@@ -72,7 +72,7 @@ MWI 分頁必須保持開啟，因為 v1 不在電腦關機或沒有遊戲分頁
 
 Tampermonkey userscript 保留為可選的本機 fallback：若 cloud data 暫時不可用且 MWI bridge 已 ready，dashboard 會顯示本機備援；若兩者都不可用，顯示安全錯誤與零假資料。cloud 與本機資料以 timestamp 去重，cloud 優先；偏好設定只存於瀏覽器本機 IndexedDB。
 
-首次 `workflow_dispatch` 已於 2026-09-01 成功建立 `market-data` 與 manifest；source `push` 不會以空資料自動 bootstrap。部署、rollback 與 local fixture 證據見 [`docs/cloud-deployment-checklist.md`](docs/cloud-deployment-checklist.md) 及 [`docs/manual-acceptance.md`](docs/manual-acceptance.md)。
+首次 `workflow_dispatch` 已於 2026-09-01 成功建立 `market-data` 與 manifest；source `push` 不會以空資料自動 bootstrap。一次性、Owner-confirmed 的 `stockmarket.xin` 七日歷史回填目前僅 prepared/manual：需先部署含預設 `false` 的 workflow，再由 Owner 執行唯一一次 `backfill_stockmarket_7d=true` run；在 Task 8 的實際證據記錄前，不宣稱 7D 歷史已由此回填填滿。部署、rollback 與 local fixture 證據見 [`docs/cloud-deployment-checklist.md`](docs/cloud-deployment-checklist.md) 及 [`docs/manual-acceptance.md`](docs/manual-acceptance.md)。
 
 ## 本機資料、停用與移除
 

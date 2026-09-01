@@ -31,6 +31,20 @@
 - [ ] 官方 timestamp 超過約 2.5 小時時，確認 stale warning 與既有 rows 保留；缺口需顯示，不可插值或補零。
 - [ ] repository 約 60 日沒有 activity 時，確認 scheduled workflow 是否被停用；由 Owner 重新啟用後先 manual dispatch，再確認下一個 schedule，不假裝補回停用期間。
 
+## 一次性授權七日回填的實際證據（Task 8 執行後填寫）
+
+> 此區所有欄位必須在唯一一次 `backfill_stockmarket_7d=true` 的 successful manual run 後填入；現在不要填入或推測數值。先以預設 `false` push/deploy，再手動執行一次；queued/running 時不可重複觸發，並必須驗證下一個 scheduled run 是 official-only。
+
+- [ ] Asia/Taipei 執行時間：
+- [ ] imported UTC range／snapshot count：
+- [ ] 最小 keys per snapshot：
+- [ ] latest official overlap comparisons／mismatch：`____`／`0`
+- [ ] `history-provenance.json` validation：
+- [ ] `market-data` commit SHA：
+- [ ] workflow run URL：
+- [ ] 公開頁 1D／3D／7D 與 source label：
+- [ ] 下一個 scheduled official-only run 的 URL／證明：
+
 ## Deploy failure 與 data rollback
 
 - [ ] 既有 `market-data` branch 發生 deploy failure 且本次有 data change 時，確認 `rollback-data` job 以 `always()` 條件啟動。

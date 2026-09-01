@@ -40,4 +40,6 @@ Website: <https://www.stockmarket.xin/>
 
 Userscript: <https://greasyfork.org/zh-CN/scripts/577373-%E7%89%9B%E7%89%9B%E8%82%A1%E5%B8%82>
 
-牛牛股市 was inspected as a public UX reference. No private or undocumented 牛牛股市 API, account system, player data, or backend code is included or called by MWI Market Radar.
+The GreasyFork userscript code is separately published under MIT; that code license does not license, assign ownership of, or otherwise determine rights in historical market data.
+
+Owner has separately confirmed authorization for this project to perform one initial seven-day bootstrap from 牛牛股市's public website/API endpoints. The resulting historical data remains attributed to its source; MWI Market Radar claims no ownership and makes no unsupported license claim for it. The bootstrap is manual-only, uses no private or undocumented API, account system, player data, cookie, profile, or token, and records source/provenance in `data/history-provenance.json`.

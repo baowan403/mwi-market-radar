@@ -74,6 +74,31 @@ describe('market radar Pages workflow', () => {
     );
   });
 
+  it('gates the authorized history backfill behind its explicit manual boolean input', () => {
+    const backfillStep = workflow.match(
+      /- name: Backfill the authorized seven-day public history[\s\S]*?(?=\n      - name:)/,
+    )?.[0] ?? '';
+
+    expect(workflow).toContain('  workflow_dispatch:\n    inputs:\n      backfill_stockmarket_7d:');
+    expect(workflow).toContain('description: "One-time authorized stockmarket.xin seven-day backfill"');
+    expect(workflow).toContain('required: false');
+    expect(workflow).toContain('type: boolean');
+    expect(workflow).toContain('default: false');
+    expect(backfillStep).toContain(
+      "if: github.event_name == 'workflow_dispatch' && inputs.backfill_stockmarket_7d == true",
+    );
+    expect(backfillStep).toContain('working-directory: market-radar');
+    expect(backfillStep).toContain('DATA_WT: ${{ steps.data-worktree.outputs.path }}');
+    expect(backfillStep).toContain(
+      'npm run cloud:backfill-stockmarket -- --data-dir "$DATA_WT/data"',
+    );
+    expect(backfillStep).not.toContain("github.event_name == 'schedule'");
+    expect(backfillStep).not.toContain("github.event_name == 'push'");
+    expect(workflow.indexOf('Collect the official snapshot')).toBeLessThan(
+      workflow.indexOf('Backfill the authorized seven-day public history'),
+    );
+  });
+
   it('copies and validates data before tests/build and Pages upload/deploy', () => {
     expect(workflow).toContain('public/data');
     expect(workflow).toContain('manifest.json');

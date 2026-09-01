@@ -6,6 +6,12 @@ on:
   schedule:
     - cron: "13 * * * *"
   workflow_dispatch:
+    inputs:
+      backfill_stockmarket_7d:
+        description: "One-time authorized stockmarket.xin seven-day backfill"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -84,6 +90,13 @@ jobs:
         run: |
           set -euo pipefail
           npm run cloud:update -- --data-dir "$DATA_WT/data" --source-url https://www.milkywayidle.com/game_data/marketplace.json --min-quotes 1000
+
+      - name: Backfill the authorized seven-day public history
+        if: github.event_name == 'workflow_dispatch' && inputs.backfill_stockmarket_7d == true
+        working-directory: market-radar
+        env:
+          DATA_WT: ${{ steps.data-worktree.outputs.path }}
+        run: npm run cloud:backfill-stockmarket -- --data-dir "$DATA_WT/data"
 
       - name: Validate market-data history
         working-directory: market-radar

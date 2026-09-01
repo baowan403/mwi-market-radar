@@ -10,6 +10,18 @@
 - Workflow 會在明確的 runner temporary worktree 操作 `market-data`，只將 `data/**` 的變更提交到該分支；manifest 與每個 snapshot 會在測試、建置前驗證。資料 commit/push 會等 cloud validate、unit test、雙 artifact build 與 Pages artifact upload 全部成功後才執行，並且仍在 deploy 前。
 - 任一採集、驗證、測試、建置或 artifact upload 失敗都會在資料 commit/push 前停止，上一個可用網站不會被新失敗取代；資料 push 失敗也會阻止 deploy。
 
+## 一次性授權的七日歷史回填（Task 8 前僅為 prepared/manual）
+
+- Owner 已確認可以使用牛牛股市的公開網站/API endpoint 做一次初始 bootstrap；此專案不主張擁有該歷史資料，且只為初始七日歷史使用。固定 origin 是 `https://www.stockmarket.xin`，只讀公開的 `/api/latest-status` 與 `/api/item/<item>/history?limit=200`，不接受可改寫 origin 的參數，也不傳 profile、cookie 或 token。
+- 回填 client 最多 4 個並行 request；每個 worker 的 request 後固定等待 100ms。每次 request timeout 為 10 秒；只有 HTTP 429、502、503、504 或 timeout 會重試，最多共 4 次，retry delay 依序為 500ms、1000ms、1500ms；其他 HTTP/schema/validation 失敗立即拒絕。
+- 資料 gate 是最多最近 168 個 UTC-hour sample、至少 150 個不同 UTC-hour sample、每個 snapshot 至少 1000 個 key。與最新官方 snapshot 重疊時，至少需 1000 個非 null ask/bid 比對；任何一個 ask 或 bid 不一致都會拒絕回填。
+- 成功後 `data/history-provenance.json` 記錄 `stockmarket-xin`、來源 label「牛牛股市」、固定來源 URL、Owner-confirmed permission 與回填範圍；頁面以「歷史回填：牛牛股市；最新行情：MWI 官方」揭露來源。無有效 provenance 時不猜測歷史來源。
+- 有效 provenance 已存在時，預設永久 idempotent skip，不做 network request。`--force` 僅重新驗證同一個固定七日 window，不能擴大範圍；正常每小時官方 collector 不依賴、也不會例行呼叫回填。
+
+安全操作順序：先以 input 保持 `false`（default）push/deploy 程式碼；接著只在 Actions 手動執行一次 `MWI Market Radar Pages`，將 `backfill_stockmarket_7d` 設為 `true`。不要在該 run queued/running 時再觸發另一個 run；確認完成後，等待下一個 scheduled run，證明它只採集 MWI 官方資料、沒有呼叫回填。
+
+回復與失敗處理：pre-merge gate failure 不會寫 provenance，manifest 會保持原狀。若 provenance 的原子寫入/驗證失敗，已合併的有效 snapshots 可能仍存在；下一次 manual rerun 會 reconciliation，並可得到 `inserted=0`，不可手動改檔。deploy failure 的 branch rollback 依既有 `rollback-data` 正常 revert 規則處理，從不 force-push。一次性回填約最多 864 次 public item requests（`limit=200`），受上述並行與 pacing 限制；不使用 profile、cookie 或 token。
+
 ## Local fixture acceptance
 
 不連官方 endpoint、不需要 MWI 分頁的可重現 smoke 使用 `tests/fixtures/marketplace.json`，先將 `$TEMP_DATA_DIR` 設為唯一 temporary data directory，再執行 repository 的 local `tsx` entry（例如 `node_modules/.bin/tsx scripts/update-cloud-history.ts --data-dir "$TEMP_DATA_DIR" --fixture tests/fixtures/marketplace.json --min-quotes 1`）：
