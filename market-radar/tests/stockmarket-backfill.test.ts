@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { Quote, Snapshot } from '../src/core/types';
 import type { StockmarketHistoryPoint } from '../src/backfill/stockmarket-schema';
 import { buildBackfillSnapshots, validateOfficialOverlap } from '../src/backfill/stockmarket-backfill';
-import { updateCloudHistory, type CloudFileSystem } from '../src/cloud/history-store';
+import { mergeCloudHistory, updateCloudHistory, type CloudFileSystem } from '../src/cloud/history-store';
 import { parseManifest } from '../src/cloud/manifest';
 import { createHistoryProvenance, HISTORY_PROVENANCE_FILE } from '../src/cloud/provenance';
 import { decodeDayChunk, encodeDayChunk } from '../src/core/storage-codec';
@@ -326,6 +326,55 @@ describe('stockmarket backfill command', () => {
       .resolves.toEqual({ skipped: true });
     expect(createClient).not.toHaveBeenCalled();
     expect(client.loadAll).not.toHaveBeenCalled();
+    await expect(dataBytes(dataDir)).resolves.toEqual(before);
+  }, 30_000);
+
+  it('accepts a partial-aged marker when phase-shifted UTC hour buckets leave its adjusted count intact', async () => {
+    const dataDir = await backfillDataDir();
+    const fromTimestamp = Date.parse('2026-08-20T00:59:00.000Z');
+    const cutoff = Date.parse('2026-08-20T01:30:00.000Z');
+    const toTimestamp = fromTimestamp + 167 * HOUR;
+    const latestTimestamp = cutoff + 10 * 24 * HOUR;
+    const quote = { '/items/item_0000::0': { a: 10, b: 9, p: 8, v: 7 } };
+    const retained = Array.from({ length: 147 }, (_, index) => ({ timestamp: cutoff + index * HOUR, quotes: quote }));
+    await mergeCloudHistory({
+      dataDir,
+      snapshots: [...retained, { timestamp: toTimestamp, quotes: quote }, { timestamp: latestTimestamp, quotes: quote }],
+      generatedAt: BACKFILL_GENERATED,
+    });
+    await writeFile(join(dataDir, HISTORY_PROVENANCE_FILE), `${JSON.stringify(createHistoryProvenance({
+      fetchedAt: BACKFILL_GENERATED,
+      fromTimestamp,
+      toTimestamp,
+      snapshotCount: 150,
+      overlapComparisons: 1_000,
+    }))}\n`, 'utf8');
+    const before = await dataBytes(dataDir);
+    const createClient = vi.fn(() => ({ loadAll: vi.fn(async () => stockmarketRows()) }));
+
+    await expect(runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, createClient, now: () => BACKFILL_NOW }))
+      .resolves.toEqual({ skipped: true });
+    expect(createClient).not.toHaveBeenCalled();
+    await expect(dataBytes(dataDir)).resolves.toEqual(before);
+  });
+
+  it.each([0, 999])('rejects a stored completion marker with only %i overlap comparisons before client creation', async (overlapComparisons) => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    await runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, client: { loadAll: async () => stockmarketRows() }, now: () => BACKFILL_NOW });
+    await writeFile(join(dataDir, HISTORY_PROVENANCE_FILE), `${JSON.stringify(createHistoryProvenance({
+      fetchedAt: BACKFILL_GENERATED,
+      fromTimestamp: BACKFILL_LATEST - 149 * HOUR,
+      toTimestamp: BACKFILL_LATEST,
+      snapshotCount: 150,
+      overlapComparisons,
+    }))}\n`, 'utf8');
+    const before = await dataBytes(dataDir);
+    const createClient = vi.fn(() => ({ loadAll: vi.fn(async () => stockmarketRows()) }));
+
+    await expect(runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, createClient, now: () => BACKFILL_NOW }))
+      .rejects.toThrow(/validation/i);
+    expect(createClient).not.toHaveBeenCalled();
     await expect(dataBytes(dataDir)).resolves.toEqual(before);
   }, 30_000);
 

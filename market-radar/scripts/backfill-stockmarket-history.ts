@@ -190,7 +190,12 @@ async function validateExistingHistory(dataDir: string, fileSystem: CloudFileSys
 
 function provenanceMatchesRetainedHistory(provenance: HistoryProvenance, manifest: CloudManifest): boolean {
   const latest = manifest.latestTimestamp;
-  if (latest === null || provenance.snapshotCount < MINIMUM_SNAPSHOTS || provenance.snapshotCount > MAXIMUM_SNAPSHOTS) {
+  if (
+    latest === null
+    || provenance.snapshotCount < MINIMUM_SNAPSHOTS
+    || provenance.snapshotCount > MAXIMUM_SNAPSHOTS
+    || provenance.overlapComparisons < MINIMUM_LATEST_OVERLAP_COMPARISONS
+  ) {
     return false;
   }
   if (
@@ -203,7 +208,9 @@ function provenanceMatchesRetainedHistory(provenance: HistoryProvenance, manifes
   const timestamps = new Set(manifest.snapshots.map((entry) => entry.timestamp));
   if (!timestamps.has(provenance.toTimestamp)) return false;
   if (provenance.fromTimestamp >= cutoff && !timestamps.has(provenance.fromTimestamp)) return false;
-  const maximumPrunedHourlyBuckets = Math.max(0, Math.ceil((cutoff - provenance.fromTimestamp) / HOUR_MS));
+  const maximumPrunedHourlyBuckets = cutoff <= provenance.fromTimestamp
+    ? 0
+    : Math.max(0, Math.floor((cutoff - 1) / HOUR_MS) - Math.floor(provenance.fromTimestamp / HOUR_MS) + 1);
   const minimumSurvivingSnapshots = Math.max(0, provenance.snapshotCount - maximumPrunedHourlyBuckets);
   const survivingStart = Math.max(provenance.fromTimestamp, cutoff);
   return manifest.snapshots.filter((entry) => (
