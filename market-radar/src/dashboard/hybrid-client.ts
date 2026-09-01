@@ -185,7 +185,10 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
   const cancelOperation = (operation: HybridOperation): void => {
     if (operation.settled || operation.cancelled) return;
     operation.cancelled = true;
-    if (activeOperation === operation) generation += 1;
+    if (activeOperation === operation) {
+      generation += 1;
+      activeOperation = null;
+    }
     operation.controller.abort();
   };
 

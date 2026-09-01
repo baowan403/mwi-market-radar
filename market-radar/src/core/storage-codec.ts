@@ -2,8 +2,9 @@ import type { Quote, Snapshot } from './types';
 
 export const STORAGE_CODEC_PREFIX = 'mwi-radar:gzip-json:v1:';
 export const STORAGE_CODEC_GZIP_PREFIX = STORAGE_CODEC_PREFIX;
+export const DEFAULT_MAX_DECODED_BYTES = 64 * 1024 * 1024;
 
-export type StorageDecodeReason = 'prefix' | 'base64' | 'gzip' | 'json' | 'schema' | 'unsupported';
+export type StorageDecodeReason = 'prefix' | 'base64' | 'gzip' | 'json' | 'schema' | 'size' | 'cancelled' | 'unsupported';
 
 export class StorageDecodeError extends Error {
   readonly reason: StorageDecodeReason;
@@ -126,22 +127,79 @@ export async function encodeDayChunk(value: Snapshot[]): Promise<string> {
   return `${STORAGE_CODEC_PREFIX}${bytesToBase64(bytes)}`;
 }
 
-export async function decodeDayChunk(value: string): Promise<Snapshot[]> {
+export async function decodeDayChunkLimited(
+  value: string,
+  maxDecodedBytes: number,
+  signal?: AbortSignal,
+): Promise<Snapshot[]> {
   if (typeof value !== 'string' || !value.startsWith(STORAGE_CODEC_PREFIX)) {
     throw new StorageDecodeError('prefix', 'Storage day chunk has an unsupported codec prefix.');
+  }
+  if (signal?.aborted) {
+    throw new StorageDecodeError('cancelled', 'Storage day chunk decode was cancelled.');
+  }
+  if (!Number.isSafeInteger(maxDecodedBytes) || maxDecodedBytes < 0) {
+    throw new StorageDecodeError('size', 'Storage day chunk exceeds the decoded size limit.');
   }
 
   const encodedBytes = base64ToBytes(value.slice(STORAGE_CODEC_PREFIX.length));
   const DecompressionStreamConstructor = requireDecompressionStream();
 
-  let bytes: ArrayBuffer;
+  let reader: ReadableStreamDefaultReader<Uint8Array>;
   try {
     const stream = new Blob([encodedBytes.buffer as ArrayBuffer])
       .stream()
       .pipeThrough(new DecompressionStreamConstructor('gzip'));
-    bytes = await new Response(stream).arrayBuffer();
+    reader = stream.getReader();
   } catch {
     throw new StorageDecodeError('gzip', 'Storage day chunk could not be decompressed as gzip.');
+  }
+
+  const chunks: Uint8Array[] = [];
+  let decodedBytes = 0;
+  let cancelled = false;
+  const cancelReader = (): void => {
+    cancelled = true;
+    void reader['cancel']().catch(() => undefined);
+  };
+  signal?.addEventListener('abort', cancelReader, { once: true });
+  let bytes: Uint8Array;
+  try {
+    while (true) {
+      if (cancelled || signal?.aborted) {
+        throw new StorageDecodeError('cancelled', 'Storage day chunk decode was cancelled.');
+      }
+      let result: ReadableStreamReadResult<Uint8Array>;
+      try {
+        result = await reader.read();
+      } catch {
+        if (cancelled || signal?.aborted) {
+          throw new StorageDecodeError('cancelled', 'Storage day chunk decode was cancelled.');
+        }
+        throw new StorageDecodeError('gzip', 'Storage day chunk could not be decompressed as gzip.');
+      }
+      if (cancelled || signal?.aborted) {
+        throw new StorageDecodeError('cancelled', 'Storage day chunk decode was cancelled.');
+      }
+      if (result.done) break;
+      const chunk = result.value;
+      decodedBytes += chunk.byteLength;
+      if (!Number.isSafeInteger(decodedBytes) || decodedBytes > maxDecodedBytes) {
+        cancelReader();
+        throw new StorageDecodeError('size', 'Storage day chunk exceeds the decoded size limit.');
+      }
+      chunks.push(chunk);
+    }
+
+    bytes = new Uint8Array(decodedBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+  } finally {
+    signal?.removeEventListener('abort', cancelReader);
+    reader.releaseLock();
   }
 
   let json: string;
@@ -163,4 +221,8 @@ export async function decodeDayChunk(value: string): Promise<Snapshot[]> {
   }
 
   return decoded;
+}
+
+export async function decodeDayChunk(value: string): Promise<Snapshot[]> {
+  return decodeDayChunkLimited(value, DEFAULT_MAX_DECODED_BYTES);
 }

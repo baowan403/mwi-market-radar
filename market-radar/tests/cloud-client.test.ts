@@ -232,6 +232,27 @@ describe('cloud client', () => {
     expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/manifest.json'))).toHaveLength(1);
   });
 
+  it('aborts the internal fetch when the last cloud subscriber leaves', async () => {
+    let receivedSignal: AbortSignal | undefined;
+    const fetcher = vi.fn((_input: string | URL, init?: RequestInit) => {
+      receivedSignal = init?.signal ?? undefined;
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(new DOMException('aborted', 'AbortError'));
+        }, { once: true });
+      });
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+    const controller = new AbortController();
+    const pending = client.refresh({ signal: controller.signal }).catch((cause: unknown) => cause);
+
+    controller.abort();
+    const error = await pending;
+
+    expect(error).toMatchObject({ code: 'cancelled' });
+    expect(receivedSignal?.aborted).toBe(true);
+  });
+
   it('rejects a manifest over one megabyte before downloading snapshots', async () => {
     const data = await manifestAndFiles([]);
     const oversized = `${JSON.stringify(data.manifest)}${' '.repeat(1_000_001)}`;

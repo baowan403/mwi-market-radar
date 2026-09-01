@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Snapshot } from '../src/core/types';
 import {
   decodeDayChunk,
+  decodeDayChunkLimited,
   encodeDayChunk,
   STORAGE_CODEC_GZIP_PREFIX,
   StorageDecodeError,
@@ -171,5 +172,22 @@ describe('storage codec', () => {
     vi.stubGlobal('CompressionStream', undefined);
 
     await expect(encodeDayChunk([])).rejects.toThrow(/unsupported/i);
+  });
+
+  it('rejects highly compressed output once the decoded byte limit is exceeded', async () => {
+    const input = [{ timestamp: 1_788_000_000_000, quotes: {
+      [key]: { a: 1, b: 1, p: 1, v: 1 },
+    }, padding: 'x'.repeat(100_000) }];
+    const encoded = await gzipJson(JSON.stringify(input));
+
+    await expect(decodeDayChunkLimited(encoded, 1_024)).rejects.toMatchObject({ reason: 'size' });
+  });
+
+  it('rejects a pre-aborted limited decode with a safe cancellation reason', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(decodeDayChunkLimited(await gzipPayload([snapshot(1)]), 1_024, controller.signal))
+      .rejects.toMatchObject({ reason: 'cancelled' });
   });
 });

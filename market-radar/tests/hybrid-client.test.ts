@@ -227,4 +227,39 @@ describe('hybrid dashboard client', () => {
     expect(error).toMatchObject({ code: 'cancelled' });
     expect(client.getSourceInfo().latestTimestamp).toBeNull();
   });
+
+  it('clears an aborted active operation so a new bootstrap does not wait for a hung local read', async () => {
+    let resolveCloud!: (value: Awaited<ReturnType<HybridCloudClient['load']>>) => void;
+    const cloud = cloudClient([snapshot(200, 200)], {
+      refresh: vi.fn().mockImplementation(() => new Promise((resolve) => {
+        resolveCloud = resolve;
+      })),
+    });
+    const local = localClient([]);
+    let localReads = 0;
+    (local.listSnapshots as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      localReads += 1;
+      return localReads === 1 ? new Promise<Snapshot[]>(() => undefined) : Promise.resolve([]);
+    });
+    const client = createHybridClient({ cloud, local, preferences: new MemoryPreferencesStore() });
+    const controller = new AbortController();
+    const aborted = client.refresh({ signal: controller.signal }).catch((cause: unknown) => cause);
+    controller.abort();
+
+    const next = client.bootstrap();
+    const result = await Promise.race([
+      next.then(() => true),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 25)),
+    ]);
+
+    expect(result).toBe(true);
+    await expect(aborted).resolves.toMatchObject({ code: 'cancelled' });
+    resolveCloud({
+      snapshots: [snapshot(100, 100)],
+      latestTimestamp: 100,
+      generatedAt: '2026-09-01T12:09:00.000Z',
+      stale: false,
+      warningCode: null,
+    });
+  });
 });

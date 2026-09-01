@@ -1,4 +1,4 @@
-import { decodeDayChunk } from '../core/storage-codec';
+import { decodeDayChunkLimited, StorageDecodeError } from '../core/storage-codec';
 import { parseManifest, type CloudManifest, type CloudSnapshotEntry } from '../cloud/manifest';
 import type { Snapshot } from '../core/types';
 
@@ -9,6 +9,7 @@ export const CLOUD_MAX_MANIFEST_BYTES = 1_000_000;
 export const CLOUD_MAX_SNAPSHOT_COUNT = 256;
 export const CLOUD_MAX_SNAPSHOT_BYTES = 2_000_000;
 export const CLOUD_MAX_TOTAL_SNAPSHOT_BYTES = 64_000_000;
+export const CLOUD_MAX_DECODED_SNAPSHOT_BYTES = 16_000_000;
 export const CLOUD_MAX_QUOTE_KEYS = 10_000;
 
 export type CloudMarketErrorCode =
@@ -86,6 +87,13 @@ interface SnapshotCache {
   signature: string;
   manifest: CloudManifest;
   snapshots: Snapshot[];
+}
+
+interface CloudOperation {
+  controller: AbortController;
+  promise: Promise<CloudMarketData>;
+  subscribers: number;
+  settled: boolean;
 }
 
 function unavailable(): CloudMarketError {
@@ -181,7 +189,7 @@ export function createCloudClient(
   const timers = timerApi(options);
   const clock = options.now ?? (() => Date.now());
   let cache: SnapshotCache | null = null;
-  let inFlight: Promise<CloudMarketData> | null = null;
+  let activeOperation: CloudOperation | null = null;
   let sourceInfo: CloudSourceInfo = {
     latestTimestamp: null,
     generatedAt: null,
@@ -319,8 +327,11 @@ export function createCloudClient(
     );
     let decoded: Snapshot[];
     try {
-      decoded = await decodeDayChunk(text);
-    } catch {
+      decoded = await decodeDayChunkLimited(text, CLOUD_MAX_DECODED_SNAPSHOT_BYTES, signal);
+    } catch (error) {
+      if (signal?.aborted || (error instanceof StorageDecodeError && error.reason === 'cancelled')) {
+        throw cancelled();
+      }
       throw invalidData();
     }
     if (
@@ -378,43 +389,68 @@ export function createCloudClient(
     };
   }
 
-  function waitForCaller<T>(operation: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
-    if (signal === undefined) return operation;
-    if (signal.aborted) return Promise.reject(cancelled());
-    return new Promise<T>((resolve, reject) => {
+  function detachSubscriber(operation: CloudOperation): void {
+    if (operation.subscribers === 0) return;
+    operation.subscribers -= 1;
+    if (operation.subscribers === 0) {
+      operation.controller.abort();
+      if (activeOperation === operation) activeOperation = null;
+    }
+  }
+
+  function attachSubscriber(
+    operation: CloudOperation,
+    signal: AbortSignal | undefined,
+  ): Promise<CloudMarketData> {
+    if (signal?.aborted) return Promise.reject(cancelled());
+    operation.subscribers += 1;
+    let detached = false;
+    const detach = (): void => {
+      if (detached) return;
+      detached = true;
+      detachSubscriber(operation);
+    };
+
+    return new Promise<CloudMarketData>((resolve, reject) => {
       let settled = false;
-      const cleanup = (): void => {
-        signal.removeEventListener('abort', onAbort);
-      };
+      const cleanup = (): void => signal?.removeEventListener('abort', onAbort);
       const onAbort = (): void => {
         if (settled) return;
         settled = true;
         cleanup();
+        detach();
         reject(cancelled());
       };
-      signal.addEventListener('abort', onAbort, { once: true });
-      operation.then((value) => {
+      signal?.addEventListener('abort', onAbort, { once: true });
+      operation.promise.then((value) => {
         if (settled) return;
         settled = true;
         cleanup();
+        detach();
         resolve(value);
       }, (error: unknown) => {
         if (settled) return;
         settled = true;
         cleanup();
+        detach();
         reject(error);
       });
-      if (signal.aborted) onAbort();
+      if (signal?.aborted) onAbort();
     });
   }
 
   function loadShared(force: boolean): Promise<CloudMarketData> {
-    if (inFlight !== null) return inFlight;
+    if (activeOperation !== null) return activeOperation.promise;
     if (!force && cache !== null) return Promise.resolve(cachedData());
-    const operation = (async (): Promise<CloudMarketData> => {
+    const controller = new AbortController();
+    const operation = {} as CloudOperation;
+    operation.controller = controller;
+    operation.subscribers = 0;
+    operation.settled = false;
+    const pending = (async (): Promise<CloudMarketData> => {
       const manifestText = await requestText(
         resolveManifestUrl(base),
-        undefined,
+        controller.signal,
         'manifest',
         CLOUD_MAX_MANIFEST_BYTES,
       );
@@ -423,7 +459,8 @@ export function createCloudClient(
       const signature = snapshotSignature(manifest);
       const snapshots = cache?.signature === signature
         ? cache.snapshots
-        : await downloadEntries(manifest.snapshots, undefined);
+        : await downloadEntries(manifest.snapshots, controller.signal);
+      if (controller.signal.aborted) throw cancelled();
       cache = { signature, manifest, snapshots };
       sourceInfo = sourceFor(manifest);
       return {
@@ -435,18 +472,30 @@ export function createCloudClient(
         warning: sourceInfo.warning,
       };
     })();
-    inFlight = operation;
-    void operation.then(() => {
-      if (inFlight === operation) inFlight = null;
-    }, () => {
-      if (inFlight === operation) inFlight = null;
+    operation.promise = pending.then((value) => {
+      operation.settled = true;
+      return value;
+    }, (error: unknown) => {
+      operation.settled = true;
+      throw error;
     });
-    return operation;
+    activeOperation = operation;
+    void operation.promise.then(() => {
+      if (activeOperation === operation) activeOperation = null;
+    }, () => {
+      if (activeOperation === operation) activeOperation = null;
+    });
+    return operation.promise;
   }
 
   async function load(optionsForRequest: CloudRequestOptions = {}): Promise<CloudMarketData> {
     if (optionsForRequest.signal?.aborted) throw cancelled();
-    return waitForCaller(loadShared(optionsForRequest.force === true), optionsForRequest.signal);
+    const force = optionsForRequest.force === true;
+    if (!force && activeOperation === null && cache !== null) return cachedData();
+    const operationPromise = loadShared(force);
+    const operation = activeOperation;
+    if (operation === null) return operationPromise;
+    return attachSubscriber(operation, optionsForRequest.signal);
   }
 
   return {
