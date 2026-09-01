@@ -49,6 +49,8 @@ const strategyData = {
   achievementDetailMap: gameData.achievementDetailMap,
   achievementTierDetailMap: gameData.achievementTierDetailMap,
   personalBuffTypeDetailMap: gameData.personalBuffTypeDetailMap,
+  openableLootDropMap: gameData.openableLootDropMap,
+  shopItemDetailMap: gameData.shopItemDetailMap,
 };
 
 function stable(value: unknown): unknown {

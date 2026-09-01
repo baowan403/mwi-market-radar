@@ -2,7 +2,7 @@ import type { Snapshot } from '../core/types';
 import type { PlayerProfile } from '../profile/types';
 import { buildStrategyCandidates, type StrategyCandidate, type StrategyCandidateResult } from './candidates';
 import type { NormalizedStrategyGameData } from './game-data';
-import { createMarketPriceBook } from './price-book';
+import { createStrategyPriceBook } from './price-book';
 import type { StrategyPinStore } from './store';
 
 export interface StrategyView {
@@ -187,7 +187,7 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
       try {
         const [data, pins] = await Promise.all([options.loadGameData(), options.pinStore.list()]);
         if (destroyed || current !== generation) return;
-        const result = calculate({ profile, data, prices: createMarketPriceBook(snapshot) });
+        const result = calculate({ profile, data, prices: createStrategyPriceBook(snapshot, data) });
         renderResults(result, new Set(pins), options);
       } catch {
         if (!destroyed && current === generation) options.target.textContent = '策略資料無法使用，請稍後再試。';

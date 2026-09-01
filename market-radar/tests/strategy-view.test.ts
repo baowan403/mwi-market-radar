@@ -60,7 +60,11 @@ describe('strategy recommendation view', () => {
       target,
       getProfile: () => profile,
       getSnapshot: () => snapshot,
-      loadGameData: async () => ({}) as never,
+      loadGameData: async () => ({
+        shopItemDetailMap: {},
+        openableLootDropMap: {},
+        itemsByHrid: new Map(),
+      }) as never,
       pinStore,
       calculate: () => calculated,
       itemName: (hrid) => ({

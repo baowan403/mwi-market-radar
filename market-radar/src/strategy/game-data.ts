@@ -90,6 +90,8 @@ export function normalizeStrategyGameData(input: unknown): NormalizedStrategyGam
   const achievementDetailMap = record(data?.achievementDetailMap);
   const achievementTierDetailMap = record(data?.achievementTierDetailMap);
   const personalBuffTypeDetailMap = record(data?.personalBuffTypeDetailMap);
+  const openableLootDropMap = record(data?.openableLootDropMap);
+  const shopItemDetailMap = record(data?.shopItemDetailMap);
   if (
     !data
     || typeof data.gameVersion !== 'string'
@@ -102,6 +104,8 @@ export function normalizeStrategyGameData(input: unknown): NormalizedStrategyGam
     || !achievementDetailMap
     || !achievementTierDetailMap
     || !personalBuffTypeDetailMap
+    || !openableLootDropMap
+    || !shopItemDetailMap
   ) {
     throw new StrategyDataError();
   }
@@ -118,6 +122,8 @@ export function normalizeStrategyGameData(input: unknown): NormalizedStrategyGam
     achievementDetailMap: { ...achievementDetailMap },
     achievementTierDetailMap: { ...achievementTierDetailMap },
     personalBuffTypeDetailMap: { ...personalBuffTypeDetailMap },
+    openableLootDropMap: { ...openableLootDropMap } as StrategyGameDataInput['openableLootDropMap'],
+    shopItemDetailMap: { ...shopItemDetailMap },
     itemsByHrid: new Map(Object.entries(items)),
     actionsByHrid: new Map(Object.entries(actions)),
   };

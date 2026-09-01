@@ -66,4 +66,11 @@ export interface StrategyGameDataInput {
   achievementDetailMap: Record<string, unknown>;
   achievementTierDetailMap: Record<string, unknown>;
   personalBuffTypeDetailMap: Record<string, unknown>;
+  openableLootDropMap: Record<string, Array<{
+    itemHrid: string;
+    dropRate: number;
+    minCount: number;
+    maxCount: number;
+  }>>;
+  shopItemDetailMap: Record<string, unknown>;
 }

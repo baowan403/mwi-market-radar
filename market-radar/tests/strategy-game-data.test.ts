@@ -30,6 +30,8 @@ describe('pinned Milkonomy reference artifacts', () => {
       achievementDetailMap: expect.any(Object),
       achievementTierDetailMap: expect.any(Object),
       personalBuffTypeDetailMap: expect.any(Object),
+      openableLootDropMap: expect.any(Object),
+      shopItemDetailMap: expect.any(Object),
     }));
     expect(strategyData).not.toHaveProperty('monsterDetailMap');
     expect(strategyData).not.toHaveProperty('chat');
