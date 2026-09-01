@@ -8,7 +8,7 @@ import {
 export { CLOUD_MANIFEST_SCHEMA, CLOUD_RETENTION_MS } from './types';
 export type { CloudManifest, CloudSnapshotEntry } from './types';
 
-const MANIFEST_KEYS = ['schema', 'generatedAt', 'latest', 'snapshots'] as const;
+const MANIFEST_KEYS = ['schemaVersion', 'generatedAt', 'latestTimestamp', 'snapshots'] as const;
 const ENTRY_KEYS = ['timestamp', 'file', 'bytes'] as const;
 const ISO_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
 
@@ -70,22 +70,22 @@ function validateEntry(value: unknown): CloudSnapshotEntry {
   }
   return {
     timestamp: value.timestamp,
-    file: value.file,
+    file: value.file as `snapshots/${number}.txt`,
     bytes: value.bytes,
   };
 }
 
-function validateManifest(value: unknown): CloudManifest {
+function validateManifest(value: unknown, enforceRetention = true): CloudManifest {
   if (!isRecord(value) || !hasExactKeys(value, MANIFEST_KEYS)) {
     return invalid('Invalid cloud manifest fields');
   }
-  if (value.schema !== CLOUD_MANIFEST_SCHEMA) {
+  if (value.schemaVersion !== CLOUD_MANIFEST_SCHEMA) {
     return invalid('Invalid cloud manifest schema');
   }
   if (!isIsoInstant(value.generatedAt)) {
     return invalid('Invalid cloud manifest generatedAt');
   }
-  if (!(value.latest === null || isSafeMilliseconds(value.latest))) {
+  if (!(value.latestTimestamp === null || isSafeMilliseconds(value.latestTimestamp))) {
     return invalid('Invalid cloud manifest latest timestamp');
   }
   if (!Array.isArray(value.snapshots)) {
@@ -104,10 +104,10 @@ function validateManifest(value: unknown): CloudManifest {
   }
 
   const finalTimestamp = snapshots.at(-1)?.timestamp ?? null;
-  if (value.latest !== finalTimestamp) {
+  if (value.latestTimestamp !== finalTimestamp) {
     return invalid('Cloud manifest latest must equal the final snapshot timestamp');
   }
-  if (finalTimestamp !== null) {
+  if (enforceRetention && finalTimestamp !== null) {
     const cutoff = finalTimestamp - CLOUD_RETENTION_MS;
     if (snapshots.some((snapshot) => snapshot.timestamp < cutoff)) {
       return invalid('Cloud snapshot is outside the retention window');
@@ -115,9 +115,9 @@ function validateManifest(value: unknown): CloudManifest {
   }
 
   return {
-    schema: CLOUD_MANIFEST_SCHEMA,
+    schemaVersion: CLOUD_MANIFEST_SCHEMA,
     generatedAt: value.generatedAt,
-    latest: value.latest,
+    latestTimestamp: value.latestTimestamp,
     snapshots,
   };
 }
@@ -186,21 +186,37 @@ export function createManifest(
     : validated.filter((snapshot) => snapshot.timestamp >= cutoff);
 
   return parseManifest({
-    schema: CLOUD_MANIFEST_SCHEMA,
+    schemaVersion: CLOUD_MANIFEST_SCHEMA,
     generatedAt: generatedAtValue(generatedAt),
-    latest,
+    latestTimestamp: latest,
     snapshots: retained,
+  });
+}
+
+/** Keep only the latest eight days while preserving the manifest metadata. */
+export function retainEightDays(manifest: CloudManifest): CloudManifest {
+  const validated = validateManifest(manifest, false);
+  const latestTimestamp = validated.latestTimestamp;
+  if (latestTimestamp === null) return validated;
+
+  const cutoff = latestTimestamp - CLOUD_RETENTION_MS;
+  const snapshots = validated.snapshots.filter((snapshot) => snapshot.timestamp >= cutoff);
+  return validateManifest({
+    schemaVersion: validated.schemaVersion,
+    generatedAt: validated.generatedAt,
+    latestTimestamp: snapshots.at(-1)?.timestamp ?? null,
+    snapshots,
   });
 }
 
 /** Return sorted entries inside the eight-day window for a known latest time. */
 export function retainSnapshots(
   entries: readonly CloudSnapshotEntry[],
-  latest: number,
+  latestTimestamp: number,
 ): CloudSnapshotEntry[] {
-  if (!isSafeMilliseconds(latest)) return invalid('Invalid cloud snapshot latest timestamp');
+  if (!isSafeMilliseconds(latestTimestamp)) return invalid('Invalid cloud snapshot latest timestamp');
   return entries
     .map(validateEntry)
-    .filter((snapshot) => snapshot.timestamp >= latest - CLOUD_RETENTION_MS)
+    .filter((snapshot) => snapshot.timestamp >= latestTimestamp - CLOUD_RETENTION_MS)
     .sort((left, right) => left.timestamp - right.timestamp);
 }

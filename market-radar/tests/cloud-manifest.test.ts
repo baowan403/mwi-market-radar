@@ -4,6 +4,7 @@ import {
   CLOUD_RETENTION_MS,
   createManifest,
   parseManifest,
+  retainEightDays,
 } from '../src/cloud/manifest';
 
 const DAY = 24 * 60 * 60 * 1_000;
@@ -20,9 +21,9 @@ function entry(timestamp: number, bytes = 128): CloudSnapshotEntry {
 
 function validManifest(overrides: Partial<CloudManifest> = {}): CloudManifest {
   return {
-    schema: 1,
+    schemaVersion: 1,
     generatedAt: GENERATED_AT,
-    latest: LATEST,
+    latestTimestamp: LATEST,
     snapshots: [entry(LATEST - DAY), entry(LATEST)],
     ...overrides,
   };
@@ -39,9 +40,9 @@ describe('cloud manifest creation', () => {
     ], GENERATED_AT);
 
     expect(manifest).toEqual({
-      schema: 1,
+      schemaVersion: 1,
       generatedAt: GENERATED_AT,
-      latest: LATEST,
+      latestTimestamp: LATEST,
       snapshots: [entry(boundary, 64), entry(LATEST - DAY, 96), entry(LATEST)],
     });
   });
@@ -50,9 +51,9 @@ describe('cloud manifest creation', () => {
     const manifest = createManifest([], GENERATED_AT);
 
     expect(manifest).toEqual({
-      schema: 1,
+      schemaVersion: 1,
       generatedAt: GENERATED_AT,
-      latest: null,
+      latestTimestamp: null,
       snapshots: [],
     });
     expect(parseManifest(manifest)).toEqual(manifest);
@@ -70,8 +71,8 @@ describe('cloud manifest creation', () => {
     'snapshots\\2026.txt',
     `snapshots/${LATEST + 1}.txt`,
     'other/2026.txt',
-  ])('rejects an unsafe or mismatched snapshot file path: %s', (file) => {
-    expect(() => createManifest([{ ...entry(LATEST), file }], GENERATED_AT)).toThrow(/file|path|snapshot/i);
+])('rejects an unsafe or mismatched snapshot file path: %s', (file) => {
+    expect(() => createManifest([{ ...entry(LATEST), file } as unknown as CloudSnapshotEntry], GENERATED_AT)).toThrow(/file|path|snapshot/i);
   });
 });
 
@@ -82,11 +83,33 @@ describe('cloud manifest parsing', () => {
     expect(parseManifest(manifest)).toEqual(manifest);
   });
 
+  it('retains the exact eight-day boundary and recomputes the final latest timestamp', () => {
+    const boundary = LATEST - CLOUD_RETENTION_MS;
+    const manifest = validManifest({
+      snapshots: [entry(boundary - 1), entry(boundary), entry(LATEST)],
+    });
+
+    const retained = retainEightDays(manifest);
+
+    expect(retained).toEqual({
+      schemaVersion: 1,
+      generatedAt: GENERATED_AT,
+      latestTimestamp: LATEST,
+      snapshots: [entry(boundary), entry(LATEST)],
+    });
+  });
+
+  it('preserves an empty manifest while retaining no entries', () => {
+    const manifest = validManifest({ latestTimestamp: null, snapshots: [] });
+
+    expect(retainEightDays(manifest)).toEqual(manifest);
+  });
+
   it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
     'rejects an unsafe timestamp: %s',
     (timestamp) => {
       expect(() => parseManifest(validManifest({
-        latest: timestamp,
+        latestTimestamp: timestamp,
         snapshots: [entry(timestamp)],
       }))).toThrow(/timestamp|latest/i);
     },
@@ -104,17 +127,17 @@ describe('cloud manifest parsing', () => {
   });
 
   it('requires latest to be null for empty snapshots and equal to the final snapshot otherwise', () => {
-    expect(() => parseManifest(validManifest({ latest: null }))).toThrow(/latest/i);
-    expect(() => parseManifest(validManifest({ latest: LATEST }))).not.toThrow();
-    expect(() => parseManifest(validManifest({ latest: LATEST - DAY }))).toThrow(/latest/i);
-    expect(() => parseManifest(validManifest({ latest: LATEST - DAY - 1 }))).toThrow(/latest/i);
-    expect(() => parseManifest(validManifest({ latest: null, snapshots: [] }))).not.toThrow();
-    expect(() => parseManifest(validManifest({ latest: LATEST, snapshots: [] }))).toThrow(/latest/i);
+    expect(() => parseManifest(validManifest({ latestTimestamp: null }))).toThrow(/latest/i);
+    expect(() => parseManifest(validManifest({ latestTimestamp: LATEST }))).not.toThrow();
+    expect(() => parseManifest(validManifest({ latestTimestamp: LATEST - DAY }))).toThrow(/latest/i);
+    expect(() => parseManifest(validManifest({ latestTimestamp: LATEST - DAY - 1 }))).toThrow(/latest/i);
+    expect(() => parseManifest(validManifest({ latestTimestamp: null, snapshots: [] }))).not.toThrow();
+    expect(() => parseManifest(validManifest({ latestTimestamp: LATEST, snapshots: [] }))).toThrow(/latest/i);
   });
 
   it('rejects schema mismatches, extra root fields, and extra entry fields', () => {
-    expect(() => parseManifest({ ...validManifest(), schema: 2 })).toThrow(/schema/i);
-    expect(() => parseManifest({ ...validManifest(), schema: '1' })).toThrow(/schema/i);
+    expect(() => parseManifest({ ...validManifest(), schemaVersion: 2 })).toThrow(/schema/i);
+    expect(() => parseManifest({ ...validManifest(), schemaVersion: '1' })).toThrow(/schema/i);
     expect(() => parseManifest({ ...validManifest(), extra: true } as unknown as CloudManifest)).toThrow(/field|manifest|extra/i);
     expect(() => parseManifest({
       ...validManifest(),
@@ -130,6 +153,6 @@ describe('cloud manifest parsing', () => {
       snapshots: [entry(LATEST), entry(LATEST - DAY)],
     }))).toThrow(/ascending|order|timestamp/i);
     const old = entry(LATEST - CLOUD_RETENTION_MS - 1);
-    expect(() => parseManifest(validManifest({ snapshots: [old, entry(LATEST)], latest: LATEST }))).toThrow(/retention|old|8.?day/i);
+    expect(() => parseManifest(validManifest({ snapshots: [old, entry(LATEST)], latestTimestamp: LATEST }))).toThrow(/retention|old|8.?day/i);
   });
 });

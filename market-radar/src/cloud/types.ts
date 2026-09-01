@@ -5,13 +5,13 @@ export const CLOUD_MANIFEST_SCHEMA = 1 as const;
 
 export interface CloudSnapshotEntry {
   timestamp: number;
-  file: string;
+  file: `snapshots/${number}.txt`;
   bytes: number;
 }
 
 export interface CloudManifest {
-  schema: typeof CLOUD_MANIFEST_SCHEMA;
+  schemaVersion: typeof CLOUD_MANIFEST_SCHEMA;
   generatedAt: string;
-  latest: number | null;
+  latestTimestamp: number | null;
   snapshots: CloudSnapshotEntry[];
 }
