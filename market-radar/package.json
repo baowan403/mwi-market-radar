@@ -10,7 +10,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cloud:update": "tsx scripts/update-cloud-history.ts",
+    "cloud:validate": "tsx scripts/update-cloud-history.ts --validate-only"
   },
   "dependencies": {
     "chart.js": "^4.4.9"
@@ -19,6 +21,7 @@
     "@playwright/test": "^1.55.0",
     "@types/node": "^22.15.30",
     "jsdom": "^26.1.0",
+    "tsx": "^4.20.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.5",
     "vite-plugin-monkey": "^5.0.8",
