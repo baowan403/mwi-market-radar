@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-01T09:06:11.262Z",
+  "latestTimestamp": 1788253560000,
+  "snapshots": [
+    {
+      "timestamp": 1788253560000,
+      "file": "snapshots/1788253560000.txt",
+      "bytes": 44359
+    }
+  ]
+}
