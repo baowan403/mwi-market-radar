@@ -1,6 +1,10 @@
 import { decodeDayChunkLimited, StorageDecodeError } from '../core/storage-codec';
 import { parseManifest, type CloudManifest, type CloudSnapshotEntry } from '../cloud/manifest';
-import { dailyHistorySnapshots, decodeDailyHistoryPack } from '../cloud/daily-history';
+import {
+  dailyHistorySnapshots,
+  decodeDailyHistoryPack,
+  type DailyHistoryPack,
+} from '../cloud/daily-history';
 import type { Snapshot } from '../core/types';
 
 export const CLOUD_REQUEST_TIMEOUT_MS = 15_000;
@@ -89,6 +93,8 @@ interface SnapshotCache {
   signature: string;
   manifest: CloudManifest;
   snapshots: Snapshot[];
+  dailyDate: string;
+  dailyPack: DailyHistoryPack | null;
 }
 
 interface CloudOperation {
@@ -356,6 +362,7 @@ export function createCloudClient(
   async function downloadEntries(
     entries: readonly CloudSnapshotEntry[],
     signal: AbortSignal | undefined,
+    previousCache: SnapshotCache | null = null,
   ): Promise<Snapshot[]> {
     if (entries.length > CLOUD_MAX_SNAPSHOT_COUNT) throw invalidData();
     let declaredTotalBytes = 0;
@@ -368,6 +375,8 @@ export function createCloudClient(
     }
     const actualTotal = { bytes: 0 };
     const results: Snapshot[] = new Array(entries.length);
+    const previousEntries = new Map(previousCache?.manifest.snapshots.map((entry) => [entry.timestamp, entry]) ?? []);
+    const previousSnapshots = new Map(previousCache?.snapshots.map((snapshot) => [snapshot.timestamp, snapshot]) ?? []);
     let nextIndex = 0;
     const worker = async (): Promise<void> => {
       while (true) {
@@ -376,6 +385,17 @@ export function createCloudClient(
         if (index >= entries.length) return;
         const entry = entries[index];
         if (entry === undefined) throw invalidData();
+        const previousEntry = previousEntries.get(entry.timestamp);
+        const previousSnapshot = previousSnapshots.get(entry.timestamp);
+        if (
+          previousEntry !== undefined
+          && previousSnapshot !== undefined
+          && previousEntry.file === entry.file
+          && previousEntry.bytes === entry.bytes
+        ) {
+          results[index] = previousSnapshot;
+          continue;
+        }
         const downloaded = await downloadEntry(entry, signal);
         actualTotal.bytes += downloaded.bytes;
         if (actualTotal.bytes > CLOUD_MAX_TOTAL_SNAPSHOT_BYTES) throw invalidData();
@@ -472,23 +492,38 @@ export function createCloudClient(
       if (cache?.signature === signature) {
         snapshots = cache.snapshots;
       } else {
-        const hourly = await downloadEntries(manifest.snapshots, controller.signal);
-        const dailyText = await requestText(
-          resolveDailyHistoryUrl(base), controller.signal, 'daily', CLOUD_MAX_DAILY_HISTORY_BYTES,
-        );
-        let daily: Snapshot[] = [];
-        if (dailyText.trim().length > 0) {
-          try {
-            const pack = await decodeDailyHistoryPack(dailyText);
-            daily = dailyHistorySnapshots(pack, hourly[0]?.timestamp ?? Number.MAX_SAFE_INTEGER);
-          } catch {
-            throw invalidData();
+        const hourly = await downloadEntries(manifest.snapshots, controller.signal, cache);
+        const dailyDate = manifest.generatedAt.slice(0, 10);
+        let dailyPack = cache?.dailyDate === dailyDate ? cache.dailyPack : null;
+        if (cache?.dailyDate !== dailyDate) {
+          const dailyText = await requestText(
+            resolveDailyHistoryUrl(base), controller.signal, 'daily', CLOUD_MAX_DAILY_HISTORY_BYTES,
+          );
+          if (dailyText.trim().length > 0) {
+            try {
+              dailyPack = await decodeDailyHistoryPack(dailyText);
+            } catch {
+              throw invalidData();
+            }
           }
         }
+        const daily = dailyPack === null
+          ? []
+          : dailyHistorySnapshots(dailyPack, hourly[0]?.timestamp ?? Number.MAX_SAFE_INTEGER);
         snapshots = sortedUniqueSnapshots([...daily, ...hourly]);
+        cache = { signature, manifest, snapshots, dailyDate, dailyPack };
       }
       if (controller.signal.aborted) throw cancelled();
-      cache = { signature, manifest, snapshots };
+      cache ??= {
+        signature,
+        manifest,
+        snapshots,
+        dailyDate: manifest.generatedAt.slice(0, 10),
+        dailyPack: null,
+      };
+      cache.signature = signature;
+      cache.manifest = manifest;
+      cache.snapshots = snapshots;
       sourceInfo = sourceFor(manifest);
       return {
         snapshots: [...snapshots],

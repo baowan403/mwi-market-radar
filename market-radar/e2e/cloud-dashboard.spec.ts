@@ -76,14 +76,12 @@ test.describe('cloud-only market radar', () => {
     await expect(page.locator('[data-market-row]')).toHaveCount(1);
   });
 
-  test('refreshes a new timestamp and does not redownload snapshots when the manifest is unchanged', async ({ page }) => {
+  test('downloads only the new timestamp and nothing when the manifest is unchanged', async ({ page }) => {
     const fixture = await loadCloud(page);
     const initialSnapshotFetches = fixture.snapshotFetches;
     await fixture.advance();
     await page.locator('[data-cloud-refresh]').click();
-    await expect.poll(() => fixture.snapshotFetches).toBe(
-      initialSnapshotFetches + fixture.manifest.snapshots.length,
-    );
+    await expect.poll(() => fixture.snapshotFetches).toBe(initialSnapshotFetches + 1);
     await expect(page.locator('[data-cloud-refresh]')).toBeEnabled();
 
     const afterNewTimestamp = fixture.snapshotFetches;

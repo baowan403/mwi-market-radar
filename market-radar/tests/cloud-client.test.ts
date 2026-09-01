@@ -251,6 +251,52 @@ describe('cloud client', () => {
     expect(fetcher.mock.calls.filter(([input]) => String(input).includes('/snapshots/'))).toHaveLength(2);
   });
 
+  it('downloads only a newly appended hourly snapshot when the manifest advances', async () => {
+    const first = snapshot(LATEST - HOUR, 90);
+    const second = snapshot(LATEST, 100);
+    const firstData = await manifestAndFiles([first]);
+    const secondData = await manifestAndFiles([first, second]);
+    let manifest = firstData.manifest;
+    const files = new Map([...firstData.files, ...secondData.files]);
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.endsWith('/manifest.json')) return response(manifest);
+      if (url.endsWith('/daily-history.txt')) return response('');
+      return response(files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+
+    await expect(client.listSnapshots()).resolves.toEqual([first]);
+    manifest = secondData.manifest;
+    await expect(client.refresh()).resolves.toMatchObject({ snapshots: [first, second] });
+
+    expect(fetcher.mock.calls.filter(([input]) => String(input).includes('/snapshots/'))).toHaveLength(2);
+  });
+
+  it('reuses the immutable completed-day pack throughout the same UTC date', async () => {
+    const first = snapshot(LATEST - HOUR, 90);
+    const second = snapshot(LATEST, 100);
+    const firstData = await manifestAndFiles([first]);
+    const secondData = await manifestAndFiles([first, second]);
+    const oldDaily = aggregateDailySummary([snapshot(LATEST - 11 * 24 * HOUR, 70)]);
+    const daily = await encodeDailyHistoryPack(createDailyHistoryPack([oldDaily], GENERATED_AT));
+    let manifest = firstData.manifest;
+    const files = new Map([...firstData.files, ...secondData.files]);
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.endsWith('/manifest.json')) return response(manifest);
+      if (url.endsWith('/daily-history.txt')) return response(daily);
+      return response(files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+
+    await client.listSnapshots();
+    manifest = secondData.manifest;
+    await client.refresh();
+
+    expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/daily-history.txt'))).toHaveLength(1);
+  });
+
   it('shares concurrent force refreshes so one fetch commits one result', async () => {
     const data = await manifestAndFiles([snapshot(LATEST)]);
     let release!: () => void;
