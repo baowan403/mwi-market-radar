@@ -139,6 +139,42 @@ test('mobile table remains horizontally usable with sticky header', async ({ pag
   await expect(page.locator('.market-table th').first()).toHaveCSS('position', 'sticky');
 });
 
+test('mobile status and filters stay inside compact rounded surfaces', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chrome-mobile', 'mobile acceptance runs in the mobile Chrome project');
+  await loadFixture(page);
+
+  const geometry = await page.evaluate(() => {
+    const status = document.querySelector<HTMLElement>('#collector-status');
+    const source = document.querySelector<HTMLElement>('#data-source');
+    const enhancement = document.querySelector<HTMLSelectElement>('select[data-filter="enhancement"]');
+    const bid = document.querySelector<HTMLElement>('.bid-cell');
+    const ask = document.querySelector<HTMLElement>('.ask-cell');
+    const volume = document.querySelector<HTMLElement>('.volume-cell');
+    if (!status || !source || !enhancement || !bid || !ask || !volume) throw new Error('Responsive controls missing');
+    return {
+      statusClientWidth: status.clientWidth,
+      statusScrollWidth: status.scrollWidth,
+      sourceClientWidth: source.clientWidth,
+      sourceScrollWidth: source.scrollWidth,
+      statusRadius: Number.parseFloat(getComputedStyle(status).borderTopLeftRadius),
+      statusWhiteSpace: getComputedStyle(status).whiteSpace,
+      enhancementHeight: enhancement.getBoundingClientRect().height,
+      bidColor: getComputedStyle(bid).color,
+      askColor: getComputedStyle(ask).color,
+      volumeColor: getComputedStyle(volume).color,
+    };
+  });
+
+  expect(geometry.statusScrollWidth).toBeLessThanOrEqual(geometry.statusClientWidth + 1);
+  expect(geometry.sourceScrollWidth).toBeLessThanOrEqual(geometry.sourceClientWidth + 1);
+  expect(geometry.statusRadius).toBeLessThanOrEqual(16);
+  expect(geometry.statusWhiteSpace).not.toBe('nowrap');
+  expect(geometry.enhancementHeight).toBeLessThanOrEqual(48);
+  expect(geometry.bidColor).toBe('rgb(54, 201, 143)');
+  expect(geometry.askColor).toBe('rgb(255, 90, 98)');
+  expect(geometry.volumeColor).toBe('rgb(120, 169, 255)');
+});
+
 test('missing bridge shows installation guidance and zero fake rows', async ({ page }) => {
   installErrorGuard(page);
   await page.route('**/favicon.ico', (route) => route.fulfill({ status: 204, body: '' }));

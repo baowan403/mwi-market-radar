@@ -110,11 +110,12 @@ function sortableHeader(
   return header;
 }
 
-function appendTextCell(row: HTMLTableRowElement, value: string, className?: string): void {
+function appendTextCell(row: HTMLTableRowElement, value: string, className?: string): HTMLTableCellElement {
   const cell = document.createElement('td');
   if (className) cell.className = className;
   cell.textContent = value;
   row.append(cell);
+  return cell;
 }
 
 function appendTrendCell(row: HTMLTableRowElement, period: Period, value: number | null): void {
@@ -299,15 +300,17 @@ export function renderMarketTable(target: HTMLElement, options: MarketTableOptio
     appendPinCell(row, marketRow, options.onTogglePin, options.onMoveWatchItem, options.view === 'watchlist');
     appendNameCell(row, marketRow);
     appendTextCell(row, categoryName(marketRow, options.catalog));
-    appendTextCell(row, formatValue(marketRow.price));
-    appendTextCell(row, formatValue(marketRow.bid));
-    appendTextCell(row, formatValue(marketRow.ask));
-    appendTextCell(row, formatValue(marketRow.spreadPct));
-    appendTextCell(row, formatValue(marketRow.volume));
+    appendTextCell(row, formatValue(marketRow.price), 'metric-cell current-price-cell');
+    appendTextCell(row, formatValue(marketRow.bid), 'metric-cell bid-cell');
+    appendTextCell(row, formatValue(marketRow.ask), 'metric-cell ask-cell');
+    const spreadCell = appendTextCell(row, formatValue(marketRow.spreadPct), 'metric-cell spread-cell');
+    spreadCell.dataset.spreadRisk = marketRow.flags.includes('wide-spread') ? 'wide' : 'normal';
+    appendTextCell(row, formatValue(marketRow.volume), 'metric-cell volume-cell');
     appendTrendCell(row, '1d', marketRow.changes['1d']);
     appendTrendCell(row, '3d', marketRow.changes['3d']);
     appendTrendCell(row, '7d', marketRow.changes['7d']);
-    appendTextCell(row, QUALITY_LABELS[marketRow.quality]);
+    const qualityCell = appendTextCell(row, QUALITY_LABELS[marketRow.quality], 'quality-cell');
+    qualityCell.dataset.quality = marketRow.quality;
     body.append(row);
   }
   table.append(body);
