@@ -32,6 +32,7 @@ import {
 import {
   buildHealthModel,
   POLL_FAILURE_MESSAGE,
+  SETTINGS_FAILURE_MESSAGE,
   renderDataSource,
   renderCollectorStatus,
   renderBridgeUnavailable,
@@ -447,6 +448,8 @@ function renderDashboard(
   }
   let activeMutation: PendingMutation | null = null;
   const pendingMutations: PendingMutation[] = [];
+  let settingsWriteRunning = false;
+  let pendingSettings: RadarSettings | null = null;
   let pollInFlight = false;
   let pollTimer: unknown;
   let pollTimerActive = false;
@@ -673,6 +676,41 @@ function renderDashboard(
     renderResultsOnly();
   };
 
+  const drainSettingsWrites = async (): Promise<void> => {
+    if (settingsWriteRunning) return;
+    settingsWriteRunning = true;
+    try {
+      while (pendingSettings !== null) {
+        if (!isActive()) {
+          pendingSettings = null;
+          break;
+        }
+        const nextSettings = pendingSettings;
+        pendingSettings = null;
+        try {
+          await client.setSettings(nextSettings);
+          if (isActive() && pendingSettings === null) {
+            state.statusError = null;
+            renderStatus();
+          }
+        } catch {
+          if (isActive()) {
+            state.statusError = SETTINGS_FAILURE_MESSAGE;
+            renderStatus();
+          }
+        }
+      }
+    } finally {
+      settingsWriteRunning = false;
+      if (pendingSettings !== null && isActive()) void drainSettingsWrites();
+    }
+  };
+
+  const enqueueSettingsWrite = (): void => {
+    pendingSettings = { ...state.settings };
+    void drainSettingsWrites();
+  };
+
   const drainMutations = async (): Promise<void> => {
     while (pendingMutations.length > 0) {
       const pending = pendingMutations.shift();
@@ -781,6 +819,7 @@ function renderDashboard(
       if (!isActive()) return;
       state.period = period;
       state.settings = { ...state.settings, period };
+      enqueueSettingsWrite();
       state.pageIndex = 0;
       invalidateDerived();
       updatePeriodButtons();
@@ -801,12 +840,16 @@ function renderDashboard(
     (value) => {
       if (!isActive()) return;
       state.minimumVolume = value;
+      state.settings = { ...state.settings, minimumVolume: value ?? 0 };
+      enqueueSettingsWrite();
       state.pageIndex = 0;
       renderResultsOnly();
     },
     (value) => {
       if (!isActive()) return;
       state.maximumSpreadPct = value;
+      state.settings = { ...state.settings, maximumSpreadPct: value };
+      enqueueSettingsWrite();
       state.pageIndex = 0;
       renderResultsOnly();
     },
@@ -845,6 +888,7 @@ function renderDashboard(
       activeMutation?.resolve();
       for (const pending of pendingMutations) pending.resolve();
       pendingMutations.length = 0;
+      pendingSettings = null;
       detailController.destroy();
     },
   };

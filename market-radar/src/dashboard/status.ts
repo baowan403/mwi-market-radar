@@ -12,6 +12,7 @@ export const NO_BRIDGE_MESSAGE = '尚未偵測到 MWI Market Radar 腳本';
 export const NO_SNAPSHOTS_MESSAGE = '尚無市場快照，請保持 MWI 分頁開啟';
 export const STALE_COLLECTION_MESSAGE = '等待遊戲分頁／資料已停止更新';
 export const POLL_FAILURE_MESSAGE = '市場資料更新失敗，保留舊資料';
+export const SETTINGS_FAILURE_MESSAGE = '設定儲存失敗';
 
 export type DashboardDataSource = 'cloud' | 'cloud+local' | 'local-fallback' | 'unavailable';
 
@@ -33,7 +34,7 @@ export const MAX_DATE_MS = 8_640_000_000_000_000;
 
 const GAP_THRESHOLD_HOURS = 1.75;
 const STALE_AFTER_HOURS = 2.5;
-const SAFE_TRANSIENT_ERRORS = new Set(['自選儲存失敗', POLL_FAILURE_MESSAGE]);
+const SAFE_TRANSIENT_ERRORS = new Set(['自選儲存失敗', SETTINGS_FAILURE_MESSAGE, POLL_FAILURE_MESSAGE]);
 const UNKNOWN_ERROR_MESSAGE = '採集發生未知錯誤，保留舊資料';
 
 export interface SnapshotGap {

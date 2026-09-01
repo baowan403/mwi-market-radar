@@ -335,4 +335,50 @@ describe('cloud dashboard provider', () => {
     expect(preferences.setSettings).not.toHaveBeenCalled();
     handle.destroy();
   });
+
+  it('persists complete settings through a latest-state queue and recovers after a failed write', async () => {
+    const root = createRoot();
+    const firstWrite = deferred<void>();
+    const secondWrite = deferred<void>();
+    const preferences: PreferencesStore = {
+      getWatchlist: vi.fn().mockResolvedValue([]),
+      getSettings: vi.fn().mockResolvedValue(SETTINGS),
+      setWatchlist: vi.fn().mockResolvedValue(undefined),
+      setSettings: vi.fn()
+        .mockReturnValueOnce(firstWrite.promise)
+        .mockReturnValueOnce(secondWrite.promise),
+    };
+    const handle = await mountDashboard({
+      root,
+      bridgeTarget: document.createElement('div'),
+      cloudClient: cloudClient([snapshot(1_000, 10)]),
+      preferencesStore: preferences,
+      catalogLoader: vi.fn().mockResolvedValue(CATALOG),
+      waitForBridgeReady: vi.fn(() => new Promise<boolean>(() => undefined)),
+    });
+
+    root.querySelector<HTMLButtonElement>('[data-period="3d"]')?.click();
+    const minimum = root.querySelector<HTMLInputElement>('[data-filter="minimum-volume"]')!;
+    minimum.value = '42';
+    minimum.dispatchEvent(new Event('input', { bubbles: true }));
+    const maximum = root.querySelector<HTMLInputElement>('[data-filter="maximum-spread"]')!;
+    maximum.value = '7';
+    maximum.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(preferences.setSettings).toHaveBeenCalledTimes(1);
+    firstWrite.reject(new Error('first settings write failed'));
+    await flushAsyncWork();
+    expect(preferences.setSettings).toHaveBeenCalledTimes(2);
+    expect(preferences.setSettings).toHaveBeenLastCalledWith({
+      period: '3d',
+      minimumVolume: 42,
+      maximumSpreadPct: 7,
+      anomalyMovePct: 5,
+      anomalyVolumeMultiple: 2,
+    });
+    secondWrite.resolve();
+    await flushAsyncWork();
+    expect(root.textContent).not.toContain('設定儲存失敗');
+    handle.destroy();
+  });
 });

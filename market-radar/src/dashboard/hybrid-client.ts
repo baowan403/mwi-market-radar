@@ -6,7 +6,7 @@ import type {
   WatchItem,
 } from '../core/types';
 import type { DashboardClient } from './client';
-import type { PreferencesStore } from './preferences-store';
+import { DEFAULT_SETTINGS, type PreferencesStore } from './preferences-store';
 import type {
   CloudClient,
   CloudMarketData,
@@ -28,6 +28,7 @@ export interface HybridSourceInfo {
 export interface HybridBootstrap extends BridgeBootstrap {
   source: HybridSource;
   sourceInfo: HybridSourceInfo;
+  preferencesWarning: 'preferences_unavailable' | null;
 }
 
 export interface HybridCloudClient extends CloudClient {}
@@ -125,13 +126,13 @@ function statusFromSource(
   sourceInfo: HybridSourceInfo,
   fallbackStatus: CollectorStatus | null,
 ): CollectorStatus {
-  const generatedAt = sourceInfo.generatedAt === null ? null : Date.parse(sourceInfo.generatedAt);
   if (sourceInfo.source !== 'local-fallback') {
+    const latest = sourceInfo.latestTimestamp;
     return {
       state: 'ok',
-      lastAttemptAt: generatedAt !== null && Number.isFinite(generatedAt) ? generatedAt : null,
-      lastSuccessAt: generatedAt !== null && Number.isFinite(generatedAt) ? generatedAt : null,
-      officialTimestamp: sourceInfo.latestTimestamp,
+      lastAttemptAt: latest,
+      lastSuccessAt: latest,
+      officialTimestamp: latest,
       nextRunAt: null,
       lastErrorCode: null,
     };
@@ -153,20 +154,39 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
   let activeOperation: HybridOperation | null = null;
   let generation = 0;
   let destroyed = false;
-  let preferencesPromise: Promise<{ watchlist: WatchItem[]; settings: RadarSettings }> | null = null;
-  let preferences: { watchlist: WatchItem[]; settings: RadarSettings } | null = null;
+  let preferencesPromise: Promise<{
+    watchlist: WatchItem[];
+    settings: RadarSettings;
+    warning: 'preferences_unavailable' | null;
+  }> | null = null;
+  let preferences: {
+    watchlist: WatchItem[];
+    settings: RadarSettings;
+    warning: 'preferences_unavailable' | null;
+  } | null = null;
 
-  const loadPreferences = async (): Promise<{ watchlist: WatchItem[]; settings: RadarSettings }> => {
+  const loadPreferences = async (): Promise<{
+    watchlist: WatchItem[];
+    settings: RadarSettings;
+    warning: 'preferences_unavailable' | null;
+  }> => {
     if (preferences !== null) return preferences;
     if (preferencesPromise !== null) return preferencesPromise;
-    const pending = Promise.all([
+    const pending = Promise.allSettled([
       options.preferences.getWatchlist(),
       options.preferences.getSettings(),
-    ]).then(([watchlist, settings]) => {
-      preferences = { watchlist: [...watchlist], settings: { ...settings } };
+    ]).then(([watchlistResult, settingsResult]) => {
+      const watchlist = watchlistResult.status === 'fulfilled' && Array.isArray(watchlistResult.value)
+        ? [...watchlistResult.value]
+        : [];
+      const settings = settingsResult.status === 'fulfilled' && settingsResult.value !== null
+        ? { ...settingsResult.value }
+        : { ...DEFAULT_SETTINGS };
+      const warning = watchlistResult.status === 'rejected' || settingsResult.status === 'rejected'
+        ? 'preferences_unavailable' as const
+        : null;
+      preferences = { watchlist, settings, warning };
       return preferences;
-    }).catch(() => {
-      throw new HybridMarketError('preferences');
     });
     preferencesPromise = pending;
     try {
@@ -278,13 +298,19 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
       const cloudData = cloudResult.status === 'fulfilled' ? cloudResult.value : null;
       const localSnapshots = localListResult.status === 'fulfilled' ? localListResult.value : null;
       const localBootstrap = localBootstrapResult.status === 'fulfilled' ? localBootstrapResult.value : null;
-      if (cloudData === null && localSnapshots === null) throw new HybridMarketError('no_data');
+      const localLatest = localSnapshots === null ? null : latestTimestamp(localSnapshots);
+      const localUsable = localSnapshots !== null
+        && localSnapshots.length > 0
+        && localBootstrap !== null
+        && localBootstrap.snapshotCount === localSnapshots.length
+        && localBootstrap.latestTimestamp === localLatest;
+      if (cloudData === null && !localUsable) throw new HybridMarketError('no_data');
 
       let snapshots: Snapshot[];
       let sourceInfo: HybridSourceInfo;
       if (cloudData !== null) {
-        snapshots = localSnapshots === null ? [...cloudData.snapshots] : mergeSnapshots(cloudData.snapshots, localSnapshots);
-        const hasLocalExtra = localSnapshots !== null
+        snapshots = !localUsable ? [...cloudData.snapshots] : mergeSnapshots(cloudData.snapshots, localSnapshots);
+        const hasLocalExtra = localUsable
           && localSnapshots.some((candidate) => !cloudData.snapshots.some((cloudSnapshot) => cloudSnapshot.timestamp === candidate.timestamp));
         sourceInfo = {
           ...cloudSourceInfo(cloudData),
@@ -333,7 +359,7 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
 
   const buildBootstrap = (
     nextState: HybridState,
-    nextPreferences: { watchlist: WatchItem[]; settings: RadarSettings },
+    nextPreferences: { watchlist: WatchItem[]; settings: RadarSettings; warning: 'preferences_unavailable' | null },
   ): HybridBootstrap => ({
     watchlist: [...nextPreferences.watchlist],
     settings: { ...nextPreferences.settings },
@@ -342,6 +368,7 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
     snapshotCount: nextState.snapshots.length,
     source: nextState.sourceInfo.source,
     sourceInfo: { ...nextState.sourceInfo },
+    preferencesWarning: nextPreferences.warning,
   });
 
   const bootstrap = async (): Promise<HybridBootstrap> => {
@@ -353,13 +380,21 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
     bootstrap,
     listSnapshots: async () => [...(await loadData(false)).snapshots],
     setWatchlist: async (value) => {
-      await options.preferences.setWatchlist(value);
+      try {
+        await options.preferences.setWatchlist(value);
+      } catch {
+        throw new HybridMarketError('preferences');
+      }
       const nextPreferences = await loadPreferences();
       nextPreferences.watchlist = [...value];
       preferences = nextPreferences;
     },
     setSettings: async (value) => {
-      await options.preferences.setSettings(value);
+      try {
+        await options.preferences.setSettings(value);
+      } catch {
+        throw new HybridMarketError('preferences');
+      }
       const nextPreferences = await loadPreferences();
       nextPreferences.settings = { ...value };
       preferences = nextPreferences;

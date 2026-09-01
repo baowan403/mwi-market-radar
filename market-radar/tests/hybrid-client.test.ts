@@ -283,4 +283,64 @@ describe('hybrid dashboard client', () => {
       snapshot(200, 200),
     ]);
   });
+
+  it('uses cloud latest timestamp for collector freshness while retaining generatedAt as metadata', async () => {
+    const cloud = cloudClient([snapshot(1_000, 100)], {
+      load: vi.fn().mockResolvedValue({
+        snapshots: [snapshot(1_000, 100)],
+        latestTimestamp: 1_000,
+        generatedAt: '2026-09-01T12:09:00.000Z',
+        stale: false,
+        warningCode: null,
+      }),
+    });
+    const client = createHybridClient({ cloud, preferences: new MemoryPreferencesStore() });
+
+    const bootstrap = await client.bootstrap();
+
+    expect(bootstrap.collectorStatus).toMatchObject({
+      lastAttemptAt: 1_000,
+      lastSuccessAt: 1_000,
+      officialTimestamp: 1_000,
+    });
+    expect(bootstrap.sourceInfo.generatedAt).toBe('2026-09-01T12:09:00.000Z');
+  });
+
+  it('keeps valid cloud data when preference reads fail and returns fixed defaults plus a warning', async () => {
+    const preferences = new MemoryPreferencesStore();
+    vi.spyOn(preferences, 'getWatchlist').mockRejectedValue(new Error('private watchlist failure'));
+    vi.spyOn(preferences, 'getSettings').mockRejectedValue(new Error('private settings failure'));
+    const client = createHybridClient({
+      cloud: cloudClient([snapshot(1_000, 100)]),
+      preferences,
+    });
+
+    const bootstrap = await client.bootstrap();
+
+    expect(bootstrap.watchlist).toEqual([]);
+    expect(bootstrap.settings).toEqual(DEFAULT_SETTINGS);
+    expect(bootstrap.preferencesWarning).toBe('preferences_unavailable');
+    expect(bootstrap.source).toBe('cloud');
+  });
+
+  it('fails closed for an empty or inconsistent local fallback but accepts cloud with empty local', async () => {
+    const emptyLocal = localClient([]);
+    const failedCloud = cloudClient([], {
+      load: vi.fn().mockRejectedValue(new Error('cloud unavailable')),
+    });
+    const failed = createHybridClient({ cloud: failedCloud, local: emptyLocal, preferences: new MemoryPreferencesStore() });
+    await expect(failed.bootstrap()).rejects.toMatchObject({ code: 'no_data' });
+
+    const cloud = cloudClient([snapshot(1_000, 100)]);
+    const cloudWithEmptyLocal = createHybridClient({ cloud, local: emptyLocal, preferences: new MemoryPreferencesStore() });
+    await expect(cloudWithEmptyLocal.bootstrap()).resolves.toMatchObject({ source: 'cloud', latestTimestamp: 1_000 });
+
+    const inconsistent = localClient([snapshot(2_000, 200)]);
+    (inconsistent.bootstrap as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...localBootstrap([snapshot(2_000, 200)]),
+      snapshotCount: 99,
+    });
+    const inconsistentFailed = createHybridClient({ cloud: failedCloud, local: inconsistent, preferences: new MemoryPreferencesStore() });
+    await expect(inconsistentFailed.bootstrap()).rejects.toMatchObject({ code: 'no_data' });
+  });
 });
