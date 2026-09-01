@@ -56,8 +56,8 @@
 
 ### Task 8：本機 7D provenance／bootstrap acceptance（尚未部署）
 
-- 2026-09-02 03:45（Asia/Taipei）；本機 deterministic fixture、無網路。commit SHA：`PENDING_LOCAL_COMMIT_SHA`。
-- fixture 提供同源 `data/history-provenance.json` 的完整 valid schema，並提供 168 份逐時 snapshots（167 小時跨度）；`redwood_lumber` 的 1D／3D／7D 均為實值。
+- 2026-09-02 03:45（Asia/Taipei）；本機 deterministic fixture、無網路。acceptance commits：`1ae98d17596861f1db9c537f722adc83220eb7a2`、guard：`deef3543e2cde97bb6fa381a7722ea75916ee2b7`。
+- fixture 提供同源 `data/history-provenance.json` 的完整 valid schema，固定 latest timestamp／provenance 時間，並提供 168 份逐時 snapshots（167 小時跨度）；`redwood_lumber` 的 1D／3D／7D 分別為 `▲ 5.3%`／`▲ 17.78%`／`▲ 53.87%`。
 - focused cloud desktop：1 passed；cloud desktop＋mobile：14 passed。
 - `npm test`：55 test files／587 tests passed；`npm run build`：TypeScript `--noEmit`、dashboard（48 modules）與 userscript（12 modules）均成功。
 - `npm run e2e`：37 passed／2 skipped（39 total）。這些為 local acceptance，未宣稱公開頁已有 7D 或完成 history backfill。
@@ -81,10 +81,10 @@ Fresh `npm run build`（TypeScript check、dashboard build、userscript build）
 
 | 相對路徑 | bytes | SHA-256 |
 | --- | ---: | --- |
-| `dist/index.html` | 484 | `59E44C96D5F28BF02418492F58DDB3AA6F63915953DA06DD99DC05A4EE85F3CB` |
-| `dist/assets/index-C4MygJl6.js` | 295135 | `A5DF89470917CF52AAA211F44C2860D9F43CA6D15B0FC77354EFC40F397BF5F1` |
-| `dist/assets/index-CMPmJcvL.css` | 13159 | `F1F5344BFD050C68401DD29B214165F469C55935991F526545811519A71F6A49` |
-| `dist/mwi-market-radar.user.js` | 59403 | `1DAA1C9BF295EAC429D776E4566759FA1484A6EE0766135CDC2E20973459B3CE` |
+| `dist/index.html` | 484 | `71F8C7D4C141C339D0F61396010FD714AF10B037847E54613944347B11887F4F` |
+| `dist/assets/index-xwWpBl6M.js` | 349459 | `9BEB8906487A6D30218D3C924F8FA0E67DBC3A6313735C683CC5ED2511EE7A4D` |
+| `dist/assets/index-N-TwkADt.css` | 22566 | `3782B9CCF5739000B6E64F065681AD4D585CD6D7B7FA256CC6C3216A58D1E645` |
+| `dist/mwi-market-radar.user.js` | 59684 | `FF2651E685691A8636079D7922A5B37A090DFE0762699EDDCF8C8D201E0605AB` |
 | `public/catalog.json` | 222753 | `847354A0C867A09E53C3ED9898470897ECDA926600F9B351900368F4E25D3BF0` |
 
 ## Evidence log

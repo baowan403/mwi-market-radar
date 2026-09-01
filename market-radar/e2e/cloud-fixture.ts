@@ -171,7 +171,7 @@ export async function createCloudFixture(options: CloudFixtureOptions = {}): Pro
           return;
         }
         if (!url.pathname.endsWith('/manifest.json') && !url.pathname.includes('/data/snapshots/')) {
-          await route.continue();
+          await route.fulfill({ status: 404, body: 'not found' });
           return;
         }
         if (url.pathname.endsWith('/manifest.json')) {

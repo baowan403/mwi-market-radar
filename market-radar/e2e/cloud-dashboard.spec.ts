@@ -2,7 +2,9 @@ import { expect, test, type ConsoleMessage, type Page, type TestInfo } from '@pl
 import { createCloudFixture, type CloudFixture, type CloudFixtureOptions } from './cloud-fixture';
 
 const errorsByPage = new WeakMap<Page, string[]>();
+const requestOriginsByPage = new WeakMap<Page, Set<string>>();
 const OPTIONAL_PROVENANCE_404 = 'Failed to load resource: the server responded with a status of 404 (Not Found)';
+const SEVEN_DAY_HISTORY_LATEST_TIMESTAMP = 1_788_307_200_000;
 
 function isExpectedMissingProvenance404(message: ConsoleMessage): boolean {
   if (message.text() !== OPTIONAL_PROVENANCE_404) return false;
@@ -24,8 +26,22 @@ function installErrorGuard(page: Page, allowMissingProvenance = false): void {
   });
 }
 
+function installRequestOriginGuard(page: Page): void {
+  const origins = new Set<string>();
+  requestOriginsByPage.set(page, origins);
+  page.on('request', (request) => {
+    try {
+      const url = new URL(request.url());
+      if (url.protocol === 'http:' || url.protocol === 'https:') origins.add(url.origin);
+    } catch {
+      // Browser-internal URLs are intentionally outside the HTTP origin assertion.
+    }
+  });
+}
+
 async function expectNoBrowserErrors(page: Page): Promise<void> {
   expect(errorsByPage.get(page) ?? []).toEqual([]);
+  expect([...requestOriginsByPage.get(page) ?? []]).toEqual([new URL(page.url()).origin]);
 }
 
 async function loadCloud(
@@ -34,6 +50,7 @@ async function loadCloud(
   readyTimeoutMs = 5_000,
 ): Promise<CloudFixture> {
   installErrorGuard(page, options.historyProvenance !== true);
+  installRequestOriginGuard(page);
   const fixture = await createCloudFixture(options);
   await fixture.install(page);
   await page.route('**/favicon.ico', (route) => route.fulfill({ status: 204, body: '' }));
@@ -79,12 +96,18 @@ test.describe('cloud-only market radar', () => {
   test('shows verified seven-day history values and provenance for redwood lumber', async ({ page }) => {
     const fixture = await loadCloud(
       page,
-      { historyHours: 167, strategyQuotes: true, historyProvenance: true },
+      {
+        latestTimestamp: SEVEN_DAY_HISTORY_LATEST_TIMESTAMP,
+        historyHours: 167,
+        strategyQuotes: true,
+        historyProvenance: true,
+      },
       30_000,
     );
 
     expect(fixture.snapshots).toHaveLength(168);
     expect(fixture.snapshots.at(-1)!.timestamp - fixture.snapshots[0]!.timestamp).toBeGreaterThanOrEqual(149 * 3_600_000);
+    expect(fixture.snapshotFetches).toBe(168);
 
     await expect(page.locator('[data-source-label]')).toHaveText('歷史回填：牛牛股市；最新行情：MWI 官方');
     await page.locator('[data-period="7d"]').click();
@@ -93,9 +116,9 @@ test.describe('cloud-only market radar', () => {
     await page.locator('input[data-filter="search"]').fill('Redwood Lumber');
     const row = page.locator('[data-market-row="/items/redwood_lumber::0"]');
     await expect(row).toBeVisible();
-    await expect(row.locator('[data-change-period="1d"]')).not.toContainText('—');
-    await expect(row.locator('[data-change-period="3d"]')).not.toContainText('—');
-    await expect(row.locator('[data-change-period="7d"]')).not.toContainText('—');
+    await expect(row.locator('[data-change-period="1d"]')).toHaveText('▲ 5.3%');
+    await expect(row.locator('[data-change-period="3d"]')).toHaveText('▲ 17.78%');
+    await expect(row.locator('[data-change-period="7d"]')).toHaveText('▲ 53.87%');
   });
 
   test('persists cloud watchlist and settings through IndexedDB across reload', async ({ page }) => {
@@ -142,6 +165,7 @@ test.describe('cloud-only market radar', () => {
     const corruptTimestamp = fixture.manifest.latestTimestamp;
     fixture.setCorrupt(corruptTimestamp);
     installErrorGuard(page, true);
+    installRequestOriginGuard(page);
     await fixture.install(page);
     await page.route('**/favicon.ico', (route) => route.fulfill({ status: 204, body: '' }));
     await page.goto('/');
