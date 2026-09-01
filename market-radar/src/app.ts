@@ -32,6 +32,7 @@ import {
 import {
   buildHealthModel,
   POLL_FAILURE_MESSAGE,
+  PREFERENCES_WARNING_MESSAGE,
   SETTINGS_FAILURE_MESSAGE,
   renderDataSource,
   renderCollectorStatus,
@@ -137,6 +138,7 @@ interface DashboardState {
   officialCategories: Set<string>;
   statusError: string | null;
   sourceInfo: DashboardDataSourceInfo | null;
+  preferencesWarning: string | null;
 }
 
 const mountGenerations = new WeakMap<HTMLElement, number>();
@@ -499,7 +501,7 @@ function renderDashboard(
     renderCollectorStatus(
       status,
       state.collectorStatus,
-      state.statusError,
+      state.statusError ?? state.preferencesWarning,
       buildHealthModel(state.collectorStatus, state.snapshots, now()),
     );
   };
@@ -582,6 +584,9 @@ function renderDashboard(
         || nextBootstrap.snapshotCount !== state.snapshots.length;
       state.collectorStatus = nextBootstrap.collectorStatus;
       state.sourceInfo = nextBootstrap.sourceInfo;
+      state.preferencesWarning = nextBootstrap.preferencesWarning === 'preferences_unavailable'
+        ? PREFERENCES_WARNING_MESSAGE
+        : null;
       state.statusError = null;
       if (metadataChanged) {
         state.snapshots = nextSnapshots;
@@ -993,6 +998,9 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       officialCategories: new Set(),
       statusError: null,
       sourceInfo: provider === null ? null : bootstrap.sourceInfo ?? null,
+      preferencesWarning: provider !== null && bootstrap.preferencesWarning === 'preferences_unavailable'
+        ? PREFERENCES_WARNING_MESSAGE
+        : null,
     };
     runtime = renderDashboard(
       root,

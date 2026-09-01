@@ -381,4 +381,44 @@ describe('cloud dashboard provider', () => {
     expect(root.textContent).not.toContain('設定儲存失敗');
     handle.destroy();
   });
+
+  it('shows a fixed preference warning without hiding cloud rows, then clears it after recovery', async () => {
+    const root = createRoot();
+    let unavailable = true;
+    const preferences: PreferencesStore = {
+      getWatchlist: vi.fn().mockImplementation(() => unavailable
+        ? Promise.reject(new Error('private preference failure'))
+        : Promise.resolve([])),
+      getSettings: vi.fn().mockImplementation(() => unavailable
+        ? Promise.reject(new Error('private preference failure'))
+        : Promise.resolve(SETTINGS)),
+      setWatchlist: vi.fn().mockResolvedValue(undefined),
+      setSettings: vi.fn().mockResolvedValue(undefined),
+    };
+    let poll!: () => void;
+    const handle = await mountDashboard({
+      root,
+      bridgeTarget: document.createElement('div'),
+      cloudClient: cloudClient([snapshot(Date.now(), 10)]),
+      preferencesStore: preferences,
+      catalogLoader: vi.fn().mockResolvedValue(CATALOG),
+      waitForBridgeReady: vi.fn(() => new Promise<boolean>(() => undefined)),
+      setInterval: vi.fn((callback: () => void) => {
+        poll = callback;
+        return 1;
+      }),
+      clearInterval: vi.fn(),
+    });
+
+    expect(root.querySelector('[data-market-row="/items/alpha::0"]')).not.toBeNull();
+    expect(root.textContent).toContain('偏好設定無法讀取，本次使用預設值；變更可能無法保存');
+    expect(root.querySelector<HTMLElement>('#collector-status')?.dataset.statusSeverity).toBe('warn');
+
+    unavailable = false;
+    poll();
+    await flushAsyncWork();
+    expect(root.textContent).not.toContain('偏好設定無法讀取，本次使用預設值；變更可能無法保存');
+    expect(root.querySelector<HTMLElement>('#collector-status')?.dataset.statusSeverity).toBe('normal');
+    handle.destroy();
+  });
 });

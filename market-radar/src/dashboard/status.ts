@@ -13,6 +13,7 @@ export const NO_SNAPSHOTS_MESSAGE = '尚無市場快照，請保持 MWI 分頁�
 export const STALE_COLLECTION_MESSAGE = '等待遊戲分頁／資料已停止更新';
 export const POLL_FAILURE_MESSAGE = '市場資料更新失敗，保留舊資料';
 export const SETTINGS_FAILURE_MESSAGE = '設定儲存失敗';
+export const PREFERENCES_WARNING_MESSAGE = '偏好設定無法讀取，本次使用預設值；變更可能無法保存';
 
 export type DashboardDataSource = 'cloud' | 'cloud+local' | 'local-fallback' | 'unavailable';
 
@@ -34,7 +35,12 @@ export const MAX_DATE_MS = 8_640_000_000_000_000;
 
 const GAP_THRESHOLD_HOURS = 1.75;
 const STALE_AFTER_HOURS = 2.5;
-const SAFE_TRANSIENT_ERRORS = new Set(['自選儲存失敗', SETTINGS_FAILURE_MESSAGE, POLL_FAILURE_MESSAGE]);
+const SAFE_TRANSIENT_ERRORS = new Set([
+  '自選儲存失敗',
+  SETTINGS_FAILURE_MESSAGE,
+  PREFERENCES_WARNING_MESSAGE,
+  POLL_FAILURE_MESSAGE,
+]);
 const UNKNOWN_ERROR_MESSAGE = '採集發生未知錯誤，保留舊資料';
 
 export interface SnapshotGap {
@@ -197,7 +203,10 @@ export function renderCollectorStatus(
   const dot = document.createElement('span');
   const severity = status.state === 'error'
     ? 'error'
-    : status.state === 'retrying' || status.state === 'checking' || health?.stale === true
+    : status.state === 'retrying'
+      || status.state === 'checking'
+      || health?.stale === true
+      || transientError === PREFERENCES_WARNING_MESSAGE
       ? 'warn'
       : 'normal';
   dot.className = `status-dot status-dot-${severity}`;

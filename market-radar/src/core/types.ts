@@ -58,6 +58,8 @@ export interface BridgeBootstrap {
   /** Optional source metadata supplied by cloud/hybrid dashboard clients. */
   source?: DashboardSource;
   sourceInfo?: DashboardSourceInfo;
+  /** Optional fixed warning when dashboard preferences could not be read. */
+  preferencesWarning?: 'preferences_unavailable' | null;
 }
 
 export type BridgeRequest =

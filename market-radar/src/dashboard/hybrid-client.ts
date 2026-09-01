@@ -170,7 +170,7 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
     settings: RadarSettings;
     warning: 'preferences_unavailable' | null;
   }> => {
-    if (preferences !== null) return preferences;
+    if (preferences !== null && preferences.warning === null) return preferences;
     if (preferencesPromise !== null) return preferencesPromise;
     const pending = Promise.allSettled([
       options.preferences.getWatchlist(),
