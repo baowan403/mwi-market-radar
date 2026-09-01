@@ -2,6 +2,8 @@
 
 這份清單記錄 live/read-only acceptance 與自動化驗證證據。2026-09-01（Asia/Taipei）的真實 MWI 觀察結果記載於 Evidence log；全程禁止買賣、下單、成交、取消訂單或開啟任何交易操作視窗。
 
+Cloud 公開部署的 Owner 輸入、首次 manual bootstrap、第二次排程、data-only branch、rollback 與 60-day recovery 另見 [`cloud-deployment-checklist.md`](cloud-deployment-checklist.md)；目前仍未建立 remote 或 Pages。
+
 ## 驗收前置
 
 - [ ] 確認 Node.js/npm 版本符合 README。
@@ -11,6 +13,7 @@
 - [ ] 確認 `dist/index.html`、`dist/assets/` 與 `dist/mwi-market-radar.user.js` 存在。
 - [ ] 以 `npm run preview -- --host 127.0.0.1` 啟動本機頁面；使用 `http://localhost:4173` 驗證 userscript dashboard allowlist。
 - [ ] 確認不使用真實帳號私人資料、不建立 remote、不部署。
+- [ ] 若驗證 cloud mode，先完成 cloud deployment checklist 的 Owner 審核項目；local fixture acceptance 不連官方、不需要 MWI，且不代表已部署。
 
 ## Tampermonkey 與採集器
 
@@ -50,6 +53,13 @@
 - [ ] 驗證 mobile viewport 表格可水平滾動，header/name sticky 且不遮住可見 row。
 - [ ] 確認全程沒有下單、買入、賣出、成交、取消訂單或其他市場 action。
 
+## Cloud fixture acceptance
+
+- [ ] 在唯一 temporary directory 以公開 `tests/fixtures/marketplace.json` 執行 `cloud:update`、同一目錄再次執行並確認第一次 `updated`、第二次 `unchanged`。
+- [ ] 比對兩次 `manifest.json` 與 `snapshots/*.txt` SHA-256 完全相同，再執行 `cloud:validate --validate-only` 得到 exit code 0。
+- [ ] 記錄 fixture timestamp、generatedAt、snapshot count、檔名／bytes、manifest／snapshot hash、unit、build、E2E；最後清理該 temporary directory。
+- [ ] 不用這項 fixture evidence 宣稱已建立 remote、已完成 Pages deploy 或已完成 live MWI acceptance。
+
 ## 失敗恢復
 
 - [ ] network failure：保留舊資料，確認下一次 retry／hourly run 可恢復。
@@ -68,8 +78,9 @@
 | 2026-09-01 09:08（Asia/Taipei） | 正確 Chrome profile `jotaro99`／第二個 MWI 分頁 | 2 | `1788224760`（09:06，未變） | dashboard timestamp/status 未變 | 3055 targets；100/page；31 pages | previous smoke（已由 final 0.1.5 evidence supersede）；第二 MWI marker version 0.1.4：`loaded/mwi/started/dom-event`；相同 timestamp 去重通過 | 無重複保存；無市場 action、無私人資料讀取 |
 | 2026-09-01 10:08（Asia/Taipei） | 正確 Chrome profile `jotaro99`／Tampermonkey userscript 0.1.5 | 1 | 10:06 | Radar official 10:06；local 10:08；next 11:08；無缺口 | 3072 targets；100/page；31 pages | final marker version 0.1.5：`loaded/mwi/started/dom-event`；thin badges visible；自動單向 MWI→Radar read-only bridge 通過 | 無市場 action、無私人資料讀取 |
 | 2026-09-01 10:08（Asia/Taipei） | 正確 Chrome profile `jotaro99`／第二個 MWI 分頁 | 2 | 10:06（未變） | dashboard timestamp/status 未變 | 3072 targets；100/page；31 pages | 第二 MWI marker version 0.1.5：`loaded/mwi/started/dom-event`；相同 timestamp 去重通過；thin badges visible | 無重複保存；無市場 action、無私人資料讀取 |
+| 2026-09-01 14:37（Asia/Taipei） | Node/tsx local public fixture；無 MWI／無官方網路 | — | `1787645160000`（`2026-08-25T08:06:00.000Z`） | fixture cloud history：`generatedAt 2026-09-01T06:37:26.560Z`；1 snapshot；`snapshots/1787645160000.txt`；235 bytes | manifest SHA-256 `96C91D591EAE8AB5ED881A199759607FE282F7B0518EB429DD2DE304BAAA3521`；snapshot SHA-256 `764D4BCB1E64EBE6A1AD978335471C59565DC19FF293503F0745DD672B7D5CD6`；第二次相同 | first `updated`／second `unchanged`／validate 0；只使用公開 fixture、完成後清理 temp；不代表 remote／Pages deploy |
 
-同次 final whole review approved；自動化佐證：unit 290 通過、build 通過、E2E 17 passed／1 skipped。Radar deliverable tab 保留。手動 Milkonomy-style import 暫緩，因目前不需要；若未來 browser bridge 失效，可另做明確的 refresh/import fallback，但不屬於目前 scope。未宣稱 GitHub、Pages 或其他部署已完成。
+先前 final whole review approved 的 live evidence 與本次 local fixture evidence 分開保存；本次 docs commit 的 automated verification 為 unit 31 files／395 tests、build 雙 artifact、E2E 31 passed／1 skipped。Radar deliverable tab 保留。手動 Milkonomy-style import 暫緩，因目前不需要；若未來 browser bridge 失效，可另做明確的 refresh/import fallback，但不屬於目前 scope。未宣稱 GitHub、Pages 或其他部署已完成。每次最新 unit/build/E2E 數字以對應 commit 的 verification output 為準。
 
 ### 安全聲明
 

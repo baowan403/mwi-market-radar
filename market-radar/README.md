@@ -50,6 +50,8 @@ MWI 分頁必須保持開啟，因為 v1 不在電腦關機或沒有遊戲分頁
 
 Tampermonkey userscript 保留為可選的本機 fallback：若 cloud data 暫時不可用且 MWI bridge 已 ready，dashboard 會顯示本機備援；若兩者都不可用，顯示安全錯誤與零假資料。cloud 與本機資料以 timestamp 去重，cloud 優先；偏好設定只存於瀏覽器本機 IndexedDB。
 
+Owner 若要啟用公開部署，請先依 [`docs/cloud-deployment-checklist.md`](docs/cloud-deployment-checklist.md) 確認 repository／Pages 輸入、Actions 權限與 remote／push 核准；第一次必須手動 `workflow_dispatch` 建立 `market-data` 與 manifest，source `push` 不會自動 bootstrap。local fixture 的 updated／unchanged／hash／validate evidence 見 [`docs/manual-acceptance.md`](docs/manual-acceptance.md)。
+
 ## 本機資料、停用與移除
 
 市場歷史與偏好只在 Tampermonkey 的 userscript storage 中。資料 key 使用 `mwi-radar:v1:` namespace，概念上包括：
