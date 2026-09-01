@@ -4,7 +4,7 @@ MWI Market Radar 是 Milky Way Idle 的市場看盤與策略推薦工具：它�
 
 > 原市場採集 live acceptance 見 `docs/manual-acceptance.md`；角色匯入與策略計算基礎的最新驗收見 `docs/strategy-foundation-acceptance.md`。沒有執行交易操作。
 
-> 2026-09-01 Slice A fresh verification：37 個 unit test files、415 tests 全部通過；正式 dashboard/userscript build 通過；Chrome E2E 32 passed、1 個既有桌面 expected skip。
+> 2026-09-01 personalized strategy verification：44 個 unit test files、433 tests 全部通過；正式 dashboard/userscript build 通過；Chrome E2E 34 passed、2 個 desktop-only expected skips。
 
 ## 功能與架構
 
@@ -16,9 +16,9 @@ MWI Market Radar 是 Milky Way Idle 的市場看盤與策略推薦工具：它�
 - dashboard 支援八個 primary view（自選、全市場、資源、消耗品、技能書、迷宮、裝備、其他）、十個官方分類、中文／英文／HRID 搜尋、強化等級、最低成交量、最大價差、排序、排行榜與物品圖表。
 - 歷史保留最近 8 日的逐時資料；缺口、缺價、單邊報價與低流動性會如實標示，不插值、不補零。
 
-## 策略推薦基礎（Slice A）
+## 個人化策略推薦
 
-目前已完成的是後續推薦引擎的可信基礎，不是假裝已完成的策略排行榜：
+目前已完成：
 
 - 957 個市場物品的中文優先目錄；中文、英文與 HRID 均可搜尋。
 - 支援 Milkonomy Exporter `version: 1` 與 Milkonomy preset JSON。
@@ -26,8 +26,13 @@ MWI Market Radar 是 Milky Way Idle 的市場看盤與策略推薦工具：它�
 - Milkonomy 參考來源固定在已審閱的 MIT commit，正式執行不需要連線 Milkonomy。
 - 已建立純 TypeScript 的裝備、房屋、茶、社群增益、成就、封印與神龕計算。
 - 已建立單步製造 calculator，涵蓋買料賣一、出售買一、5% 市場稅、點金硬幣免稅、工匠／美食與精華／稀有 EV。
+- 依角色等級與裝備掃描真實製造、裁縫、鍛造、烹飪及沖泡配方。
+- 產生 2–7 步工作流，依產能平衡各步工時並抵消內部中間品。
+- 支援分解、點金及分解→點金；包含專用／至高催化劑、硬幣費、茶與掉落 EV。
+- 「策略推薦」分頁顯示理論日利、每小時利潤、24h 流動資金、完整路徑與步驟。
+- 策略自選使用獨立 IndexedDB，與物品自選及角色快照隔離。
 
-尚未完成、不能提前宣稱可用的功能：多步工作流搜尋、分解後點金策略排行、流動性調整後日利、安全批量、3D／7D 策略趨勢與強化／轉化風險模型。
+策略頁目前明確標示為理論收益。尚未完成、不能提前宣稱可用的功能：流動性調整後日利、安全批量、售完天數、3D／7D 策略趨勢、回測與強化／轉化風險模型。
 
 ## 環境需求
 
@@ -78,6 +83,8 @@ Tampermonkey userscript 保留為可選的本機 fallback：若 cloud data 暫�
 
 角色快照另存於 dashboard 的 IndexedDB `mwi-market-radar-profiles`，不使用 Tampermonkey storage。可從「角色快照」介面逐名刪除；不得用清空整個瀏覽器資料的方式代替精確刪除。
 
+策略釘選另存於 IndexedDB `mwi-market-radar-strategies`，不與物品自選或角色資料混用。
+
 停用時可在 Tampermonkey 對本腳本關閉 enabled；移除時在 Tampermonkey 管理頁刪除本腳本。若要清除本工具資料，請只使用 Tampermonkey 管理介面中「本腳本」的 storage 檢視，逐一確認並刪除名稱以 `mwi-radar:v1:` 開頭的 key。不要在其他腳本或頁面 console 執行全域刪除、通配刪除或清空所有 userscript storage，以免誤傷其他資料。
 
 ## 隱私與安全邊界
@@ -86,6 +93,7 @@ Tampermonkey userscript 保留為可選的本機 fallback：若 cloud data 暫�
 
 - 唯讀下載官方 `https://www.milkywayidle.com/game_data/marketplace.json`。
 - dashboard 載入本專案相對路徑 `./catalog.json`。
+- 玩家打開策略推薦時，dashboard 才載入公開唯讀 `./strategy-data.json`；該檔只含遊戲配方與數值資料，不含角色快照。
 - 將公開市場欄位與安全狀態保存到本機 Tampermonkey storage，透過 localhost bridge 唯讀提供 dashboard。
 
 玩家可明確貼上 Milkonomy 角色快照；匯入器只保留計算所需的技能、裝備、房屋、茶、增益、成就、神龕與庫存數值，未知欄位、token、cookie 與帳密不會進入正規化 profile。Profile 只寫入本機 IndexedDB，不進 cloud、collector、userscript、GitHub Pages 或任何 request body。
