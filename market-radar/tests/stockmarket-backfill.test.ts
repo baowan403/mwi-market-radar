@@ -256,6 +256,40 @@ describe('stockmarket backfill command', () => {
   }, 30_000);
 
   it.each([
+    ['list', (dataDir: string): Partial<CloudFileSystem> => ({
+      readdir: async () => { throw new Error('private listing failure'); },
+    })],
+    ['delete', (dataDir: string): Partial<CloudFileSystem> => ({
+      readdir: async () => [`${BACKFILL_LATEST - 11 * 24 * HOUR}.txt`],
+      unlink: async () => { throw new Error('private delete failure'); },
+    })],
+  ])('does not publish provenance when %s cleanup fails, then retries cleanup before completion', async (_kind, makeFileSystem) => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    const expired = BACKFILL_LATEST - 11 * 24 * HOUR;
+    await writeFile(join(dataDir, 'snapshots', `${expired}.txt`), await encodeDayChunk([snapshot(expired)]), 'utf8');
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(runStockmarketBackfill({
+      dataDir,
+      generatedAt: BACKFILL_GENERATED,
+      client: { loadAll: async () => stockmarketRows() },
+      now: () => BACKFILL_NOW,
+      fileSystem: makeFileSystem(dataDir),
+    })).rejects.toThrow('Stockmarket backfill cleanup failed');
+    expect(error.mock.calls.flat().join(' ')).not.toMatch(/private|\.txt|payload/i);
+    error.mockRestore();
+    await expect(readFile(join(dataDir, HISTORY_PROVENANCE_FILE), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(parseManifest(JSON.parse(await readFile(join(dataDir, 'manifest.json'), 'utf8'))).snapshots).toHaveLength(150);
+
+    const recovered = await runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, client: { loadAll: async () => stockmarketRows() }, now: () => BACKFILL_NOW });
+
+    expect(recovered).toMatchObject({ skipped: false, inserted: 0, snapshotCount: 150 });
+    await expect(readFile(join(dataDir, HISTORY_PROVENANCE_FILE), 'utf8')).resolves.toContain('stockmarket-xin');
+    await expect(readFile(join(dataDir, 'snapshots', `${expired}.txt`), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  }, 30_000);
+
+  it.each([
     ['corrupt key', async (dataDir: string) => {
       const corrupted = { timestamp: BACKFILL_LATEST, quotes: { '/not-an-item': { a: 10, b: 9, p: 80, v: 70 } } };
       const text = await encodeDayChunk([corrupted]);

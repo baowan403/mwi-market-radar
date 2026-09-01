@@ -352,6 +352,11 @@ async function publishDailyHistory(
   await publishEncodedDailyHistory(dataDir, encoded, fileSystem);
 }
 
+function hasEveryUtcHour(values: readonly Snapshot[]): boolean {
+  const hours = new Set(values.map((value) => new Date(value.timestamp).getUTCHours()));
+  return hours.size === 24;
+}
+
 async function rebuildCurrentDailyHistory(
   dataDir: string,
   snapshot: Snapshot,
@@ -383,8 +388,10 @@ async function rebuildCurrentDailyHistory(
   if (byDate.size === 0) return;
   let next = current;
   for (const values of byDate.values()) {
+    if (!hasEveryUtcHour(values)) continue;
     next = upsertDailySummary(next, aggregateDailySummary(values), manifest.generatedAt);
   }
+  if (isDeepStrictEqual(next.summaries, current.summaries)) return;
   await publishDailyHistory(dataDir, next, fileSystem);
 }
 
@@ -425,6 +432,7 @@ async function prepareCompletedDailyHistory(
     manifest.generatedAt,
   );
   for (const values of byDate.values()) {
+    if (!hasEveryUtcHour(values)) continue;
     next = upsertDailySummary(next, aggregateDailySummary(values), manifest.generatedAt);
   }
   if (isDeepStrictEqual(next.summaries, current.pack.summaries)) return null;

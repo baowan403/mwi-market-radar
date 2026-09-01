@@ -347,6 +347,9 @@ export async function runStockmarketBackfill(options: StockmarketBackfillOptions
   } catch {
     throw safeError('Stockmarket backfill storage failed');
   }
+  if (merged.cleanupErrors.length > 0) {
+    throw safeError('Stockmarket backfill cleanup failed');
+  }
   await publishProvenance(options.dataDir, provenance, fileSystem);
   return {
     skipped: false,

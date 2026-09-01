@@ -95,17 +95,14 @@ describe('updateCloudHistory', () => {
     await expect(snapshotFile(maxDataDir, MAX_DATE_MS + 1)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
-  it('finalizes one compressed daily OHLCV summary only after the UTC day closes', async () => {
+  it('finalizes one compressed daily OHLCV summary only after every UTC hour is retained and the day closes', async () => {
+    const start = Date.parse('2026-08-31T00:00:00.000Z');
+    for (const hour of Array.from({ length: 24 }, (_, index) => index)) {
+      await updateCloudHistory({ dataDir, snapshot: snapshot(start + hour * HOUR, 90 + hour), generatedAt: GENERATED_AT });
+    }
     await updateCloudHistory({
       dataDir,
-      snapshot: snapshot(LATEST - HOUR, 90),
-      generatedAt: '2026-09-01T11:09:00.000Z',
-    });
-    await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST, 100), generatedAt: GENERATED_AT });
-    await expect(readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
-    await updateCloudHistory({
-      dataDir,
-      snapshot: snapshot(LATEST + DAY, 110),
+      snapshot: snapshot(start + DAY, 120),
       generatedAt: '2026-09-02T12:09:00.000Z',
     });
 
@@ -113,13 +110,14 @@ describe('updateCloudHistory', () => {
     const pack = await decodeDailyHistoryPack(encoded);
     expect(pack.summaries).toHaveLength(1);
     expect(pack.summaries[0]?.quotes[KEY]).toMatchObject({
-      o: 90, h: 100, l: 90, c: 100, v: 20, samples: 2,
+      o: 90, h: 113, l: 90, c: 113, v: 240, samples: 24,
     });
   });
 
   it('backfills retained hourly days when migrating a history without a daily pack', async () => {
     await mkdir(join(dataDir, 'snapshots'), { recursive: true });
-    const existing = [snapshot(LATEST - 2 * DAY, 80), snapshot(LATEST - DAY, 90)];
+    const start = Date.parse('2026-08-30T00:00:00.000Z');
+    const existing = Array.from({ length: 48 }, (_, hour) => snapshot(start + hour * HOUR, 80 + hour));
     const entries = [];
     for (const value of existing) {
       const text = await encodeDayChunk([value]);
@@ -139,7 +137,7 @@ describe('updateCloudHistory', () => {
     await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST, 100), generatedAt: GENERATED_AT });
 
     const pack = await decodeDailyHistoryPack(await readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8'));
-    expect(pack.summaries.map((value) => value.quotes[KEY]?.c)).toEqual([80, 90]);
+    expect(pack.summaries.map((value) => value.quotes[KEY]?.c)).toEqual([103, 127]);
   });
 
   it('writes a prefixed immutable snapshot file and atomically publishes its manifest', async () => {
@@ -370,7 +368,8 @@ describe('mergeCloudHistory', () => {
   });
 
   it('is a byte-identical no-op when all incoming snapshots already exist', async () => {
-    const backfill = [snapshot(LATEST - DAY, 80), snapshot(LATEST - DAY + HOUR, 90)];
+    const backfillStart = Date.parse('2026-08-31T00:00:00.000Z');
+    const backfill = Array.from({ length: 24 }, (_, hour) => snapshot(backfillStart + hour * HOUR, 80 + hour));
     await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST), generatedAt: GENERATED_AT });
     await mergeCloudHistory({ dataDir, snapshots: backfill, generatedAt: '2026-09-01T12:11:00.000Z' });
     const manifestBefore = await readFile(join(dataDir, 'manifest.json'), 'utf8');
@@ -387,7 +386,7 @@ describe('mergeCloudHistory', () => {
     await expect(readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8')).resolves.toBe(dailyBefore);
   });
 
-  it('reconciles an incomplete daily pack once and leaves the repaired bytes untouched on retry', async () => {
+  it('preserves an incomplete daily pack when retained hours cannot prove a complete day', async () => {
     const backfill = [snapshot(LATEST - DAY, 80), snapshot(LATEST - DAY + HOUR, 90)];
     await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST), generatedAt: GENERATED_AT });
     await mergeCloudHistory({ dataDir, snapshots: backfill, generatedAt: '2026-09-01T12:11:00.000Z' });
@@ -413,12 +412,13 @@ describe('mergeCloudHistory', () => {
     expect(reconciled.inserted).toBe(0);
     expect(retried.inserted).toBe(0);
     await expect(readFile(join(dataDir, 'manifest.json'), 'utf8')).resolves.toBe(manifestBefore);
-    expect((await decodeDailyHistoryPack(repaired)).summaries[0]?.quotes[KEY]?.c).toBe(90);
+    expect((await decodeDailyHistoryPack(repaired)).summaries).toEqual([]);
     await expect(readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8')).resolves.toBe(repaired);
   });
 
   it('preserves an unchanged daily pack when a same-day official update advances the manifest timestamp', async () => {
-    const backfill = [snapshot(LATEST - DAY, 80), snapshot(LATEST - DAY + HOUR, 90)];
+    const backfillStart = Date.parse('2026-08-31T00:00:00.000Z');
+    const backfill = Array.from({ length: 24 }, (_, hour) => snapshot(backfillStart + hour * HOUR, 80 + hour));
     await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST), generatedAt: GENERATED_AT });
     await mergeCloudHistory({ dataDir, snapshots: backfill, generatedAt: '2026-09-01T12:11:00.000Z' });
     await updateCloudHistory({
@@ -493,36 +493,102 @@ describe('mergeCloudHistory', () => {
     await expect(snapshotFile(dataDir, expired.timestamp)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
-  it('rebuilds every completed UTC day from the merged retained snapshots without sealing the latest day', async () => {
-    await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST, 100), generatedAt: GENERATED_AT });
+  it('preserves an existing complete summary when the ten-day cutoff retains only that UTC day\'s afternoon', async () => {
+    const cutoff = Date.parse('2026-09-01T12:00:00.000Z');
+    const latest = cutoff + 10 * DAY;
+    const retained = [
+      ...Array.from({ length: 12 }, (_, hour) => snapshot(cutoff + hour * HOUR, 100 + hour)),
+      snapshot(latest, 200),
+    ];
+    await mkdir(join(dataDir, 'snapshots'), { recursive: true });
+    const entries = await Promise.all(retained.map(async (value) => {
+      const text = await encodeDayChunk([value]);
+      await writeFile(join(dataDir, 'snapshots', `${value.timestamp}.txt`), text, 'utf8');
+      return {
+        timestamp: value.timestamp,
+        file: `snapshots/${value.timestamp}.txt` as `snapshots/${number}.txt`,
+        bytes: Buffer.byteLength(text, 'utf8'),
+      };
+    }));
+    await writeFile(join(dataDir, 'manifest.json'), JSON.stringify(createManifest(entries, GENERATED_AT)), 'utf8');
+    const complete = Array.from({ length: 24 }, (_, hour) => snapshot(cutoff - 12 * HOUR + hour * HOUR, 20 + hour));
+    const dailyBefore = await encodeDailyHistoryPack({
+      schemaVersion: 1,
+      generatedAt: '2026-09-01T11:59:00.000Z',
+      summaries: [aggregateDailySummary(complete)],
+    });
+    await writeFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), dailyBefore, 'utf8');
+
+    const result = await mergeCloudHistory({ dataDir, snapshots: [snapshot(latest, 200)], generatedAt: GENERATED_AT });
+
+    expect(result).toMatchObject({ inserted: 0, cleanupErrors: [] });
+    await expect(readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8')).resolves.toBe(dailyBefore);
+  });
+
+  it('creates a daily summary only after all 24 UTC hour buckets are retained', async () => {
+    const completeStart = Date.parse('2026-08-31T00:00:00.000Z');
+    const latest = Date.parse('2026-09-01T00:00:00.000Z');
 
     await mergeCloudHistory({
       dataDir,
       snapshots: [
-        snapshot(LATEST - 2 * DAY, 60), snapshot(LATEST - 2 * DAY + HOUR, 70),
-        snapshot(LATEST - DAY, 80), snapshot(LATEST - DAY + HOUR, 90),
+        ...Array.from({ length: 24 }, (_, hour) => snapshot(completeStart + hour * HOUR, 100 + hour)),
+        snapshot(latest, 200),
+      ],
+      generatedAt: GENERATED_AT,
+    });
+
+    const pack = await decodeDailyHistoryPack(await readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8'));
+    expect(pack.summaries).toHaveLength(1);
+    expect(pack.summaries[0]?.date).toBe('2026-08-31');
+    expect(pack.summaries[0]?.quotes[KEY]).toMatchObject({ o: 100, c: 123, samples: 24 });
+  });
+
+  it('does not create a daily pack from incomplete prior UTC hours', async () => {
+    const priorStart = Date.parse('2026-08-31T00:00:00.000Z');
+    const latest = Date.parse('2026-09-01T00:00:00.000Z');
+
+    await mergeCloudHistory({
+      dataDir,
+      snapshots: [snapshot(priorStart, 100), snapshot(priorStart + HOUR, 101), snapshot(latest, 200)],
+      generatedAt: GENERATED_AT,
+    });
+
+    await expect(readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('rebuilds every completed UTC day from the merged retained snapshots without sealing the latest day', async () => {
+    await updateCloudHistory({ dataDir, snapshot: snapshot(LATEST, 100), generatedAt: GENERATED_AT });
+    const firstDay = Date.parse('2026-08-30T00:00:00.000Z');
+    const secondDay = Date.parse('2026-08-31T00:00:00.000Z');
+
+    await mergeCloudHistory({
+      dataDir,
+      snapshots: [
+        ...Array.from({ length: 24 }, (_, hour) => snapshot(firstDay + hour * HOUR, 60 + hour)),
+        ...Array.from({ length: 24 }, (_, hour) => snapshot(secondDay + hour * HOUR, 80 + hour)),
       ],
       generatedAt: '2026-09-01T12:11:00.000Z',
     });
 
     const pack = await decodeDailyHistoryPack(await readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8'));
     expect(pack.summaries.map((summary) => summary.date)).toEqual(['2026-08-30', '2026-08-31']);
-    expect(pack.summaries.map((summary) => summary.quotes[KEY]?.c)).toEqual([70, 90]);
+    expect(pack.summaries.map((summary) => summary.quotes[KEY]?.c)).toEqual([83, 103]);
     expect(pack.summaries.some((summary) => summary.date === '2026-09-01')).toBe(false);
   });
 
   it('replaces an existing completed-date summary from the merged hourly contents', async () => {
-    const initial = snapshot(LATEST - DAY, 80);
+    const start = Date.parse('2026-08-31T00:00:00.000Z');
+    const complete = Array.from({ length: 24 }, (_, hour) => snapshot(start + hour * HOUR, 80 + hour));
+    const initial = complete[0]!;
     const latest = snapshot(LATEST, 100);
-    const initialText = await encodeDayChunk([initial]);
-    const latestText = await encodeDayChunk([latest]);
     await mkdir(join(dataDir, 'snapshots'), { recursive: true });
-    await writeFile(join(dataDir, 'snapshots', `${initial.timestamp}.txt`), initialText, 'utf8');
-    await writeFile(join(dataDir, 'snapshots', `${latest.timestamp}.txt`), latestText, 'utf8');
-    await writeFile(join(dataDir, 'manifest.json'), JSON.stringify(createManifest([
-      { timestamp: initial.timestamp, file: `snapshots/${initial.timestamp}.txt`, bytes: Buffer.byteLength(initialText) },
-      { timestamp: latest.timestamp, file: `snapshots/${latest.timestamp}.txt`, bytes: Buffer.byteLength(latestText) },
-    ], GENERATED_AT)), 'utf8');
+    const entries = await Promise.all([...complete, latest].map(async (value) => {
+      const text = await encodeDayChunk([value]);
+      await writeFile(join(dataDir, 'snapshots', `${value.timestamp}.txt`), text, 'utf8');
+      return { timestamp: value.timestamp, file: `snapshots/${value.timestamp}.txt` as `snapshots/${number}.txt`, bytes: Buffer.byteLength(text, 'utf8') };
+    }));
+    await writeFile(join(dataDir, 'manifest.json'), JSON.stringify(createManifest(entries, GENERATED_AT)), 'utf8');
     await writeFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), await encodeDailyHistoryPack({
       schemaVersion: 1,
       generatedAt: GENERATED_AT,
@@ -531,13 +597,13 @@ describe('mergeCloudHistory', () => {
 
     await mergeCloudHistory({
       dataDir,
-      snapshots: [snapshot(LATEST - DAY + HOUR, 90)],
+      snapshots: [initial],
       generatedAt: '2026-09-01T12:11:00.000Z',
     });
 
     const pack = await decodeDailyHistoryPack(await readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8'));
     expect(pack.summaries).toHaveLength(1);
-    expect(pack.summaries[0]?.quotes[KEY]).toMatchObject({ o: 80, c: 90, samples: 2 });
+    expect(pack.summaries[0]?.quotes[KEY]).toMatchObject({ o: 80, c: 103, samples: 24 });
     expect(pack.summaries.some((summary) => summary.date === '2026-09-01')).toBe(false);
   });
 
@@ -609,10 +675,12 @@ describe('mergeCloudHistory', () => {
 
   it('repairs daily history and prunes expired orphans after a post-manifest daily write failure', async () => {
     const expired = snapshot(LATEST - 11 * DAY, 70);
-    const retained = snapshot(LATEST - 9 * DAY, 80);
+    const retainedStart = Date.parse('2026-08-23T00:00:00.000Z');
     await updateCloudHistory({ dataDir, snapshot: expired, generatedAt: '2026-08-21T12:09:00.000Z' });
-    await updateCloudHistory({ dataDir, snapshot: retained, generatedAt: '2026-08-23T12:09:00.000Z' });
-    await rm(join(dataDir, CLOUD_DAILY_HISTORY_FILE));
+    for (const hour of Array.from({ length: 24 }, (_, index) => index)) {
+      await updateCloudHistory({ dataDir, snapshot: snapshot(retainedStart + hour * HOUR, 80 + hour), generatedAt: '2026-08-23T12:09:00.000Z' });
+    }
+    await rm(join(dataDir, CLOUD_DAILY_HISTORY_FILE), { force: true });
     const current = snapshot(LATEST, 100);
 
     const failed = await mergeCloudHistory({
