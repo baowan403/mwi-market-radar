@@ -53,6 +53,7 @@ function cloudClient(snapshots: Snapshot[], overrides: Partial<HybridCloudClient
       snapshots,
       latestTimestamp: snapshots.at(-1)?.timestamp ?? null,
       generatedAt: '2026-09-01T12:09:00.000Z',
+      historySourceLabel: null,
       stale: false,
       warningCode: null,
     }),
@@ -60,16 +61,53 @@ function cloudClient(snapshots: Snapshot[], overrides: Partial<HybridCloudClient
       snapshots,
       latestTimestamp: snapshots.at(-1)?.timestamp ?? null,
       generatedAt: '2026-09-01T12:09:00.000Z',
+      historySourceLabel: null,
       stale: false,
       warningCode: null,
     }),
     listSnapshots: vi.fn().mockResolvedValue(snapshots),
-    getSourceInfo: vi.fn().mockReturnValue({ stale: false, warningCode: null }),
+    getSourceInfo: vi.fn().mockReturnValue({
+      latestTimestamp: snapshots.at(-1)?.timestamp ?? null,
+      generatedAt: '2026-09-01T12:09:00.000Z',
+      historySourceLabel: null,
+      stale: false,
+      warningCode: null,
+    }),
     ...overrides,
   };
 }
 
 describe('hybrid dashboard client', () => {
+  it('propagates cloud provenance through cloud and cloud-plus-local bootstrap metadata', async () => {
+    const cloudData = {
+      snapshots: [snapshot(100, 100)],
+      latestTimestamp: 100,
+      generatedAt: '2026-09-01T12:09:00.000Z',
+      historySourceLabel: '牛牛股市',
+      stale: false,
+      warningCode: null,
+    };
+    const cloud = cloudClient([], {
+      load: vi.fn().mockResolvedValue(cloudData),
+      refresh: vi.fn().mockResolvedValue(cloudData),
+    });
+    const cloudOnly = createHybridClient({ cloud, preferences: new MemoryPreferencesStore() });
+    await expect(cloudOnly.bootstrap()).resolves.toMatchObject({
+      source: 'cloud',
+      sourceInfo: { historySourceLabel: '牛牛股市' },
+    });
+
+    const withLocal = createHybridClient({
+      cloud,
+      local: localClient([snapshot(100, 999), snapshot(200, 200)]),
+      preferences: new MemoryPreferencesStore(),
+    });
+    await expect(withLocal.bootstrap()).resolves.toMatchObject({
+      source: 'cloud+local',
+      sourceInfo: { historySourceLabel: '牛牛股市' },
+    });
+  });
+
   it('uses cloud as primary and merges local-only snapshots while cloud wins equal timestamps', async () => {
     const cloud = cloudClient([snapshot(100, 200), snapshot(300, 300)]);
     const local = localClient([snapshot(100, 999), snapshot(200, 250)]);
@@ -94,6 +132,7 @@ describe('hybrid dashboard client', () => {
     await expect(client.listSnapshots()).resolves.toEqual([snapshot(200, 250)]);
     const bootstrap = await client.bootstrap();
     expect(bootstrap.source).toBe('local-fallback');
+    expect(bootstrap.sourceInfo.historySourceLabel).toBeNull();
     expect(JSON.stringify(bootstrap)).not.toContain('private cloud payload');
   });
 
@@ -183,6 +222,7 @@ describe('hybrid dashboard client', () => {
       snapshots: [snapshot(200, 200)],
       latestTimestamp: 200,
       generatedAt: '2026-09-01T12:09:00.000Z',
+      historySourceLabel: null,
       stale: false,
       warningCode: null,
     });
@@ -190,6 +230,7 @@ describe('hybrid dashboard client', () => {
       snapshots: [snapshot(100, 100)],
       latestTimestamp: 100,
       generatedAt: '2026-09-01T12:09:00.000Z',
+      historySourceLabel: null,
       stale: false,
       warningCode: null,
     });
@@ -218,6 +259,7 @@ describe('hybrid dashboard client', () => {
       snapshots: [snapshot(300, 300)],
       latestTimestamp: 300,
       generatedAt: '2026-09-01T12:09:00.000Z',
+      historySourceLabel: null,
       stale: false,
       warningCode: null,
     });
@@ -258,6 +300,7 @@ describe('hybrid dashboard client', () => {
       snapshots: [snapshot(100, 100)],
       latestTimestamp: 100,
       generatedAt: '2026-09-01T12:09:00.000Z',
+      historySourceLabel: null,
       stale: false,
       warningCode: null,
     });
@@ -290,6 +333,7 @@ describe('hybrid dashboard client', () => {
         snapshots: [snapshot(1_000, 100)],
         latestTimestamp: 1_000,
         generatedAt: '2026-09-01T12:09:00.000Z',
+        historySourceLabel: null,
         stale: false,
         warningCode: null,
       }),

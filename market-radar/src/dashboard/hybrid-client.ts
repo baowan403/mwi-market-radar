@@ -22,6 +22,7 @@ export interface HybridSourceInfo {
   warningCode: 'cloud_stale' | null;
   warning?: string | null;
   generatedAt: string | null;
+  historySourceLabel: string | null;
   latestTimestamp: number | null;
 }
 
@@ -108,6 +109,7 @@ function cloudSourceInfo(data: CloudMarketData): HybridSourceInfo {
     warningCode: data.warningCode,
     warning: data.warning,
     generatedAt: data.generatedAt,
+    historySourceLabel: data.historySourceLabel,
     latestTimestamp: data.latestTimestamp,
   };
 }
@@ -116,6 +118,7 @@ function emptyCloudSourceInfo(): CloudSourceInfo {
   return {
     latestTimestamp: null,
     generatedAt: null,
+    historySourceLabel: null,
     stale: false,
     warningCode: null,
     warning: null,
@@ -324,6 +327,7 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
           warningCode: null,
           warning: null,
           generatedAt: null,
+          historySourceLabel: null,
           latestTimestamp: latestTimestamp(snapshots),
         };
       }

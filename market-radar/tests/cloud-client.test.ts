@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CloudManifest, CloudSnapshotEntry } from '../src/cloud/types';
 import { createManifest } from '../src/cloud/manifest';
+import { createHistoryProvenance, HISTORY_PROVENANCE_FILE } from '../src/cloud/provenance';
 import { encodeDayChunk } from '../src/core/storage-codec';
 import { aggregateDailySummary } from '../src/cloud/daily-summary';
 import { createDailyHistoryPack, encodeDailyHistoryPack } from '../src/cloud/daily-history';
@@ -52,6 +53,114 @@ afterEach(() => {
 });
 
 describe('cloud client', () => {
+  it('loads strict same-origin historical provenance alongside the manifest', async () => {
+    const current = snapshot(LATEST);
+    const data = await manifestAndFiles([current]);
+    const calls: string[] = [];
+    const provenance = createHistoryProvenance({
+      fetchedAt: GENERATED_AT,
+      fromTimestamp: LATEST,
+      toTimestamp: LATEST,
+      snapshotCount: 1,
+      overlapComparisons: 0,
+    });
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.endsWith('/manifest.json')) return response(data.manifest);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return response(provenance);
+      if (url.endsWith('/daily-history.txt')) return response('', 404);
+      return response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+
+    await expect(client.load()).resolves.toMatchObject({ historySourceLabel: '牛牛股市' });
+    expect(client.getSourceInfo()).toMatchObject({ historySourceLabel: '牛牛股市' });
+    expect(calls.filter((url) => url.endsWith(`/${HISTORY_PROVENANCE_FILE}`))).toEqual([
+      'https://example.test/cloud/history-provenance.json',
+    ]);
+  });
+
+  it('treats a missing history provenance file as absent without changing cloud labels', async () => {
+    const data = await manifestAndFiles([snapshot(LATEST)]);
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.endsWith('/manifest.json')) return response(data.manifest);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return response('', 404);
+      if (url.endsWith('/daily-history.txt')) return response('', 404);
+      return response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+
+    await expect(client.load()).resolves.toMatchObject({ historySourceLabel: null });
+    expect(client.getSourceInfo()).toMatchObject({ historySourceLabel: null });
+  });
+
+  it.each([
+    ['http failure', () => response('server unavailable', 500), 'cloud_data_invalid'],
+    ['network failure', () => Promise.reject(new Error('network unavailable')), 'cloud_unavailable'],
+  ])('maps a %s while reading optional provenance to the existing safe error policy', async (
+    _kind,
+    provenanceResponse,
+    code,
+  ) => {
+    const data = await manifestAndFiles([snapshot(LATEST)]);
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.endsWith('/manifest.json')) return response(data.manifest);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return provenanceResponse();
+      return response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+
+    await expect(client.load()).rejects.toMatchObject({ code });
+  });
+
+  it.each([
+    ['malformed', '{bad json'],
+    ['empty', ''],
+    ['oversized', 'x'.repeat(64 * 1024 + 1)],
+  ])('fails closed for %s history provenance without requesting snapshots', async (_kind, provenanceText) => {
+    const data = await manifestAndFiles([snapshot(LATEST)]);
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.endsWith('/manifest.json')) return response(data.manifest);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return response(provenanceText);
+      return response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+
+    await expect(client.load()).rejects.toMatchObject({ code: 'cloud_data_invalid' });
+    expect(fetcher.mock.calls.some(([input]) => String(input).includes('/snapshots/'))).toBe(false);
+  });
+
+  it('keeps valid cached rows when a later history provenance read is invalid', async () => {
+    const current = snapshot(LATEST);
+    const data = await manifestAndFiles([current]);
+    let valid = true;
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.endsWith('/manifest.json')) return response(data.manifest);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return response(valid
+        ? createHistoryProvenance({
+          fetchedAt: GENERATED_AT,
+          fromTimestamp: LATEST,
+          toTimestamp: LATEST,
+          snapshotCount: 1,
+          overlapComparisons: 0,
+        })
+        : 'not provenance');
+      if (url.endsWith('/daily-history.txt')) return response('', 404);
+      return response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+
+    await expect(client.load()).resolves.toMatchObject({ snapshots: [current], historySourceLabel: '牛牛股市' });
+    valid = false;
+    await expect(client.refresh()).rejects.toMatchObject({ code: 'cloud_data_invalid' });
+    await expect(client.load()).resolves.toMatchObject({ snapshots: [current], historySourceLabel: '牛牛股市' });
+  });
+
   it('merges older daily closes with the ten-day hourly window without overlapping dates', async () => {
     const hourly = [snapshot(LATEST - HOUR), snapshot(LATEST)];
     const data = await manifestAndFiles(hourly);
@@ -63,6 +172,7 @@ describe('cloud client', () => {
     const fetcher = vi.fn(async (input: string | URL) => {
       const url = String(input);
       if (url.endsWith('/manifest.json')) return response(data.manifest);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return response('', 404);
       if (url.endsWith('/daily-history.txt')) return response(daily);
       return response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
     });
@@ -85,13 +195,14 @@ describe('cloud client', () => {
       const url = String(input);
       calls.push({ url, init });
       if (url.endsWith('/manifest.json')) return response(data.manifest);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return response('', 404);
       const file = url.slice('https://example.test/cloud/'.length);
       return response(data.files.get(file) ?? '', 200);
     });
     const client = createCloudClient(new URL('https://example.test/cloud/'), { fetcher });
 
     await expect(client.listSnapshots()).resolves.toEqual([snapshot(LATEST - HOUR), snapshot(LATEST)]);
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(5);
     for (const call of calls) {
       expect(call.init).toMatchObject({
         method: 'GET',
@@ -152,6 +263,10 @@ describe('cloud client', () => {
       maximum = Math.max(maximum, active);
       await Promise.resolve();
       const url = String(input);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) {
+        active -= 1;
+        return response('', 404);
+      }
       const value = url.endsWith('/manifest.json')
         ? JSON.stringify(data.manifest)
         : data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '';
@@ -175,6 +290,7 @@ describe('cloud client', () => {
     const entry = data.manifest.snapshots[0]!;
     const fetcher = vi.fn(async (input: string | URL) => {
       const url = String(input);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return response('', 404);
       if (url.endsWith('/manifest.json')) {
         if (kind === 'wrong-path') {
           return response({ ...data.manifest, snapshots: [{ ...entry, file: 'snapshots/../secret.txt' }] });
@@ -199,6 +315,7 @@ describe('cloud client', () => {
     const fetcher = vi.fn(async (input: string | URL) => {
       const url = String(input);
       if (url.endsWith('/manifest.json')) return response(data.manifest);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return response('', 404);
       return response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
     });
     const client = createCloudClient('https://example.test/cloud/', { fetcher });
@@ -207,8 +324,10 @@ describe('cloud client', () => {
     await client.listSnapshots();
     await client.refresh({ force: true });
 
-    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(fetcher).toHaveBeenCalledTimes(6);
     expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/manifest.json'))).toHaveLength(2);
+    expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith(`/${HISTORY_PROVENANCE_FILE}`))).toHaveLength(2);
+    expect(fetcher.mock.calls.filter(([input]) => String(input).includes('/snapshots/'))).toHaveLength(1);
   });
 
   it('reuses snapshots when only generatedAt changes while returning the new manifest metadata', async () => {
@@ -217,6 +336,7 @@ describe('cloud client', () => {
     const fetcher = vi.fn(async (input: string | URL) => {
       const url = String(input);
       if (url.endsWith('/manifest.json')) return response({ ...data.manifest, generatedAt });
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return response('', 404);
       return response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
     });
     const client = createCloudClient('https://example.test/cloud/', { fetcher });
@@ -236,6 +356,7 @@ describe('cloud client', () => {
     const fetcher = vi.fn(async (input: string | URL) => {
       const url = String(input);
       if (url.endsWith('/manifest.json')) return response(manifest);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return response('', 404);
       return response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
     });
     const client = createCloudClient('https://example.test/cloud/', { fetcher });
@@ -261,6 +382,7 @@ describe('cloud client', () => {
     const fetcher = vi.fn(async (input: string | URL) => {
       const url = String(input);
       if (url.endsWith('/manifest.json')) return response(manifest);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return response('', 404);
       if (url.endsWith('/daily-history.txt')) return response('');
       return response(files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
     });
@@ -285,6 +407,7 @@ describe('cloud client', () => {
     const fetcher = vi.fn(async (input: string | URL) => {
       const url = String(input);
       if (url.endsWith('/manifest.json')) return response(manifest);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return response('', 404);
       if (url.endsWith('/daily-history.txt')) return response(daily);
       return response(files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
     });
@@ -306,6 +429,7 @@ describe('cloud client', () => {
     const fetcher = vi.fn(async (input: string | URL) => {
       if (String(input).endsWith('/manifest.json')) await gate;
       const url = String(input);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return response('', 404);
       return url.endsWith('/manifest.json')
         ? response(data.manifest)
         : response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
@@ -330,6 +454,7 @@ describe('cloud client', () => {
     const fetcher = vi.fn(async (input: string | URL) => {
       if (String(input).endsWith('/manifest.json')) await gate;
       const url = String(input);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return response('', 404);
       return url.endsWith('/manifest.json')
         ? response(data.manifest)
         : response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
@@ -370,12 +495,14 @@ describe('cloud client', () => {
   it('rejects a manifest over one megabyte before downloading snapshots', async () => {
     const data = await manifestAndFiles([]);
     const oversized = `${JSON.stringify(data.manifest)}${' '.repeat(1_000_001)}`;
-    const fetcher = vi.fn(async () => response(oversized));
+    const fetcher = vi.fn(async (input: string | URL) => (
+      String(input).endsWith(`/${HISTORY_PROVENANCE_FILE}`) ? response('', 404) : response(oversized)
+    ));
     const client = createCloudClient('https://example.test/cloud/', { fetcher });
     const error = await client.listSnapshots().catch((cause: unknown) => cause);
 
     expect(error).toMatchObject({ code: 'cloud_data_invalid' });
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
   it('rejects a manifest declaring more than 256 snapshots before downloads', async () => {
@@ -385,12 +512,14 @@ describe('cloud client', () => {
       bytes: 1,
     }));
     const manifest = createManifest(entries, GENERATED_AT);
-    const fetcher = vi.fn(async () => response(manifest));
+    const fetcher = vi.fn(async (input: string | URL) => (
+      String(input).endsWith(`/${HISTORY_PROVENANCE_FILE}`) ? response('', 404) : response(manifest)
+    ));
     const client = createCloudClient('https://example.test/cloud/', { fetcher });
     const error = await client.listSnapshots().catch((cause: unknown) => cause);
 
     expect(error).toMatchObject({ code: 'cloud_data_invalid' });
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
   it('rejects oversized snapshot text and declared total bytes before unbounded downloads', async () => {
@@ -399,6 +528,8 @@ describe('cloud client', () => {
     const oversizedFetcher = vi.fn(async (input: string | URL) => (
       String(input).endsWith('/manifest.json')
         ? response(data.manifest)
+        : String(input).endsWith(`/${HISTORY_PROVENANCE_FILE}`)
+          ? response('', 404)
         : response('x'.repeat(2_000_001))
     ));
     const oversizedClient = createCloudClient('https://example.test/cloud/', { fetcher: oversizedFetcher });
@@ -410,10 +541,12 @@ describe('cloud client', () => {
       bytes: 2_000_000,
     }));
     const manyManifest = createManifest(manyEntries, GENERATED_AT);
-    const totalFetcher = vi.fn(async () => response(manyManifest));
+    const totalFetcher = vi.fn(async (input: string | URL) => (
+      String(input).endsWith(`/${HISTORY_PROVENANCE_FILE}`) ? response('', 404) : response(manyManifest)
+    ));
     const totalClient = createCloudClient('https://example.test/cloud/', { fetcher: totalFetcher });
     await expect(totalClient.listSnapshots()).rejects.toMatchObject({ code: 'cloud_data_invalid' });
-    expect(totalFetcher).toHaveBeenCalledTimes(1);
+    expect(totalFetcher).toHaveBeenCalledTimes(2);
   });
 
   it('rejects a decoded snapshot with more than ten thousand quote keys', async () => {
@@ -427,6 +560,8 @@ describe('cloud client', () => {
       const url = String(input);
       return url.endsWith('/manifest.json')
         ? response(data.manifest)
+        : url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)
+          ? response('', 404)
         : response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
     });
     const client = createCloudClient('https://example.test/cloud/', { fetcher });
@@ -440,6 +575,8 @@ describe('cloud client', () => {
       const url = String(input);
       return url.endsWith('/manifest.json')
         ? response(data.manifest)
+        : url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)
+          ? response('', 404)
         : response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
     });
     const client = createCloudClient('https://example.test/cloud/', {

@@ -1,6 +1,12 @@
 import { decodeDayChunkLimited, StorageDecodeError } from '../core/storage-codec';
 import { parseManifest, type CloudManifest, type CloudSnapshotEntry } from '../cloud/manifest';
 import {
+  HISTORY_PROVENANCE_FILE,
+  HISTORY_PROVENANCE_MAX_BYTES,
+  parseHistoryProvenance,
+  type HistoryProvenance,
+} from '../cloud/provenance';
+import {
   dailyHistorySnapshots,
   decodeDailyHistoryPack,
   type DailyHistoryPack,
@@ -45,6 +51,7 @@ export class CloudMarketError extends Error {
 export interface CloudSourceInfo {
   latestTimestamp: number | null;
   generatedAt: string | null;
+  historySourceLabel: string | null;
   stale: boolean;
   warningCode: 'cloud_stale' | null;
   warning?: string | null;
@@ -54,6 +61,7 @@ export interface CloudMarketData {
   snapshots: Snapshot[];
   latestTimestamp: number | null;
   generatedAt: string | null;
+  historySourceLabel: string | null;
   stale: boolean;
   warningCode: 'cloud_stale' | null;
   warning?: string | null;
@@ -95,6 +103,7 @@ interface SnapshotCache {
   snapshots: Snapshot[];
   dailyDate: string;
   dailyPack: DailyHistoryPack | null;
+  historySourceLabel: string | null;
 }
 
 interface CloudOperation {
@@ -163,6 +172,13 @@ function resolveDailyHistoryUrl(base: URL): URL {
   return new URL('daily-history.txt', base);
 }
 
+function resolveHistoryProvenanceUrl(base: URL): URL {
+  const url = new URL(HISTORY_PROVENANCE_FILE, base);
+  const basePath = base.pathname.endsWith('/') ? base.pathname : `${base.pathname}/`;
+  if (url.origin !== base.origin || !url.pathname.startsWith(basePath)) throw invalidData();
+  return url;
+}
+
 function resolveSnapshotUrl(base: URL, entry: CloudSnapshotEntry): URL {
   if (entry.file !== `snapshots/${entry.timestamp}.txt`) throw invalidData();
   const url = new URL(entry.file, base);
@@ -174,6 +190,14 @@ function resolveSnapshotUrl(base: URL, entry: CloudSnapshotEntry): URL {
 function parseManifestText(text: string): CloudManifest {
   try {
     return parseManifest(JSON.parse(text) as unknown);
+  } catch {
+    throw invalidData();
+  }
+}
+
+function parseHistoryProvenanceText(text: string): HistoryProvenance {
+  try {
+    return parseHistoryProvenance(JSON.parse(text) as unknown);
   } catch {
     throw invalidData();
   }
@@ -209,17 +233,30 @@ export function createCloudClient(
   let sourceInfo: CloudSourceInfo = {
     latestTimestamp: null,
     generatedAt: null,
+    historySourceLabel: null,
     stale: false,
     warningCode: null,
     warning: null,
   };
 
-  async function requestText(
+  function requestText(
+    url: URL,
+    signal: AbortSignal | undefined,
+    purpose: 'provenance',
+    maxBytes: number,
+  ): Promise<string | null>;
+  function requestText(
     url: URL,
     signal: AbortSignal | undefined,
     purpose: 'manifest' | 'snapshot' | 'daily',
     maxBytes: number,
-  ): Promise<string> {
+  ): Promise<string>;
+  async function requestText(
+    url: URL,
+    signal: AbortSignal | undefined,
+    purpose: 'manifest' | 'snapshot' | 'daily' | 'provenance',
+    maxBytes: number,
+  ): Promise<string | null> {
     if (signal?.aborted) throw cancelled();
     if (typeof fetcher !== 'function') throw unavailable();
 
@@ -234,7 +271,7 @@ export function createCloudClient(
     signal?.addEventListener('abort', onAbort, { once: true });
 
     try {
-      return await new Promise<string>((resolve, reject) => {
+      return await new Promise<string | null>((resolve, reject) => {
         let settled = false;
         const finish = (callback: () => void): void => {
           if (settled) return;
@@ -242,7 +279,7 @@ export function createCloudClient(
           callback();
         };
         const rejectWith = (error: CloudMarketError): void => finish(() => reject(error));
-        const resolveWith = (text: string): void => finish(() => resolve(text));
+        const resolveWith = (text: string | null): void => finish(() => resolve(text));
         rejectExternal = rejectWith;
         const handleResponse = async (response: Response): Promise<void> => {
           if (settled) return;
@@ -252,6 +289,7 @@ export function createCloudClient(
           }
           if (!response.ok) {
             if (purpose === 'daily' && response.status === 404) resolveWith('');
+            else if (purpose === 'provenance' && response.status === 404) resolveWith(null);
             else rejectWith(purpose === 'manifest' ? unavailable() : invalidData());
             return;
           }
@@ -314,17 +352,28 @@ export function createCloudClient(
     }
   }
 
-  function sourceFor(manifest: CloudManifest): CloudSourceInfo {
+  function sourceFor(manifest: CloudManifest, historySourceLabel: string | null): CloudSourceInfo {
     const latestTimestamp = manifest.latestTimestamp;
     const elapsed = latestTimestamp === null ? null : clock() - latestTimestamp;
     const stale = elapsed !== null && Number.isFinite(elapsed) && elapsed > CLOUD_STALE_AFTER_MS;
     return {
       latestTimestamp,
       generatedAt: manifest.generatedAt,
+      historySourceLabel,
       stale,
       warningCode: stale ? 'cloud_stale' : null,
       warning: stale ? CLOUD_ERROR_MESSAGES.cloud_stale : null,
     };
+  }
+
+  function historySourceLabel(
+    provenance: HistoryProvenance | null,
+    snapshots: readonly Snapshot[],
+  ): string | null {
+    if (provenance === null) return null;
+    return snapshots.some((snapshot) => (
+      snapshot.timestamp >= provenance.fromTimestamp && snapshot.timestamp <= provenance.toTimestamp
+    )) ? provenance.sourceLabel : null;
   }
 
   interface DownloadedSnapshot {
@@ -409,11 +458,12 @@ export function createCloudClient(
 
   function cachedData(): CloudMarketData {
     if (cache === null) throw unavailable();
-    sourceInfo = sourceFor(cache.manifest);
+    sourceInfo = sourceFor(cache.manifest, cache.historySourceLabel);
     return {
       snapshots: [...cache.snapshots],
       latestTimestamp: cache.manifest.latestTimestamp,
       generatedAt: cache.manifest.generatedAt,
+      historySourceLabel: cache.historySourceLabel,
       stale: sourceInfo.stale,
       warningCode: sourceInfo.warningCode,
       warning: sourceInfo.warning,
@@ -479,13 +529,22 @@ export function createCloudClient(
     operation.subscribers = 0;
     operation.settled = false;
     const pending = (async (): Promise<CloudMarketData> => {
-      const manifestText = await requestText(
-        resolveManifestUrl(base),
-        controller.signal,
-        'manifest',
-        CLOUD_MAX_MANIFEST_BYTES,
-      );
+      const [manifestText, provenanceText] = await Promise.all([
+        requestText(
+          resolveManifestUrl(base),
+          controller.signal,
+          'manifest',
+          CLOUD_MAX_MANIFEST_BYTES,
+        ),
+        requestText(
+          resolveHistoryProvenanceUrl(base),
+          controller.signal,
+          'provenance',
+          HISTORY_PROVENANCE_MAX_BYTES,
+        ),
+      ]);
       const manifest = parseManifestText(manifestText);
+      const provenance = provenanceText === null ? null : parseHistoryProvenanceText(provenanceText);
       if (manifest.snapshots.length > CLOUD_MAX_SNAPSHOT_COUNT) throw invalidData();
       const signature = snapshotSignature(manifest);
       let snapshots: Snapshot[];
@@ -511,7 +570,14 @@ export function createCloudClient(
           ? []
           : dailyHistorySnapshots(dailyPack, hourly[0]?.timestamp ?? Number.MAX_SAFE_INTEGER);
         snapshots = sortedUniqueSnapshots([...daily, ...hourly]);
-        cache = { signature, manifest, snapshots, dailyDate, dailyPack };
+        cache = {
+          signature,
+          manifest,
+          snapshots,
+          dailyDate,
+          dailyPack,
+          historySourceLabel: historySourceLabel(provenance, snapshots),
+        };
       }
       if (controller.signal.aborted) throw cancelled();
       cache ??= {
@@ -520,15 +586,18 @@ export function createCloudClient(
         snapshots,
         dailyDate: manifest.generatedAt.slice(0, 10),
         dailyPack: null,
+        historySourceLabel: historySourceLabel(provenance, snapshots),
       };
       cache.signature = signature;
       cache.manifest = manifest;
       cache.snapshots = snapshots;
-      sourceInfo = sourceFor(manifest);
+      cache.historySourceLabel = historySourceLabel(provenance, snapshots);
+      sourceInfo = sourceFor(manifest, cache.historySourceLabel);
       return {
         snapshots: [...snapshots],
         latestTimestamp: manifest.latestTimestamp,
         generatedAt: manifest.generatedAt,
+        historySourceLabel: cache.historySourceLabel,
         stale: sourceInfo.stale,
         warningCode: sourceInfo.warningCode,
         warning: sourceInfo.warning,

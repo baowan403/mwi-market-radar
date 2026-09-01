@@ -46,6 +46,7 @@ export interface DashboardSourceInfo {
   warningCode: 'cloud_stale' | null;
   warning?: string | null;
   generatedAt: string | null;
+  historySourceLabel: string | null;
   latestTimestamp: number | null;
 }
 

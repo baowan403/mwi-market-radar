@@ -49,6 +49,7 @@ function cloudData(snapshots: Snapshot[], overrides: Partial<CloudMarketData> = 
     snapshots,
     latestTimestamp,
     generatedAt: '2026-09-01T12:09:00.000Z',
+    historySourceLabel: null,
     stale: false,
     warningCode: null,
     warning: null,
@@ -68,6 +69,7 @@ function cloudClient(
     getSourceInfo: vi.fn().mockReturnValue({
       latestTimestamp: snapshots.at(-1)?.timestamp ?? null,
       generatedAt: '2026-09-01T12:09:00.000Z',
+      historySourceLabel: null,
       stale: false,
       warningCode: null,
       warning: null,
@@ -119,6 +121,28 @@ afterEach(() => {
 });
 
 describe('cloud dashboard provider', () => {
+  it('discloses historical provenance while retaining cloud freshness details', async () => {
+    const root = createRoot();
+    const current = snapshot(1_000, 10);
+    const cloud = cloudClient([current], {
+      load: vi.fn().mockResolvedValue(cloudData([current], { historySourceLabel: '牛牛股市' })),
+    });
+    const handle = await mountDashboard({
+      root,
+      bridgeTarget: document.createElement('div'),
+      cloudClient: cloud,
+      preferencesStore: new MemoryPreferencesStore(),
+      catalogLoader: vi.fn().mockResolvedValue(CATALOG),
+      waitForBridgeReady: vi.fn().mockResolvedValue(false),
+    });
+
+    expect(root.querySelector('[data-source="cloud"] [data-source-label]')?.textContent)
+      .toBe('歷史回填：牛牛股市；最新行情：MWI 官方');
+    expect(root.querySelector('[data-source="cloud"] [data-source-detail]')?.textContent)
+      .toContain('最新');
+    handle.destroy();
+  });
+
   it('renders valid cloud data immediately without waiting for the local bridge', async () => {
     const root = createRoot();
     const target = document.createElement('div');

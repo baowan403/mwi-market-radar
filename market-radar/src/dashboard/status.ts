@@ -22,6 +22,7 @@ export interface DashboardDataSourceInfo {
   source: Exclude<DashboardDataSource, 'unavailable'>;
   latestTimestamp: number | null;
   generatedAt: string | null;
+  historySourceLabel: string | null;
   stale: boolean;
 }
 
@@ -280,7 +281,9 @@ export function renderDataSource(
   const label = document.createElement('span');
   label.className = 'data-source-label';
   label.dataset.sourceLabel = 'true';
-  label.textContent = DATA_SOURCE_LABELS[source];
+  label.textContent = typeof sourceInfo?.historySourceLabel === 'string'
+    ? `歷史回填：${sourceInfo.historySourceLabel}；最新行情：MWI 官方`
+    : DATA_SOURCE_LABELS[source];
   target.append(label);
 
   const detail = document.createElement('span');
