@@ -2,6 +2,7 @@ import source from '../scripts/vendor/milkonomy/source.json';
 import translations from '../scripts/vendor/milkonomy/zh-tw.json';
 import strategyData from '../scripts/vendor/milkonomy/strategy-data.json';
 import { describe, expect, it } from 'vitest';
+import { normalizeStrategyGameData, StrategyDataError } from '../src/strategy/game-data';
 
 describe('pinned Milkonomy reference artifacts', () => {
   it('pins the reviewed MIT source and keeps deterministic metadata', () => {
@@ -32,5 +33,13 @@ describe('pinned Milkonomy reference artifacts', () => {
     expect(strategyData).not.toHaveProperty('monsterDetailMap');
     expect(strategyData).not.toHaveProperty('chat');
     expect(strategyData).not.toHaveProperty('character');
+  });
+
+  it('normalizes the committed data and rejects missing calculator maps', () => {
+    const normalized = normalizeStrategyGameData(strategyData);
+
+    expect(normalized.itemsByHrid.size).toBeGreaterThan(100);
+    expect(normalized.actionsByHrid.size).toBeGreaterThan(100);
+    expect(() => normalizeStrategyGameData({ gameVersion: 'bad' })).toThrow(StrategyDataError);
   });
 });
