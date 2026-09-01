@@ -289,14 +289,14 @@ describe('stockmarket backfill command', () => {
     await expect(dataBytes(dataDir)).resolves.toEqual(before);
   });
 
-  it('rejects a schema-valid provenance marker that cannot describe the retained fixed window before client creation', async () => {
+  it('rejects a schema-valid provenance marker that ends after the manifest latest before client creation', async () => {
     const dataDir = await backfillDataDir();
     await seedBackfillLatest(dataDir);
     await writeFile(join(dataDir, HISTORY_PROVENANCE_FILE), `${JSON.stringify(createHistoryProvenance({
       fetchedAt: BACKFILL_GENERATED,
-      fromTimestamp: BACKFILL_LATEST - HOUR,
-      toTimestamp: BACKFILL_LATEST,
-      snapshotCount: 1,
+      fromTimestamp: BACKFILL_LATEST - 149 * HOUR,
+      toTimestamp: BACKFILL_LATEST + HOUR,
+      snapshotCount: 150,
       overlapComparisons: 0,
     }))}\n`, 'utf8');
     const before = await dataBytes(dataDir);
@@ -307,6 +307,26 @@ describe('stockmarket backfill command', () => {
     expect(createClient).not.toHaveBeenCalled();
     await expect(dataBytes(dataDir)).resolves.toEqual(before);
   });
+
+  it('keeps a valid completion marker after rolling retention prunes its original range', async () => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    await runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, client: { loadAll: async () => stockmarketRows() }, now: () => BACKFILL_NOW });
+    await updateCloudHistory({
+      dataDir,
+      snapshot: { ...officialBackfillLatest(), timestamp: BACKFILL_LATEST + 11 * 24 * HOUR },
+      generatedAt: '2026-09-12T12:10:00.000Z',
+    });
+    const before = await dataBytes(dataDir);
+    const client = { loadAll: vi.fn(async () => { throw new Error('must not fetch'); }) };
+    const createClient = vi.fn(() => client);
+
+    await expect(runStockmarketBackfill({ dataDir, generatedAt: '2026-09-12T12:11:00.000Z', createClient, now: () => Date.parse('2026-09-12T12:11:00.000Z') }))
+      .resolves.toEqual({ skipped: true });
+    expect(createClient).not.toHaveBeenCalled();
+    expect(client.loadAll).not.toHaveBeenCalled();
+    await expect(dataBytes(dataDir)).resolves.toEqual(before);
+  }, 30_000);
 
   it.each([
     ['invalid generatedAt', { generatedAt: 'not-an-instant', now: () => BACKFILL_NOW }],

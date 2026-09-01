@@ -13,7 +13,7 @@ import {
   mergeCloudHistory,
   type CloudFileSystem,
 } from '../src/cloud/history-store';
-import { parseManifest } from '../src/cloud/manifest';
+import { CLOUD_RETENTION_MS, parseManifest } from '../src/cloud/manifest';
 import { decodeDailyHistoryPack } from '../src/cloud/daily-history';
 import {
   createHistoryProvenance,
@@ -193,9 +193,9 @@ function provenanceMatchesRetainedHistory(provenance: HistoryProvenance, manifes
   if (
     provenance.fromTimestamp > provenance.toTimestamp
     || provenance.toTimestamp > latest
-    || provenance.fromTimestamp < latest - SEVEN_DAYS_MS
     || provenance.toTimestamp - provenance.fromTimestamp > SEVEN_DAYS_MS
   ) return false;
+  if (provenance.fromTimestamp < latest - CLOUD_RETENTION_MS) return true;
   const timestamps = new Set(manifest.snapshots.map((entry) => entry.timestamp));
   if (!timestamps.has(provenance.fromTimestamp) || !timestamps.has(provenance.toTimestamp)) return false;
   return manifest.snapshots.filter((entry) => (
