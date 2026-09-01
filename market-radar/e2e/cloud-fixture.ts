@@ -3,6 +3,7 @@ import { createManifest, type CloudManifest, type CloudSnapshotEntry } from '../
 import { encodeDayChunk } from '../src/core/storage-codec';
 import { aggregateDailySummary } from '../src/cloud/daily-summary';
 import { createDailyHistoryPack, encodeDailyHistoryPack } from '../src/cloud/daily-history';
+import { createHistoryProvenance } from '../src/cloud/provenance';
 import type { MarketKey, Quote, Snapshot } from '../src/core/types';
 
 const HOUR = 3_600_000;
@@ -14,6 +15,7 @@ export interface CloudFixtureOptions {
   stale?: boolean;
   strategyQuotes?: boolean;
   historyHours?: number;
+  historyProvenance?: boolean;
   dailyHistoryDays?: number;
 }
 
@@ -116,6 +118,16 @@ export async function createCloudFixture(options: CloudFixtureOptions = {}): Pro
       }),
       new Date(latestTimestamp + 60_000).toISOString(),
     ));
+  const firstHourlyTimestamp = currentManifest.snapshots[0]?.timestamp ?? latestTimestamp;
+  const historyProvenanceText = options.historyProvenance === true
+    ? JSON.stringify(createHistoryProvenance({
+      fetchedAt: new Date(latestTimestamp + 60_000).toISOString(),
+      fromTimestamp: firstHourlyTimestamp,
+      toTimestamp: latestTimestamp,
+      snapshotCount: currentManifest.snapshots.length,
+      overlapComparisons: 1,
+    }))
+    : '';
 
   const fulfillText = async (route: Parameters<Parameters<Page['route']>[1]>[0], body: string, contentType: string): Promise<void> => {
     const bytes = Buffer.byteLength(body, 'utf8');
@@ -146,6 +158,14 @@ export async function createCloudFixture(options: CloudFixtureOptions = {}): Pro
     async install(page: Page): Promise<void> {
       await page.route('**/data/**', async (route) => {
         const url = new URL(route.request().url());
+        if (url.pathname.endsWith('/history-provenance.json')) {
+          if (historyProvenanceText.length === 0) {
+            await route.fulfill({ status: 404, body: 'not found' });
+            return;
+          }
+          await fulfillText(route, historyProvenanceText, 'application/json');
+          return;
+        }
         if (url.pathname.endsWith('/daily-history.txt')) {
           await route.fulfill({ status: 200, body: dailyHistoryText, contentType: 'text/plain' });
           return;

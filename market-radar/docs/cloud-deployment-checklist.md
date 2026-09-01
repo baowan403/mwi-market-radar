@@ -54,6 +54,14 @@
 
 ## Local acceptance evidence
 
+### Task 8：本機 7D provenance／bootstrap acceptance（尚未部署）
+
+- 2026-09-02 03:45（Asia/Taipei）；本機 deterministic fixture、無網路。commit SHA：`PENDING_LOCAL_COMMIT_SHA`。
+- fixture 提供同源 `data/history-provenance.json` 的完整 valid schema，並提供 168 份逐時 snapshots（167 小時跨度）；`redwood_lumber` 的 1D／3D／7D 均為實值。
+- focused cloud desktop：1 passed；cloud desktop＋mobile：14 passed。
+- `npm test`：55 test files／587 tests passed；`npm run build`：TypeScript `--noEmit`、dashboard（48 modules）與 userscript（12 modules）均成功。
+- `npm run e2e`：37 passed／2 skipped（39 total）。這些為 local acceptance，未宣稱公開頁已有 7D 或完成 history backfill。
+
 - [ ] 在唯一 OS temporary directory 執行 fixture `cloud:update --fixture tests/fixtures/marketplace.json --min-quotes 1`：第一次輸出 `Cloud history updated`。
 - [ ] 對同一 temporary data directory 再執行一次：輸出 `Cloud history unchanged`，manifest 與 snapshot SHA-256 均不變。
 - [ ] 執行 `cloud:validate --validate-only` 並記錄 exit code 0；完成後刪除且只刪除該 temporary directory。
