@@ -2,7 +2,10 @@ import type { MarketKey, Quote, Snapshot } from '../core/types';
 import type { StockmarketHistoryPoint } from './stockmarket-schema';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1_000;
+const HOUR_MS = 60 * 60 * 1_000;
+const MAX_DATE_TIMESTAMP = 8_640_000_000_000_000;
 const SAFE_ITEM_NAME = /^[a-z0-9_]+$/;
+const CANONICAL_KEY = /^\/items\/([a-z0-9_]+)::(0|[1-9]\d*)$/;
 const compareStrings = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0;
 
 export interface BackfillGates {
@@ -15,7 +18,29 @@ function fail(message: string): never {
 }
 
 function validTimestamp(value: unknown): value is number {
-  return Number.isSafeInteger(value) && (value as number) >= 0;
+  return Number.isSafeInteger(value) && (value as number) >= 0 && (value as number) <= MAX_DATE_TIMESTAMP;
+}
+
+function validQuote(value: unknown): value is Quote {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const quote = value as Record<string, unknown>;
+  return ['a', 'b', 'p', 'v'].every((field) => {
+    const fieldValue = quote[field];
+    return fieldValue === null || (typeof fieldValue === 'number' && Number.isFinite(fieldValue) && fieldValue >= 0);
+  });
+}
+
+function validateSnapshot(snapshot: Snapshot, label: string): void {
+  if (!snapshot || typeof snapshot !== 'object' || !validTimestamp(snapshot.timestamp)) fail(`${label} timestamp is invalid`);
+  if (!snapshot.quotes || typeof snapshot.quotes !== 'object' || Array.isArray(snapshot.quotes)
+    || (Object.getPrototypeOf(snapshot.quotes) !== Object.prototype && Object.getPrototypeOf(snapshot.quotes) !== null)) {
+    fail(`${label} quotes are invalid`);
+  }
+  for (const key of Object.keys(snapshot.quotes)) {
+    const match = CANONICAL_KEY.exec(key);
+    if (!match || !Number.isSafeInteger(Number(match[2]))) fail(`${label} key is invalid`);
+    if (!validQuote(snapshot.quotes[key as MarketKey])) fail(`${label} quote is invalid`);
+  }
 }
 
 function validGates(gates: BackfillGates): void {
@@ -47,9 +72,7 @@ export function buildBackfillSnapshots(
 
   for (const [mapItem, rows] of [...rowsByItem.entries()].sort(([a], [b]) => compareStrings(a, b))) {
     if (!SAFE_ITEM_NAME.test(mapItem)) fail('item name is invalid');
-    const copiedRows = [...rows].sort((left, right) => left.timestamp - right.timestamp
-      || left.level - right.level
-      || compareStrings(JSON.stringify(left), JSON.stringify(right)));
+    const copiedRows = [...rows].sort((left, right) => left.timestamp - right.timestamp || left.level - right.level);
     for (const row of copiedRows) {
       if (row.itemName !== mapItem || !SAFE_ITEM_NAME.test(row.itemName)) fail('item name mismatch');
       if (!validTimestamp(row.timestamp)) fail('row timestamp is invalid');
@@ -69,7 +92,18 @@ export function buildBackfillSnapshots(
     }
   }
 
-  const snapshots = [...byTimestamp.entries()].sort(([a], [b]) => a - b).map(([timestamp, quoteMap]) => {
+  const eligible = [...byTimestamp.entries()].sort(([a], [b]) => a - b);
+  const buckets = new Set<number>();
+  for (const [timestamp] of eligible) {
+    const bucket = Math.floor(timestamp / HOUR_MS);
+    if (buckets.has(bucket)) fail('multiple timestamps in the same UTC hour');
+    buckets.add(bucket);
+  }
+  const retained = eligible.slice(-168);
+  if (retained.length < gates.minimumHours || (retained.length > 0 && retained.at(-1)![0] - retained[0]![0] < (gates.minimumHours - 1) * HOUR_MS)) {
+    fail(`requires at least ${gates.minimumHours} hours of hourly span`);
+  }
+  const snapshots = retained.map(([timestamp, quoteMap]) => {
     if (quoteMap.size < gates.minimumQuotes) fail(`requires at least ${gates.minimumQuotes} quotes per snapshot`);
     const quotes: Record<MarketKey, Quote> = {};
     for (const [key, quote] of [...quoteMap.entries()].sort(([a], [b]) => compareStrings(a, b))) quotes[key] = cloneQuote(quote);
@@ -88,11 +122,16 @@ export interface OfficialOverlapResult {
 export function validateOfficialOverlap(imported: readonly Snapshot[], official: readonly Snapshot[]): OfficialOverlapResult {
   const officialByTimestamp = new Map<number, Snapshot>();
   for (const snapshot of official) {
+    validateSnapshot(snapshot, 'official snapshot');
     if (officialByTimestamp.has(snapshot.timestamp)) fail('official snapshots contain duplicate timestamp');
     officialByTimestamp.set(snapshot.timestamp, snapshot);
   }
   let comparisons = 0;
+  const importedTimestamps = new Set<number>();
   const snapshots = imported.map((candidate) => {
+    validateSnapshot(candidate, 'imported snapshot');
+    if (importedTimestamps.has(candidate.timestamp)) fail('imported snapshots contain duplicate timestamp');
+    importedTimestamps.add(candidate.timestamp);
     const authority = officialByTimestamp.get(candidate.timestamp);
     if (!authority) return cloneSnapshot(candidate);
     for (const [key, quote] of Object.entries(candidate.quotes)) {

@@ -9,9 +9,10 @@ function row(itemName: string, level: number, timestamp: number, values: Partial
   return { itemName, level, timestamp, a: 10, b: 9, p: 9.5, v: 2, ...values };
 }
 function makeRows(hours: number, quotes = 2, start = latest - (hours - 1) * HOUR): ReadonlyMap<string, readonly StockmarketHistoryPoint[]> {
-  const rows: StockmarketHistoryPoint[] = [];
-  for (let h = 0; h < hours; h += 1) for (let q = 0; q < quotes; q += 1) rows.push(row(`item_${String(q).padStart(4, '0')}`, 0, start + h * HOUR));
-  return new Map([['item_0000', rows.filter((r) => r.itemName === 'item_0000')], ...Array.from({ length: quotes - 1 }, (_, q) => [`item_${String(q + 1).padStart(4, '0')}`, rows.filter((r) => r.itemName === `item_${String(q + 1).padStart(4, '0')}`)] as const)]);
+  return new Map(Array.from({ length: quotes }, (_, q) => {
+    const itemName = `item_${String(q).padStart(4, '0')}`;
+    return [itemName, Array.from({ length: hours }, (_, h) => row(itemName, 0, start + h * HOUR))] as const;
+  }));
 }
 function snapshot(timestamp: number, quote: Quote = { a: 10, b: 9, p: 8, v: 7 }): Snapshot {
   return { timestamp, quotes: { '/items/wood::0': quote } };
@@ -41,6 +42,10 @@ describe('stockmarket backfill aggregation', () => {
     expect(() => buildBackfillSnapshots(new Map([['a', [row('a', 0, latest + 1)]]]), latest, { minimumHours: 1, minimumQuotes: 1 })).toThrow(/future/i);
     expect(() => buildBackfillSnapshots(new Map(), Number.NaN, { minimumHours: 1, minimumQuotes: 1 })).toThrow(/timestamp/i);
     expect(() => buildBackfillSnapshots(new Map(), Number.MAX_SAFE_INTEGER + 1, { minimumHours: 1, minimumQuotes: 1 })).toThrow(/timestamp/i);
+    const maxDate = 8_640_000_000_000_000;
+    expect(buildBackfillSnapshots(new Map([['a', [row('a', 0, maxDate)]]]), maxDate, { minimumHours: 1, minimumQuotes: 1 })).toHaveLength(1);
+    expect(() => buildBackfillSnapshots(new Map(), maxDate + 1, { minimumHours: 1, minimumQuotes: 1 })).toThrow(/timestamp/i);
+    expect(() => buildBackfillSnapshots(new Map([['a', [row('a', 0, maxDate + 1)]]]), maxDate, { minimumHours: 1, minimumQuotes: 1 })).toThrow(/timestamp/i);
   });
 
   it('rejects sparse snapshots and invalid gates', () => {
@@ -63,6 +68,16 @@ describe('stockmarket backfill aggregation', () => {
     const first = makeRows(2, 3);
     const entries = [...first].reverse().map(([key, values]) => [key, [...values].reverse()] as const);
     expect(buildBackfillSnapshots(first, latest, { minimumHours: 2, minimumQuotes: 3 })).toEqual(buildBackfillSnapshots(new Map(entries), latest, { minimumHours: 2, minimumQuotes: 3 }));
+  });
+
+  it('rejects clustered timestamps and requires hourly span, while capping to 168 snapshots', () => {
+    expect(() => buildBackfillSnapshots(new Map([['a', [row('a', 0, latest), row('a', 1, latest + 1_000)]]]), latest + 1_000, { minimumHours: 2, minimumQuotes: 1 })).toThrow(/hour/i);
+    const clustered = Array.from({ length: 150 }, (_, index) => row('a', 0, latest - 149_000 + index * 1_000));
+    expect(() => buildBackfillSnapshots(new Map([['a', clustered]]), latest, { minimumHours: 150, minimumQuotes: 1 })).toThrow(/span|hour/i);
+    const hourly = Array.from({ length: 169 }, (_, index) => row('a', 0, latest - index * HOUR));
+    const result = buildBackfillSnapshots(new Map([['a', hourly]]), latest, { minimumHours: 1, minimumQuotes: 1 });
+    expect(result).toHaveLength(168);
+    expect(result[0]!.timestamp).toBe(latest - 167 * HOUR);
   });
 });
 
@@ -92,5 +107,11 @@ describe('official overlap validation', () => {
     validateOfficialOverlap(imported, officialInput);
     expect(JSON.stringify(imported)).toBe(importedBefore);
     expect(JSON.stringify(officialInput)).toBe(officialBefore);
+    expect(() => validateOfficialOverlap([{ timestamp: 8_640_000_000_000_001, quotes: {} }], [])).toThrow(/timestamp/i);
+    const poisonedQuotes = Object.create(null) as Record<string, Quote>;
+    poisonedQuotes.__proto__ = { a: 1, b: 1, p: null, v: null };
+    expect(() => validateOfficialOverlap([{ timestamp: latest, quotes: poisonedQuotes as Snapshot['quotes'] }], [])).toThrow(/key|quotes/i);
+    expect(() => validateOfficialOverlap([{ timestamp: latest, quotes: { '/items/a::0': { a: Infinity, b: 1, p: null, v: null } } }], [])).toThrow(/quote/i);
+    expect(() => validateOfficialOverlap([snapshot(latest), snapshot(latest)], [])).toThrow(/duplicate.*timestamp/i);
   });
 });
