@@ -148,4 +148,83 @@ describe('hybrid dashboard client', () => {
     expect(local.listSnapshots).toHaveBeenCalledTimes(2);
     await expect(client.bootstrap()).resolves.toMatchObject({ watchlist: [{ key: '/items/pinned::0', order: 0 }] });
   });
+
+  it('reports the merged snapshot latest while preserving the cloud latest in source metadata', async () => {
+    const cloud = cloudClient([snapshot(100, 100)]);
+    const local = localClient([snapshot(100, 999), snapshot(200, 200)]);
+    const client = createHybridClient({ cloud, local, preferences: new MemoryPreferencesStore() });
+
+    const bootstrap = await client.bootstrap();
+
+    expect(bootstrap.latestTimestamp).toBe(200);
+    expect(bootstrap.sourceInfo).toMatchObject({ source: 'cloud+local', latestTimestamp: 100 });
+    expect(bootstrap.collectorStatus.officialTimestamp).toBe(100);
+  });
+
+  it('commits only the latest refresh generation when an older refresh resolves last', async () => {
+    let resolveFirstCloud!: (value: Awaited<ReturnType<HybridCloudClient['load']>>) => void;
+    let resolveSecondCloud!: (value: Awaited<ReturnType<HybridCloudClient['load']>>) => void;
+    const firstCloud = new Promise<Awaited<ReturnType<HybridCloudClient['load']>>>((resolve) => {
+      resolveFirstCloud = resolve;
+    });
+    const secondCloud = new Promise<Awaited<ReturnType<HybridCloudClient['load']>>>((resolve) => {
+      resolveSecondCloud = resolve;
+    });
+    const cloud = cloudClient([], {
+      refresh: vi.fn()
+        .mockReturnValueOnce(firstCloud)
+        .mockReturnValueOnce(secondCloud),
+    });
+    const local = localClient([]);
+    const client = createHybridClient({ cloud, local, preferences: new MemoryPreferencesStore() });
+    const first = client.refresh();
+    const second = client.refresh();
+    resolveSecondCloud({
+      snapshots: [snapshot(200, 200)],
+      latestTimestamp: 200,
+      generatedAt: '2026-09-01T12:09:00.000Z',
+      stale: false,
+      warningCode: null,
+    });
+    resolveFirstCloud({
+      snapshots: [snapshot(100, 100)],
+      latestTimestamp: 100,
+      generatedAt: '2026-09-01T12:09:00.000Z',
+      stale: false,
+      warningCode: null,
+    });
+
+    await Promise.all([first, second]);
+    await expect(client.listSnapshots()).resolves.toEqual([snapshot(200, 200)]);
+  });
+
+  it('does not commit a caller-aborted refresh when local promises cannot be cancelled', async () => {
+    let resolveCloud!: (value: Awaited<ReturnType<HybridCloudClient['load']>>) => void;
+    let resolveLocal!: (value: Snapshot[]) => void;
+    const cloud = cloudClient([], {
+      refresh: vi.fn().mockImplementation(() => new Promise((resolve) => {
+        resolveCloud = resolve;
+      })),
+    });
+    const local = localClient([]);
+    (local.listSnapshots as ReturnType<typeof vi.fn>).mockImplementation(() => new Promise((resolve) => {
+      resolveLocal = resolve;
+    }));
+    const client = createHybridClient({ cloud, local, preferences: new MemoryPreferencesStore() });
+    const controller = new AbortController();
+    const pending = client.refresh({ signal: controller.signal }).catch((cause: unknown) => cause);
+    controller.abort();
+    resolveCloud({
+      snapshots: [snapshot(300, 300)],
+      latestTimestamp: 300,
+      generatedAt: '2026-09-01T12:09:00.000Z',
+      stale: false,
+      warningCode: null,
+    });
+    resolveLocal([snapshot(300, 999)]);
+
+    const error = await pending;
+    expect(error).toMatchObject({ code: 'cancelled' });
+    expect(client.getSourceInfo().latestTimestamp).toBeNull();
+  });
 });

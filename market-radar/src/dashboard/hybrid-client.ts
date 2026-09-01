@@ -46,13 +46,15 @@ export interface HybridClient extends DashboardClient {
   bootstrap(): Promise<HybridBootstrap>;
   refresh(options?: HybridRefreshOptions): Promise<HybridBootstrap>;
   getSourceInfo(): HybridSourceInfo;
+  destroy(): void;
 }
 
-export type HybridMarketErrorCode = 'no_data' | 'preferences';
+export type HybridMarketErrorCode = 'no_data' | 'preferences' | 'cancelled';
 
 const HYBRID_ERROR_MESSAGES: Record<HybridMarketErrorCode, string> = {
   no_data: 'No market data source is available',
   preferences: 'Dashboard preferences are unavailable',
+  cancelled: 'Hybrid market request cancelled',
 };
 
 export class HybridMarketError extends Error {
@@ -70,6 +72,15 @@ interface HybridState {
   snapshots: Snapshot[];
   sourceInfo: HybridSourceInfo;
   collectorStatus: CollectorStatus;
+}
+
+interface HybridOperation {
+  generation: number;
+  controller: AbortController;
+  promise: Promise<HybridState>;
+  consumers: number;
+  settled: boolean;
+  cancelled: boolean;
 }
 
 function latestTimestamp(snapshots: readonly Snapshot[]): number | null {
@@ -137,7 +148,9 @@ function statusFromSource(
 
 export function createHybridClient(options: HybridClientOptions): HybridClient {
   let state: HybridState | null = null;
-  let loadPromise: Promise<HybridState> | null = null;
+  let activeOperation: HybridOperation | null = null;
+  let generation = 0;
+  let destroyed = false;
   let preferencesPromise: Promise<{ watchlist: WatchItem[]; settings: RadarSettings }> | null = null;
   let preferences: { watchlist: WatchItem[]; settings: RadarSettings } | null = null;
 
@@ -161,21 +174,82 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
     }
   };
 
-  const loadData = async (
-    force: boolean,
+  const safeCall = <T>(call: () => Promise<T>): Promise<T> => {
+    try {
+      return Promise.resolve(call());
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  };
+
+  const cancelOperation = (operation: HybridOperation): void => {
+    if (operation.settled || operation.cancelled) return;
+    operation.cancelled = true;
+    if (activeOperation === operation) generation += 1;
+    operation.controller.abort();
+  };
+
+  const attachOperation = (
+    operation: HybridOperation,
     signal?: AbortSignal,
   ): Promise<HybridState> => {
-    if (!force && state !== null) return state;
-    if (!force && loadPromise !== null) return loadPromise;
-
-    const cloudRequest: CloudRequestOptions = signal === undefined ? {} : { signal };
-    const safeCall = <T>(call: () => Promise<T>): Promise<T> => {
-      try {
-        return Promise.resolve(call());
-      } catch (error) {
-        return Promise.reject(error);
-      }
+    operation.consumers += 1;
+    let released = false;
+    const release = (): void => {
+      if (released) return;
+      released = true;
+      operation.consumers -= 1;
+      if (operation.consumers === 0 && !operation.settled) cancelOperation(operation);
     };
+    if (signal?.aborted) {
+      release();
+      return Promise.reject(new HybridMarketError('cancelled'));
+    }
+    return new Promise<HybridState>((resolve, reject) => {
+      let settled = false;
+      const cleanup = (): void => signal?.removeEventListener('abort', onAbort);
+      const onAbort = (): void => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        release();
+        reject(new HybridMarketError('cancelled'));
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
+      operation.promise.then((value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        release();
+        resolve(value);
+      }, (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        release();
+        reject(error);
+      });
+      if (signal?.aborted) onAbort();
+    });
+  };
+
+  const loadData = (force: boolean, signal?: AbortSignal): Promise<HybridState> => {
+    if (destroyed) return Promise.reject(new HybridMarketError('no_data'));
+    if (signal?.aborted) return Promise.reject(new HybridMarketError('cancelled'));
+    if (!force) {
+      if (activeOperation !== null) return attachOperation(activeOperation, signal);
+      if (state !== null) return Promise.resolve(state);
+    }
+
+    const operationGeneration = ++generation;
+    const controller = new AbortController();
+    const operation = {} as HybridOperation;
+    operation.generation = operationGeneration;
+    operation.controller = controller;
+    operation.consumers = 0;
+    operation.settled = false;
+    operation.cancelled = false;
+    const cloudRequest: CloudRequestOptions = { signal: controller.signal };
     const cloudPromise = safeCall(() => force
       ? options.cloud.refresh(cloudRequest)
       : options.cloud.load(cloudRequest));
@@ -190,6 +264,11 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
       localListPromise,
       localBootstrapPromise,
     ]).then(([cloudResult, localListResult, localBootstrapResult]) => {
+      if (
+        operation.cancelled
+        || controller.signal.aborted
+        || destroyed
+      ) throw new HybridMarketError('cancelled');
       const cloudData = cloudResult.status === 'fulfilled' ? cloudResult.value : null;
       const localSnapshots = localListResult.status === 'fulfilled' ? localListResult.value : null;
       const localBootstrap = localBootstrapResult.status === 'fulfilled' ? localBootstrapResult.value : null;
@@ -200,51 +279,68 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
       if (cloudData !== null) {
         snapshots = localSnapshots === null ? [...cloudData.snapshots] : mergeSnapshots(cloudData.snapshots, localSnapshots);
         const hasLocalExtra = localSnapshots !== null
-          && localSnapshots.some((snapshot) => !cloudData.snapshots.some((cloudSnapshot) => cloudSnapshot.timestamp === snapshot.timestamp));
+          && localSnapshots.some((candidate) => !cloudData.snapshots.some((cloudSnapshot) => cloudSnapshot.timestamp === candidate.timestamp));
         sourceInfo = {
           ...cloudSourceInfo(cloudData),
           source: hasLocalExtra ? 'cloud+local' : 'cloud',
         };
       } else {
         snapshots = [...localSnapshots!].sort((left, right) => left.timestamp - right.timestamp);
-        const localLatest = latestTimestamp(snapshots);
         sourceInfo = {
           source: 'local-fallback',
           stale: false,
           warningCode: null,
           warning: null,
           generatedAt: null,
-          latestTimestamp: localLatest,
+          latestTimestamp: latestTimestamp(snapshots),
         };
       }
 
-      const collectorStatus = statusFromSource(
+      const nextState: HybridState = {
+        snapshots,
         sourceInfo,
-        localBootstrap?.collectorStatus ?? null,
-      );
-      const nextState: HybridState = { snapshots, sourceInfo, collectorStatus };
-      state = nextState;
+        collectorStatus: statusFromSource(sourceInfo, localBootstrap?.collectorStatus ?? null),
+      };
+      if (
+        operation.cancelled
+        || controller.signal.aborted
+        || destroyed
+      ) throw new HybridMarketError('cancelled');
+      if (operation.generation === generation) state = nextState;
       return nextState;
     });
-    loadPromise = pending;
-    try {
-      return await pending;
-    } finally {
-      if (loadPromise === pending) loadPromise = null;
-    }
+    operation.promise = pending.then((value) => {
+      operation.settled = true;
+      return value;
+    }, (error: unknown) => {
+      operation.settled = true;
+      throw error;
+    });
+    activeOperation = operation;
+    void operation.promise.then(() => {
+      if (activeOperation === operation) activeOperation = null;
+    }, () => {
+      if (activeOperation === operation) activeOperation = null;
+    });
+    return attachOperation(operation, signal);
   };
+
+  const buildBootstrap = (
+    nextState: HybridState,
+    nextPreferences: { watchlist: WatchItem[]; settings: RadarSettings },
+  ): HybridBootstrap => ({
+    watchlist: [...nextPreferences.watchlist],
+    settings: { ...nextPreferences.settings },
+    collectorStatus: { ...nextState.collectorStatus },
+    latestTimestamp: latestTimestamp(nextState.snapshots),
+    snapshotCount: nextState.snapshots.length,
+    source: nextState.sourceInfo.source,
+    sourceInfo: { ...nextState.sourceInfo },
+  });
 
   const bootstrap = async (): Promise<HybridBootstrap> => {
     const [nextState, nextPreferences] = await Promise.all([loadData(false), loadPreferences()]);
-    return {
-      watchlist: [...nextPreferences.watchlist],
-      settings: { ...nextPreferences.settings },
-      collectorStatus: { ...nextState.collectorStatus },
-      latestTimestamp: nextState.sourceInfo.latestTimestamp ?? latestTimestamp(nextState.snapshots),
-      snapshotCount: nextState.snapshots.length,
-      source: nextState.sourceInfo.source,
-      sourceInfo: { ...nextState.sourceInfo },
-    };
+    return buildBootstrap(nextState, nextPreferences);
   };
 
   return {
@@ -265,15 +361,7 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
     refresh: async (requestOptions = {}) => {
       const nextState = await loadData(true, requestOptions.signal);
       const nextPreferences = await loadPreferences();
-      return {
-        watchlist: [...nextPreferences.watchlist],
-        settings: { ...nextPreferences.settings },
-        collectorStatus: { ...nextState.collectorStatus },
-        latestTimestamp: nextState.sourceInfo.latestTimestamp ?? latestTimestamp(nextState.snapshots),
-        snapshotCount: nextState.snapshots.length,
-        source: nextState.sourceInfo.source,
-        sourceInfo: { ...nextState.sourceInfo },
-      };
+      return buildBootstrap(nextState, nextPreferences);
     },
     getSourceInfo: () => ({
       ...(state?.sourceInfo ?? {
@@ -281,6 +369,14 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
         source: 'cloud',
       }),
     }),
+    destroy: (): void => {
+      if (destroyed) return;
+      destroyed = true;
+      generation += 1;
+      if (activeOperation !== null) cancelOperation(activeOperation);
+      activeOperation = null;
+      state = null;
+    },
   };
 }
 

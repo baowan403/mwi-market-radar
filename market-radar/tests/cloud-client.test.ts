@@ -183,6 +183,122 @@ describe('cloud client', () => {
     expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/manifest.json'))).toHaveLength(2);
   });
 
+  it('shares concurrent force refreshes so one fetch commits one result', async () => {
+    const data = await manifestAndFiles([snapshot(LATEST)]);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const fetcher = vi.fn(async (input: string | URL) => {
+      if (String(input).endsWith('/manifest.json')) await gate;
+      const url = String(input);
+      return url.endsWith('/manifest.json')
+        ? response(data.manifest)
+        : response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+
+    const first = client.refresh();
+    const second = client.refresh({ force: true });
+    release();
+
+    await expect(Promise.all([first, second])).resolves.toHaveLength(2);
+    expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/manifest.json'))).toHaveLength(1);
+  });
+
+  it('isolates one caller abort from a shared refresh used by another caller', async () => {
+    const data = await manifestAndFiles([snapshot(LATEST)]);
+    const controller = new AbortController();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const fetcher = vi.fn(async (input: string | URL) => {
+      if (String(input).endsWith('/manifest.json')) await gate;
+      const url = String(input);
+      return url.endsWith('/manifest.json')
+        ? response(data.manifest)
+        : response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+    const aborted = client.refresh({ signal: controller.signal }).catch((cause: unknown) => cause);
+    const survivor = client.refresh();
+    controller.abort();
+    release();
+
+    const [abortedResult, survivorResult] = await Promise.all([aborted, survivor]);
+    expect(abortedResult).toMatchObject({ code: 'cancelled' });
+    expect(survivorResult.snapshots).toEqual([snapshot(LATEST)]);
+    expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/manifest.json'))).toHaveLength(1);
+  });
+
+  it('rejects a manifest over one megabyte before downloading snapshots', async () => {
+    const data = await manifestAndFiles([]);
+    const oversized = `${JSON.stringify(data.manifest)}${' '.repeat(1_000_001)}`;
+    const fetcher = vi.fn(async () => response(oversized));
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+    const error = await client.listSnapshots().catch((cause: unknown) => cause);
+
+    expect(error).toMatchObject({ code: 'cloud_data_invalid' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a manifest declaring more than 256 snapshots before downloads', async () => {
+    const entries: CloudSnapshotEntry[] = Array.from({ length: 257 }, (_, index) => ({
+      timestamp: LATEST - (257 - index) * 60_000,
+      file: `snapshots/${LATEST - (257 - index) * 60_000}.txt` as `snapshots/${number}.txt`,
+      bytes: 1,
+    }));
+    const manifest = createManifest(entries, GENERATED_AT);
+    const fetcher = vi.fn(async () => response(manifest));
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+    const error = await client.listSnapshots().catch((cause: unknown) => cause);
+
+    expect(error).toMatchObject({ code: 'cloud_data_invalid' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects oversized snapshot text and declared total bytes before unbounded downloads', async () => {
+    const current = snapshot(LATEST);
+    const data = await manifestAndFiles([current]);
+    const oversizedFetcher = vi.fn(async (input: string | URL) => (
+      String(input).endsWith('/manifest.json')
+        ? response(data.manifest)
+        : response('x'.repeat(2_000_001))
+    ));
+    const oversizedClient = createCloudClient('https://example.test/cloud/', { fetcher: oversizedFetcher });
+    await expect(oversizedClient.listSnapshots()).rejects.toMatchObject({ code: 'cloud_data_invalid' });
+
+    const manyEntries: CloudSnapshotEntry[] = Array.from({ length: 33 }, (_, index) => ({
+      timestamp: LATEST - (33 - index) * 60_000,
+      file: `snapshots/${LATEST - (33 - index) * 60_000}.txt` as `snapshots/${number}.txt`,
+      bytes: 2_000_000,
+    }));
+    const manyManifest = createManifest(manyEntries, GENERATED_AT);
+    const totalFetcher = vi.fn(async () => response(manyManifest));
+    const totalClient = createCloudClient('https://example.test/cloud/', { fetcher: totalFetcher });
+    await expect(totalClient.listSnapshots()).rejects.toMatchObject({ code: 'cloud_data_invalid' });
+    expect(totalFetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a decoded snapshot with more than ten thousand quote keys', async () => {
+    const quotes: Snapshot['quotes'] = {};
+    for (let index = 0; index <= 10_000; index += 1) {
+      quotes[`/items/key-${index}::0`] = { a: 1, b: 1, p: 1, v: 1 };
+    }
+    const current: Snapshot = { timestamp: LATEST, quotes };
+    const data = await manifestAndFiles([current]);
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      return url.endsWith('/manifest.json')
+        ? response(data.manifest)
+        : response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+
+    await expect(client.listSnapshots()).rejects.toMatchObject({ code: 'cloud_data_invalid' });
+  });
+
   it('returns valid snapshots with a stale warning instead of discarding them', async () => {
     const data = await manifestAndFiles([snapshot(LATEST)]);
     const fetcher = vi.fn(async (input: string | URL) => {

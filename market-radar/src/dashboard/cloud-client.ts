@@ -5,6 +5,11 @@ import type { Snapshot } from '../core/types';
 export const CLOUD_REQUEST_TIMEOUT_MS = 15_000;
 export const CLOUD_MAX_CONCURRENCY = 6;
 export const CLOUD_STALE_AFTER_MS = 2.5 * 60 * 60 * 1_000;
+export const CLOUD_MAX_MANIFEST_BYTES = 1_000_000;
+export const CLOUD_MAX_SNAPSHOT_COUNT = 256;
+export const CLOUD_MAX_SNAPSHOT_BYTES = 2_000_000;
+export const CLOUD_MAX_TOTAL_SNAPSHOT_BYTES = 64_000_000;
+export const CLOUD_MAX_QUOTE_KEYS = 10_000;
 
 export type CloudMarketErrorCode =
   | 'cloud_unavailable'
@@ -116,6 +121,10 @@ function timerApi(options: CloudClientOptions): CloudTimerApi {
   };
 }
 
+function utf8ByteLength(value: string): number {
+  return new TextEncoder().encode(value).byteLength;
+}
+
 function normalizeBaseDataUrl(value: string | URL): URL {
   let url: URL;
   try {
@@ -185,6 +194,7 @@ export function createCloudClient(
     url: URL,
     signal: AbortSignal | undefined,
     purpose: 'manifest' | 'snapshot',
+    maxBytes: number,
   ): Promise<string> {
     if (signal?.aborted) throw cancelled();
     if (typeof fetcher !== 'function') throw unavailable();
@@ -220,9 +230,18 @@ export function createCloudClient(
             rejectWith(purpose === 'manifest' ? unavailable() : invalidData());
             return;
           }
+          const contentLength = response.headers?.get?.('content-length') ?? null;
+          if (contentLength !== null) {
+            const declaredBytes = Number(contentLength);
+            if (Number.isFinite(declaredBytes) && declaredBytes > maxBytes) {
+              rejectWith(invalidData());
+              return;
+            }
+          }
           try {
             const text = await response.text();
             if (signal?.aborted) rejectWith(cancelled());
+            else if (utf8ByteLength(text) > maxBytes) rejectWith(invalidData());
             else resolveWith(text);
           } catch {
             rejectWith(unavailable());
@@ -283,25 +302,49 @@ export function createCloudClient(
     };
   }
 
+  interface DownloadedSnapshot {
+    snapshot: Snapshot;
+    bytes: number;
+  }
+
   async function downloadEntry(
     entry: CloudSnapshotEntry,
     signal: AbortSignal | undefined,
-  ): Promise<Snapshot> {
-    const text = await requestText(resolveSnapshotUrl(base, entry), signal, 'snapshot');
+  ): Promise<DownloadedSnapshot> {
+    const text = await requestText(
+      resolveSnapshotUrl(base, entry),
+      signal,
+      'snapshot',
+      CLOUD_MAX_SNAPSHOT_BYTES,
+    );
     let decoded: Snapshot[];
     try {
       decoded = await decodeDayChunk(text);
     } catch {
       throw invalidData();
     }
-    if (decoded.length !== 1 || decoded[0]?.timestamp !== entry.timestamp) throw invalidData();
-    return decoded[0];
+    if (
+      decoded.length !== 1
+      || decoded[0]?.timestamp !== entry.timestamp
+      || Object.keys(decoded[0]?.quotes ?? {}).length > CLOUD_MAX_QUOTE_KEYS
+    ) throw invalidData();
+    return { snapshot: decoded[0], bytes: utf8ByteLength(text) };
   }
 
   async function downloadEntries(
     entries: readonly CloudSnapshotEntry[],
     signal: AbortSignal | undefined,
   ): Promise<Snapshot[]> {
+    if (entries.length > CLOUD_MAX_SNAPSHOT_COUNT) throw invalidData();
+    let declaredTotalBytes = 0;
+    for (const entry of entries) {
+      if (entry.bytes > CLOUD_MAX_SNAPSHOT_BYTES) throw invalidData();
+      declaredTotalBytes += entry.bytes;
+      if (!Number.isSafeInteger(declaredTotalBytes) || declaredTotalBytes > CLOUD_MAX_TOTAL_SNAPSHOT_BYTES) {
+        throw invalidData();
+      }
+    }
+    const actualTotal = { bytes: 0 };
     const results: Snapshot[] = new Array(entries.length);
     let nextIndex = 0;
     const worker = async (): Promise<void> => {
@@ -311,7 +354,10 @@ export function createCloudClient(
         if (index >= entries.length) return;
         const entry = entries[index];
         if (entry === undefined) throw invalidData();
-        results[index] = await downloadEntry(entry, signal);
+        const downloaded = await downloadEntry(entry, signal);
+        actualTotal.bytes += downloaded.bytes;
+        if (actualTotal.bytes > CLOUD_MAX_TOTAL_SNAPSHOT_BYTES) throw invalidData();
+        results[index] = downloaded.snapshot;
       }
     };
     const workers = Math.min(CLOUD_MAX_CONCURRENCY, entries.length);
@@ -319,28 +365,65 @@ export function createCloudClient(
     return sortedUniqueSnapshots(results);
   }
 
-  async function load(optionsForRequest: CloudRequestOptions = {}): Promise<CloudMarketData> {
-    if (optionsForRequest.signal?.aborted) throw cancelled();
-    const force = optionsForRequest.force === true;
-    if (!force && inFlight !== null) return inFlight;
-    if (!force && cache !== null) {
-      sourceInfo = sourceFor(cache.manifest);
-      return {
-        snapshots: [...cache.snapshots],
-        latestTimestamp: cache.manifest.latestTimestamp,
-        generatedAt: cache.manifest.generatedAt,
-        stale: sourceInfo.stale,
-        warningCode: sourceInfo.warningCode,
-        warning: sourceInfo.warning,
+  function cachedData(): CloudMarketData {
+    if (cache === null) throw unavailable();
+    sourceInfo = sourceFor(cache.manifest);
+    return {
+      snapshots: [...cache.snapshots],
+      latestTimestamp: cache.manifest.latestTimestamp,
+      generatedAt: cache.manifest.generatedAt,
+      stale: sourceInfo.stale,
+      warningCode: sourceInfo.warningCode,
+      warning: sourceInfo.warning,
+    };
+  }
+
+  function waitForCaller<T>(operation: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+    if (signal === undefined) return operation;
+    if (signal.aborted) return Promise.reject(cancelled());
+    return new Promise<T>((resolve, reject) => {
+      let settled = false;
+      const cleanup = (): void => {
+        signal.removeEventListener('abort', onAbort);
       };
-    }
+      const onAbort = (): void => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(cancelled());
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
+      operation.then((value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(value);
+      }, (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error);
+      });
+      if (signal.aborted) onAbort();
+    });
+  }
+
+  function loadShared(force: boolean): Promise<CloudMarketData> {
+    if (inFlight !== null) return inFlight;
+    if (!force && cache !== null) return Promise.resolve(cachedData());
     const operation = (async (): Promise<CloudMarketData> => {
-      const manifestText = await requestText(resolveManifestUrl(base), optionsForRequest.signal, 'manifest');
+      const manifestText = await requestText(
+        resolveManifestUrl(base),
+        undefined,
+        'manifest',
+        CLOUD_MAX_MANIFEST_BYTES,
+      );
       const manifest = parseManifestText(manifestText);
+      if (manifest.snapshots.length > CLOUD_MAX_SNAPSHOT_COUNT) throw invalidData();
       const signature = snapshotSignature(manifest);
       const snapshots = cache?.signature === signature
         ? cache.snapshots
-        : await downloadEntries(manifest.snapshots, optionsForRequest.signal);
+        : await downloadEntries(manifest.snapshots, undefined);
       cache = { signature, manifest, snapshots };
       sourceInfo = sourceFor(manifest);
       return {
@@ -353,11 +436,17 @@ export function createCloudClient(
       };
     })();
     inFlight = operation;
-    try {
-      return await operation;
-    } finally {
+    void operation.then(() => {
       if (inFlight === operation) inFlight = null;
-    }
+    }, () => {
+      if (inFlight === operation) inFlight = null;
+    });
+    return operation;
+  }
+
+  async function load(optionsForRequest: CloudRequestOptions = {}): Promise<CloudMarketData> {
+    if (optionsForRequest.signal?.aborted) throw cancelled();
+    return waitForCaller(loadShared(optionsForRequest.force === true), optionsForRequest.signal);
   }
 
   return {
