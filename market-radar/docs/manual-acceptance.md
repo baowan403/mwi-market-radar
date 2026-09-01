@@ -64,10 +64,12 @@
 
 | 日期／時間（Asia/Taipei） | 環境／瀏覽器 | MWI 分頁數 | 官方 timestamp | dashboard 狀態 | snapshot count | 結果／缺口 | 證據檔或備註 |
 | --- | --- | ---: | --- | --- | ---: | --- | --- |
-| 2026-09-01 09:08（Asia/Taipei） | 正確 Chrome profile `jotaro99`／Tampermonkey userscript 0.1.4 | 1 | `1788224760`（09:06） | Radar official 09:06；local 09:08；next 10:08；無缺口 | 3055 targets；100/page；31 pages | marker version 0.1.4：`loaded/mwi/started/dom-event`；自動單向 MWI→Radar read-only bridge 通過 | 無市場 action、無私人資料讀取 |
-| 2026-09-01 09:08（Asia/Taipei） | 正確 Chrome profile `jotaro99`／第二個 MWI 分頁 | 2 | `1788224760`（09:06，未變） | dashboard timestamp/status 未變 | 3055 targets；100/page；31 pages | 第二 MWI marker version 0.1.4：`loaded/mwi/started/dom-event`；相同 timestamp 去重驗收通過 | 無重複保存；無市場 action、無私人資料讀取 |
+| 2026-09-01 09:08（Asia/Taipei） | 正確 Chrome profile `jotaro99`／Tampermonkey userscript 0.1.4 | 1 | `1788224760`（09:06） | Radar official 09:06；local 09:08；next 10:08；無缺口 | 3055 targets；100/page；31 pages | previous smoke（已由 final 0.1.5 evidence supersede）；marker version 0.1.4：`loaded/mwi/started/dom-event` | 無市場 action、無私人資料讀取 |
+| 2026-09-01 09:08（Asia/Taipei） | 正確 Chrome profile `jotaro99`／第二個 MWI 分頁 | 2 | `1788224760`（09:06，未變） | dashboard timestamp/status 未變 | 3055 targets；100/page；31 pages | previous smoke（已由 final 0.1.5 evidence supersede）；第二 MWI marker version 0.1.4：`loaded/mwi/started/dom-event`；相同 timestamp 去重通過 | 無重複保存；無市場 action、無私人資料讀取 |
+| 2026-09-01 10:08（Asia/Taipei） | 正確 Chrome profile `jotaro99`／Tampermonkey userscript 0.1.5 | 1 | 10:06 | Radar official 10:06；local 10:08；next 11:08；無缺口 | 3072 targets；100/page；31 pages | final marker version 0.1.5：`loaded/mwi/started/dom-event`；thin badges visible；自動單向 MWI→Radar read-only bridge 通過 | 無市場 action、無私人資料讀取 |
+| 2026-09-01 10:08（Asia/Taipei） | 正確 Chrome profile `jotaro99`／第二個 MWI 分頁 | 2 | 10:06（未變） | dashboard timestamp/status 未變 | 3072 targets；100/page；31 pages | 第二 MWI marker version 0.1.5：`loaded/mwi/started/dom-event`；相同 timestamp 去重通過；thin badges visible | 無重複保存；無市場 action、無私人資料讀取 |
 
-同次自動化佐證：unit 284 通過、build 通過、E2E 17 passed／1 skipped。手動 Milkonomy-style import 暫緩，因目前不需要；若未來 browser bridge 失效，可另做明確的 refresh/import fallback，但不屬於目前 scope。未宣稱 GitHub、Pages 或其他部署已完成。
+同次 final whole review approved；自動化佐證：unit 290 通過、build 通過、E2E 17 passed／1 skipped。Radar deliverable tab 保留。手動 Milkonomy-style import 暫緩，因目前不需要；若未來 browser bridge 失效，可另做明確的 refresh/import fallback，但不屬於目前 scope。未宣稱 GitHub、Pages 或其他部署已完成。
 
 ### 安全聲明
 
