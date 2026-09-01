@@ -109,7 +109,7 @@ function cloudSourceInfo(data: CloudMarketData): HybridSourceInfo {
     warningCode: data.warningCode,
     warning: data.warning,
     generatedAt: data.generatedAt,
-    historySourceLabel: data.historySourceLabel,
+    historySourceLabel: data.historySourceLabel ?? null,
     latestTimestamp: data.latestTimestamp,
   };
 }

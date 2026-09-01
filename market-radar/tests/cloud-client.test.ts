@@ -134,6 +134,67 @@ describe('cloud client', () => {
     expect(fetcher.mock.calls.some(([input]) => String(input).includes('/snapshots/'))).toBe(false);
   });
 
+  it('cancels an oversized streaming provenance response before buffering the full body', async () => {
+    const data = await manifestAndFiles([snapshot(LATEST)]);
+    const encoder = new TextEncoder();
+    let chunksServed = 0;
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        chunksServed += 1;
+        if (chunksServed <= 10) controller.enqueue(encoder.encode('x'.repeat(32 * 1024)));
+        else controller.close();
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const streamingResponse = {
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      body,
+      async text(): Promise<string> {
+        const reader = body.getReader();
+        const decoder = new TextDecoder();
+        let value = '';
+        try {
+          while (true) {
+            const chunk = await reader.read();
+            if (chunk.done) return value + decoder.decode();
+            value += decoder.decode(chunk.value, { stream: true });
+          }
+        } finally {
+          reader.releaseLock();
+        }
+      },
+    } as unknown as Response;
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.endsWith('/manifest.json')) return response(data.manifest);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return streamingResponse;
+      return response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+
+    await expect(client.load()).rejects.toMatchObject({ code: 'cloud_data_invalid' });
+    expect(cancelled).toBe(true);
+    expect(chunksServed).toBeLessThan(11);
+  });
+
+  it('treats a body-null provenance response as invalid data', async () => {
+    const data = await manifestAndFiles([snapshot(LATEST)]);
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.endsWith('/manifest.json')) return response(data.manifest);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return new Response(null);
+      return response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+
+    await expect(client.load()).rejects.toMatchObject({ code: 'cloud_data_invalid' });
+  });
+
   it('keeps valid cached rows when a later history provenance read is invalid', async () => {
     const current = snapshot(LATEST);
     const data = await manifestAndFiles([current]);

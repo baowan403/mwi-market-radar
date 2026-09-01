@@ -150,6 +150,35 @@ function utf8ByteLength(value: string): number {
   return new TextEncoder().encode(value).byteLength;
 }
 
+async function readLimitedResponseText(response: Response, maxBytes: number): Promise<string> {
+  if (response.body === null) {
+    const text = await response.text();
+    if (utf8ByteLength(text) > maxBytes) throw invalidData();
+    return text;
+  }
+  const reader = response.body.getReader();
+  const stopReader = reader.cancel.bind(reader);
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let text = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value === undefined) continue;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) {
+        await stopReader().catch(() => undefined);
+        throw invalidData();
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    return text + decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 function normalizeBaseDataUrl(value: string | URL): URL {
   let url: URL;
   try {
@@ -302,12 +331,12 @@ export function createCloudClient(
             }
           }
           try {
-            const text = await response.text();
+            const text = await readLimitedResponseText(response, maxBytes);
             if (signal?.aborted) rejectWith(cancelled());
             else if (utf8ByteLength(text) > maxBytes) rejectWith(invalidData());
             else resolveWith(text);
-          } catch {
-            rejectWith(unavailable());
+          } catch (cause) {
+            rejectWith(cause instanceof CloudMarketError ? cause : unavailable());
           }
         };
         let request: Promise<Response>;

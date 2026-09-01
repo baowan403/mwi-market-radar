@@ -108,6 +108,24 @@ describe('hybrid dashboard client', () => {
     });
   });
 
+  it('normalizes an absent legacy cloud provenance label to null', async () => {
+    const legacyCloudData = {
+      snapshots: [snapshot(100, 100)],
+      latestTimestamp: 100,
+      generatedAt: '2026-09-01T12:09:00.000Z',
+      stale: false,
+      warningCode: null,
+    } as unknown as Awaited<ReturnType<HybridCloudClient['load']>>;
+    const client = createHybridClient({
+      cloud: cloudClient([], { load: vi.fn().mockResolvedValue(legacyCloudData) }),
+      preferences: new MemoryPreferencesStore(),
+    });
+
+    await expect(client.bootstrap()).resolves.toMatchObject({
+      sourceInfo: { historySourceLabel: null },
+    });
+  });
+
   it('uses cloud as primary and merges local-only snapshots while cloud wins equal timestamps', async () => {
     const cloud = cloudClient([snapshot(100, 200), snapshot(300, 300)]);
     const local = localClient([snapshot(100, 999), snapshot(200, 250)]);
