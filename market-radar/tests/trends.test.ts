@@ -88,6 +88,23 @@ describe('calculateChange', () => {
     expect(result).toMatchObject({ pct: 10, elapsedHours: 25, samples: 2 });
   });
 
+  it('anchors to the global latest snapshot even when its quote is missing', () => {
+    const result = calculateChange(key, 24, [
+      snapshot(0, { p: 100 }),
+      snapshot(24 * HOUR),
+    ]);
+
+    expect(result).toMatchObject({
+      pct: null,
+      elapsedHours: null,
+      samples: 1,
+      latestTimestamp: 24 * HOUR,
+      latestQuality: 'missing',
+      baseTimestamp: null,
+      baseQuality: null,
+    });
+  });
+
   it('returns null percentage for a zero baseline while retaining timing data', () => {
     const result = calculateChange(key, 24, [
       snapshot(0, { p: 0 }),

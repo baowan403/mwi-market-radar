@@ -119,17 +119,35 @@ export function calculateChange(
   targetHours: number,
   snapshots: readonly Snapshot[],
 ): ChangeResult {
-  const points = pricePoints(key, snapshots);
-  const latest = points.at(-1);
-  if (!latest) {
+  const normalizedSnapshots = deduplicateSnapshots(key, snapshots);
+  const latestSnapshot = normalizedSnapshots.at(-1);
+  if (!latestSnapshot) {
     return emptyChangeResult();
   }
 
+  const points = pricePoints(key, snapshots);
+  const latestBasis = priceBasis(quoteFor(latestSnapshot, key));
   const latestResult = {
-    latestTimestamp: latest.timestamp,
-    latestQuality: latest.quality,
+    latestTimestamp: latestSnapshot.timestamp,
+    latestQuality: latestBasis.quality,
   };
-  const oldPoints = points.slice(0, -1);
+
+  // The newest snapshot is the anchor even when this key has no usable quote.
+  // Never fall back to an older price and present it as the current value.
+  if (latestBasis.value === null || latestBasis.quality === 'missing') {
+    return {
+      ...emptyChangeResult(points.length),
+      ...latestResult,
+    };
+  }
+
+  const latest: PricePoint = {
+    timestamp: latestSnapshot.timestamp,
+    price: latestBasis.value,
+    quality: latestBasis.quality,
+  };
+
+  const oldPoints = points.filter((point) => point.timestamp < latestSnapshot.timestamp);
   if (oldPoints.length === 0) {
     return {
       ...emptyChangeResult(points.length),

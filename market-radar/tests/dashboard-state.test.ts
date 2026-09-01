@@ -15,6 +15,7 @@ import {
   volumeMultipleForKey,
   sortViewRows,
   togglePin,
+  DEFAULT_THIN_VOLUME,
 } from '../src/dashboard/state';
 import { filterViewRows } from '../src/dashboard/filters';
 import { rankRowsForMode } from '../src/dashboard/rankings-view';
@@ -88,6 +89,35 @@ describe('dashboard state', () => {
       price: null,
       quality: 'missing',
     });
+  });
+
+  it('does not use an older valid price when the global latest quote is missing', () => {
+    const rows = deriveRows([
+      snapshot(0, { '/items/gloves::7': quote({ p: 100, v: 10 }) }),
+      snapshot(24 * HOUR, { '/items/gloves::7': quote({ p: null, a: null, b: null, v: null }) }),
+    ], catalog, [], '1d', { minimumVolume: 0 });
+    const gloves = rows.find((row) => row.key === '/items/gloves::7');
+
+    expect(gloves?.changes['1d']).toBeNull();
+    expect(gloves?.flags).not.toContain('move');
+  });
+
+  it('uses a default thin threshold independently from the volume filter threshold', () => {
+    const latest = snapshot(24 * HOUR, {
+      '/items/gloves::7': quote({ p: 120, a: 120, b: 120, v: 1 }),
+      '/items/gloves::10': quote({ p: 120, a: 120, b: 120, v: 50 }),
+      '/items/apple::0': quote({ p: 120, a: 120, b: 120, v: DEFAULT_THIN_VOLUME }),
+    });
+    const previous = snapshot(0, {
+      '/items/gloves::7': quote({ p: 100, a: 100, b: 100, v: 1 }),
+      '/items/gloves::10': quote({ p: 100, a: 100, b: 100, v: 50 }),
+      '/items/apple::0': quote({ p: 100, a: 100, b: 100, v: DEFAULT_THIN_VOLUME }),
+    });
+    const rows = deriveRows([previous, latest], catalog, [], '1d', { minimumVolume: 0 });
+
+    expect(rows.find((row) => row.key === '/items/gloves::7')?.flags).toEqual(['move', 'thin']);
+    expect(rows.find((row) => row.key === '/items/gloves::10')?.flags).toEqual(['move', 'thin']);
+    expect(rows.find((row) => row.key === '/items/apple::0')?.flags).toEqual(['move']);
   });
 
   it('calculates honest 1d/3d/7d changes and selected-window volatility', () => {

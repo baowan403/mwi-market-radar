@@ -28,6 +28,7 @@ import {
 const HOUR_MS = 3_600_000;
 const VOLUME_BASELINE_DAYS = 7;
 const VOLUME_BASELINE_TOLERANCE_MS = 2 * HOUR_MS;
+export const DEFAULT_THIN_VOLUME = 100;
 const UNKNOWN_CATEGORY_HRID = '/item_categories/unknown';
 const MARKET_KEY_PATTERN = /^.+::(?:0|[1-9]\d*)$/;
 
@@ -142,6 +143,12 @@ export function fallbackItemName(itemHrid: string): string {
 
 function finiteNonnegativeOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function thinVolumeThreshold(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? Math.max(DEFAULT_THIN_VOLUME, value)
+    : DEFAULT_THIN_VOLUME;
 }
 
 function quoteOrEmpty(value: unknown): Quote {
@@ -263,7 +270,11 @@ export function deriveRows(
       quality: basis.quality as PriceQuality,
       flags: [],
     };
-    const flags = flagsForRow(rowWithoutFlags, { ...flagThresholds, period: selectedPeriod });
+    const flags = flagsForRow(rowWithoutFlags, {
+      ...flagThresholds,
+      period: selectedPeriod,
+      minimumVolume: thinVolumeThreshold(flagThresholds.minimumVolume),
+    });
     rows.push({
       ...rowWithoutFlags,
       flags,
