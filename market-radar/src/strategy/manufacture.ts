@@ -8,6 +8,7 @@ export interface PricedCount {
   count: number;
   price: number | null;
   rate?: number;
+  artisanEligible?: boolean;
 }
 
 export interface ManufactureInput {
@@ -110,7 +111,9 @@ export function calculateManufacture(input: ManufactureInput): ManufactureResult
 
   const artisanFactor = Math.max(0, 1 - input.buffs.Artisan);
   for (const ingredient of input.ingredients as Array<PricedCount & { price: number }>) {
-    const units = ingredient.count * artisanFactor * actionsPerHour;
+    const units = ingredient.count
+      * (ingredient.artisanEligible === false ? 1 : artisanFactor)
+      * actionsPerHour;
     addUnit(ingredientUnitsPerHour, ingredient.itemHrid, units);
     costPerHour += units * ingredient.price;
   }

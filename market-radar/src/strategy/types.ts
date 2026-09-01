@@ -3,9 +3,34 @@ export interface CountedItem {
   count: number;
 }
 
-export interface DropItem extends CountedItem {
+export interface DropItem {
+  itemHrid: string;
   dropRate: number;
+  minCount: number;
   maxCount: number;
+}
+
+export interface StrategyFlow {
+  itemHrid: string;
+  enhancementLevel: number;
+  unitsPerHour: number;
+  unitPrice: number | null;
+  market: boolean;
+}
+
+export interface StrategyStepResult {
+  id: string;
+  action: import('../profile/types').SkillingAction;
+  actionHrid: string;
+  outputHrid: string;
+  valid: boolean;
+  actionsPerHour: number;
+  costPerHour: number | null;
+  incomePerHour: number | null;
+  profitPerHour: number | null;
+  experiencePerHour: number;
+  inputs: StrategyFlow[];
+  outputs: StrategyFlow[];
 }
 
 export interface StrategyActionDetail {
