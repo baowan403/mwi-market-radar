@@ -371,7 +371,7 @@ describe('cloud client', () => {
     expect((error as Error).message).not.toContain('secret');
   });
 
-  it('uses manifest latest/signature caching and force refresh without redownloading unchanged files', async () => {
+  it('reuses an identical manifest cache on non-force loads but rechecks the daily pack on force refresh', async () => {
     const data = await manifestAndFiles([snapshot(LATEST)]);
     const fetcher = vi.fn(async (input: string | URL) => {
       const url = String(input);
@@ -385,9 +385,10 @@ describe('cloud client', () => {
     await client.listSnapshots();
     await client.refresh({ force: true });
 
-    expect(fetcher).toHaveBeenCalledTimes(6);
+    expect(fetcher).toHaveBeenCalledTimes(7);
     expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/manifest.json'))).toHaveLength(2);
     expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith(`/${HISTORY_PROVENANCE_FILE}`))).toHaveLength(2);
+    expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/daily-history.txt'))).toHaveLength(2);
     expect(fetcher.mock.calls.filter(([input]) => String(input).includes('/snapshots/'))).toHaveLength(1);
   });
 
@@ -456,7 +457,7 @@ describe('cloud client', () => {
     expect(fetcher.mock.calls.filter(([input]) => String(input).includes('/snapshots/'))).toHaveLength(2);
   });
 
-  it('reuses the immutable completed-day pack throughout the same UTC date', async () => {
+  it('refetches the completed-day pack when a same-day manifest signature changes', async () => {
     const first = snapshot(LATEST - HOUR, 90);
     const second = snapshot(LATEST, 100);
     const firstData = await manifestAndFiles([first]);
@@ -478,7 +479,102 @@ describe('cloud client', () => {
     manifest = secondData.manifest;
     await client.refresh();
 
-    expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/daily-history.txt'))).toHaveLength(1);
+    expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/daily-history.txt'))).toHaveLength(2);
+    expect(fetcher.mock.calls.filter(([input]) => String(input).includes('/snapshots/'))).toHaveLength(2);
+  });
+
+  it('surfaces a repaired daily-history pack on a forced refresh with an identical manifest signature', async () => {
+    const hourly = snapshot(LATEST, 100);
+    const data = await manifestAndFiles([hourly]);
+    const oldDaily = aggregateDailySummary([snapshot(LATEST - 11 * 24 * HOUR, 70)]);
+    const repairedDaily = aggregateDailySummary([snapshot(LATEST - 11 * 24 * HOUR, 80)]);
+    let daily = await encodeDailyHistoryPack(createDailyHistoryPack([oldDaily], GENERATED_AT));
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.endsWith('/manifest.json')) return response(data.manifest);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return response('', 404);
+      if (url.endsWith('/daily-history.txt')) return response(daily);
+      return response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+
+    await expect(client.listSnapshots()).resolves.toMatchObject([
+      { timestamp: oldDaily.timestamp, quotes: { [KEY]: { p: 70 } } },
+      hourly,
+    ]);
+    daily = await encodeDailyHistoryPack(createDailyHistoryPack([repairedDaily], GENERATED_AT));
+    await expect(client.refresh()).resolves.toMatchObject({
+      snapshots: [
+        { timestamp: repairedDaily.timestamp, quotes: { [KEY]: { p: 80 } } },
+        hourly,
+      ],
+    });
+
+    expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/daily-history.txt'))).toHaveLength(2);
+    expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith(`/${HISTORY_PROVENANCE_FILE}`))).toHaveLength(2);
+    expect(fetcher.mock.calls.filter(([input]) => String(input).includes('/snapshots/'))).toHaveLength(1);
+  });
+
+  it('preserves the validated daily pack when a forced daily refresh is corrupt', async () => {
+    const hourly = snapshot(LATEST, 100);
+    const data = await manifestAndFiles([hourly]);
+    const savedDaily = aggregateDailySummary([snapshot(LATEST - 11 * 24 * HOUR, 70)]);
+    let daily = await encodeDailyHistoryPack(createDailyHistoryPack([savedDaily], GENERATED_AT));
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.endsWith('/manifest.json')) return response(data.manifest);
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return response('', 404);
+      if (url.endsWith('/daily-history.txt')) return response(daily);
+      return response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+
+    await client.listSnapshots();
+    daily = 'mwi-radar:gzip-json:v1:not-valid';
+    await expect(client.refresh()).rejects.toMatchObject({ code: 'cloud_data_invalid' });
+    await expect(client.load()).resolves.toMatchObject({
+      snapshots: [
+        { timestamp: savedDaily.timestamp, quotes: { [KEY]: { p: 70 } } },
+        hourly,
+      ],
+    });
+
+    expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/daily-history.txt'))).toHaveLength(2);
+    expect(fetcher.mock.calls.filter(([input]) => String(input).includes('/snapshots/'))).toHaveLength(1);
+  });
+
+  it('starts forced provenance and daily reads only after the manifest completes', async () => {
+    const data = await manifestAndFiles([snapshot(LATEST)]);
+    let releaseManifest!: () => void;
+    const manifestGate = new Promise<void>((resolve) => {
+      releaseManifest = resolve;
+    });
+    let delayForcedManifest = false;
+    const calls: string[] = [];
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.endsWith('/manifest.json')) {
+        if (delayForcedManifest) await manifestGate;
+        return response(data.manifest);
+      }
+      if (url.endsWith(`/${HISTORY_PROVENANCE_FILE}`)) return response('', 404);
+      if (url.endsWith('/daily-history.txt')) return response('', 404);
+      return response(data.files.get(url.slice('https://example.test/cloud/'.length)) ?? '');
+    });
+    const client = createCloudClient('https://example.test/cloud/', { fetcher });
+
+    await client.load();
+    calls.length = 0;
+    delayForcedManifest = true;
+    const refresh = client.refresh();
+    await Promise.resolve();
+    expect(calls).toEqual(['https://example.test/cloud/manifest.json']);
+    releaseManifest();
+    await refresh;
+
+    expect(calls).toContain(`https://example.test/cloud/${HISTORY_PROVENANCE_FILE}`);
+    expect(calls).toContain('https://example.test/cloud/daily-history.txt');
   });
 
   it('shares concurrent force refreshes so one fetch commits one result', async () => {
@@ -553,7 +649,7 @@ describe('cloud client', () => {
     expect(receivedSignal?.aborted).toBe(true);
   });
 
-  it('rejects a manifest over one megabyte before downloading snapshots', async () => {
+  it('rejects a manifest over one megabyte before reading provenance or snapshots', async () => {
     const data = await manifestAndFiles([]);
     const oversized = `${JSON.stringify(data.manifest)}${' '.repeat(1_000_001)}`;
     const fetcher = vi.fn(async (input: string | URL) => (
@@ -563,7 +659,7 @@ describe('cloud client', () => {
     const error = await client.listSnapshots().catch((cause: unknown) => cause);
 
     expect(error).toMatchObject({ code: 'cloud_data_invalid' });
-    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   it('rejects a manifest declaring more than 256 snapshots before downloads', async () => {

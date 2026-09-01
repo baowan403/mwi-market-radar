@@ -66,10 +66,10 @@ Fresh build artifact evidence（`npm run build`）：
 
 | 相對路徑 | bytes | SHA-256 |
 | --- | ---: | --- |
-| `dist/index.html` | 484 | `59E44C96D5F28BF02418492F58DDB3AA6F63915953DA06DD99DC05A4EE85F3CB` |
-| `dist/assets/index-C4MygJl6.js` | 295135 | `A5DF89470917CF52AAA211F44C2860D9F43CA6D15B0FC77354EFC40F397BF5F1` |
-| `dist/assets/index-CMPmJcvL.css` | 13159 | `F1F5344BFD050C68401DD29B214165F469C55935991F526545811519A71F6A49` |
-| `dist/mwi-market-radar.user.js` | 59403 | `1DAA1C9BF295EAC429D776E4566759FA1484A6EE0766135CDC2E20973459B3CE` |
+| `dist/index.html` | 484 | `53EC6ADF9367828467F8AFA7CD85DEC85A11CE8979F0D0E9FA026FBAB837137B` |
+| `dist/assets/index-BF7hXrBI.js` | 349244 | `FA586182AFBD9956C156C4B7C5DFEC71751342D5C6EE46EAF06CC45E681CF553` |
+| `dist/assets/index-N-TwkADt.css` | 22566 | `3782B9CCF5739000B6E64F065681AD4D585CD6D7B7FA256CC6C3216A58D1E645` |
+| `dist/mwi-market-radar.user.js` | 59684 | `FF2651E685691A8636079D7922A5B37A090DFE0762699EDDCF8C8D201E0605AB` |
 | `public/catalog.json` | 222753 | `847354A0C867A09E53C3ED9898470897ECDA926600F9B351900368F4E25D3BF0` |
 
 Production evidence（2026-09-01）：公開 repository `baowan403/mwi-market-radar`；Pages `https://baowan403.github.io/mwi-market-radar/`；首次 manual workflow run `33490440289` 的 collector、validate、415 unit tests、build、`market-data` publish 與 deploy 全部 success。公開頁顯示 cloud source，官方快照 `2026-09-01 17:06:00`、generatedAt `17:06:11`、3,084 targets。

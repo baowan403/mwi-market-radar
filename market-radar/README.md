@@ -97,6 +97,7 @@ Tampermonkey userscript 保留為可選的本機 fallback：若 cloud data 暫�
 - dashboard 載入本專案相對路徑 `./catalog.json`。
 - 玩家打開策略推薦時，dashboard 才載入公開唯讀 `./strategy-data.json`；該檔只含遊戲配方與數值資料，不含角色快照。
 - 將公開市場欄位與安全狀態保存到本機 Tampermonkey storage，透過 localhost bridge 唯讀提供 dashboard。
+- 僅在 Owner 手動觸發一次 `backfill_stockmarket_7d=true` 的 GitHub Actions workflow 時，server-side runner 才會讀取固定 `https://www.stockmarket.xin/api/latest-status` 與 `https://www.stockmarket.xin/api/item/{name}/history?limit=200`，用於七日初始回填；這不是瀏覽器或玩家資料流，dashboard、userscript 與 player profile 永遠不會呼叫這些 endpoint。來源的可用性、API 文件、條款或授權不在本專案宣稱範圍內。
 
 玩家可明確貼上 Milkonomy 角色快照；匯入器只保留計算所需的技能、裝備、房屋、茶、增益、成就、神龕與庫存數值，未知欄位、token、cookie 與帳密不會進入正規化 profile。Profile 只寫入本機 IndexedDB，不進 cloud、collector、userscript、GitHub Pages 或任何 request body。
 

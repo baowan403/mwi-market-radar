@@ -12,7 +12,7 @@
 
 ## 一次性授權的七日歷史回填（Task 8 前僅為 prepared/manual）
 
-- Owner 已確認可以使用牛牛股市的公開網站/API endpoint 做一次初始 bootstrap；此專案不主張擁有該歷史資料，且只為初始七日歷史使用。固定 origin 是 `https://www.stockmarket.xin`，只讀公開的 `/api/latest-status` 與 `/api/item/<item>/history?limit=200`，不接受可改寫 origin 的參數，也不傳 profile、cookie 或 token。
+- Owner 已確認可以在唯一一次手動 GitHub Actions run 中，於 server-side runner 使用可公開讀取的牛牛股市 endpoint 做初始 bootstrap；此專案不主張擁有該歷史資料，且只為初始七日歷史使用。固定 origin 是 `https://www.stockmarket.xin`，只讀 `/api/latest-status` 與 `/api/item/<item>/history?limit=200`，不接受可改寫 origin 的參數，也不傳 profile、cookie 或 token。dashboard、userscript 與 player profile 永遠不會呼叫這些 endpoint；本文件不主張其 API 文件、服務條款或授權狀態。
 - 回填 client 最多 4 個並行 request；每個 worker 的 request 後固定等待 100ms。每次 request timeout 為 10 秒；只有 HTTP 429、502、503、504 或 timeout 會重試，最多共 4 次，retry delay 依序為 500ms、1000ms、1500ms；其他 HTTP/schema/validation 失敗立即拒絕。
 - 資料 gate 是最多最近 168 個 UTC-hour sample、至少 150 個不同 UTC-hour sample、每個 snapshot 至少 1000 個 key。與最新官方 snapshot 重疊時，至少需 1000 個非 null ask/bid 比對；任何一個 ask 或 bid 不一致都會拒絕回填。
 - 成功後 `data/history-provenance.json` 記錄 `stockmarket-xin`、來源 label「牛牛股市」、固定來源 URL、Owner-confirmed permission 與回填範圍；頁面以「歷史回填：牛牛股市；最新行情：MWI 官方」揭露來源。無有效 provenance 時不猜測歷史來源。
@@ -34,7 +34,7 @@
 
 目前 retention 由 `cloud-manifest`、`cloud-history-store`、`cloud-daily-summary`、`cloud-daily-history` 與 `cloud-client` 測試共同驗證；舊版 8 日 smoke hash 保留在 deployment checklist 作歷史證據。
 
-Fresh artifact hash evidence（`npm run build`）：`dist/index.html` 484 bytes `59E44C96D5F28BF02418492F58DDB3AA6F63915953DA06DD99DC05A4EE85F3CB`；`dist/assets/index-C4MygJl6.js` 295135 bytes `A5DF89470917CF52AAA211F44C2860D9F43CA6D15B0FC77354EFC40F397BF5F1`；`dist/assets/index-CMPmJcvL.css` 13159 bytes `F1F5344BFD050C68401DD29B214165F469C55935991F526545811519A71F6A49`；`dist/mwi-market-radar.user.js` 59403 bytes `1DAA1C9BF295EAC429D776E4566759FA1484A6EE0766135CDC2E20973459B3CE`；`public/catalog.json` 222753 bytes `847354A0C867A09E53C3ED9898470897ECDA926600F9B351900368F4E25D3BF0`。
+Fresh artifact hash evidence（本機 `npm run build`）：`dist/index.html` 484 bytes `53EC6ADF9367828467F8AFA7CD85DEC85A11CE8979F0D0E9FA026FBAB837137B`；`dist/assets/index-BF7hXrBI.js` 349244 bytes `FA586182AFBD9956C156C4B7C5DFEC71751342D5C6EE46EAF06CC45E681CF553`；`dist/assets/index-N-TwkADt.css` 22566 bytes `3782B9CCF5739000B6E64F065681AD4D585CD6D7B7FA256CC6C3216A58D1E645`；`dist/mwi-market-radar.user.js` 59684 bytes `FF2651E685691A8636079D7922A5B37A090DFE0762699EDDCF8C8D201E0605AB`；`public/catalog.json` 222753 bytes `847354A0C867A09E53C3ED9898470897ECDA926600F9B351900368F4E25D3BF0`。
 
 ## Production deployment
 

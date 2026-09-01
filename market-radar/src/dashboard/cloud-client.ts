@@ -558,69 +558,53 @@ export function createCloudClient(
     operation.subscribers = 0;
     operation.settled = false;
     const pending = (async (): Promise<CloudMarketData> => {
-      const [manifestText, provenanceText] = await Promise.all([
-        requestText(
-          resolveManifestUrl(base),
-          controller.signal,
-          'manifest',
-          CLOUD_MAX_MANIFEST_BYTES,
-        ),
-        requestText(
-          resolveHistoryProvenanceUrl(base),
-          controller.signal,
-          'provenance',
-          HISTORY_PROVENANCE_MAX_BYTES,
-        ),
-      ]);
+      const manifestText = await requestText(
+        resolveManifestUrl(base),
+        controller.signal,
+        'manifest',
+        CLOUD_MAX_MANIFEST_BYTES,
+      );
       const manifest = parseManifestText(manifestText);
+      const provenanceText = await requestText(
+        resolveHistoryProvenanceUrl(base),
+        controller.signal,
+        'provenance',
+        HISTORY_PROVENANCE_MAX_BYTES,
+      );
       const provenance = provenanceText === null ? null : parseHistoryProvenanceText(provenanceText);
       if (manifest.snapshots.length > CLOUD_MAX_SNAPSHOT_COUNT) throw invalidData();
       const signature = snapshotSignature(manifest);
-      let snapshots: Snapshot[];
-      if (cache?.signature === signature) {
-        snapshots = cache.snapshots;
-      } else {
-        const hourly = await downloadEntries(manifest.snapshots, controller.signal, cache);
-        const dailyDate = manifest.generatedAt.slice(0, 10);
-        let dailyPack = cache?.dailyDate === dailyDate ? cache.dailyPack : null;
-        if (cache?.dailyDate !== dailyDate) {
-          const dailyText = await requestText(
-            resolveDailyHistoryUrl(base), controller.signal, 'daily', CLOUD_MAX_DAILY_HISTORY_BYTES,
-          );
-          if (dailyText.trim().length > 0) {
-            try {
-              dailyPack = await decodeDailyHistoryPack(dailyText);
-            } catch {
-              throw invalidData();
-            }
+      const signatureChanged = cache?.signature !== signature;
+      const hourly = await downloadEntries(manifest.snapshots, controller.signal, cache);
+      const dailyDate = manifest.generatedAt.slice(0, 10);
+      let dailyPack = cache?.dailyDate === dailyDate ? cache.dailyPack : null;
+      if (force || signatureChanged || cache?.dailyDate !== dailyDate) {
+        const dailyText = await requestText(
+          resolveDailyHistoryUrl(base), controller.signal, 'daily', CLOUD_MAX_DAILY_HISTORY_BYTES,
+        );
+        if (dailyText.trim().length > 0) {
+          try {
+            dailyPack = await decodeDailyHistoryPack(dailyText);
+          } catch {
+            throw invalidData();
           }
+        } else {
+          dailyPack = null;
         }
-        const daily = dailyPack === null
-          ? []
-          : dailyHistorySnapshots(dailyPack, hourly[0]?.timestamp ?? Number.MAX_SAFE_INTEGER);
-        snapshots = sortedUniqueSnapshots([...daily, ...hourly]);
-        cache = {
-          signature,
-          manifest,
-          snapshots,
-          dailyDate,
-          dailyPack,
-          historySourceLabel: historySourceLabel(provenance, snapshots),
-        };
       }
+      const daily = dailyPack === null
+        ? []
+        : dailyHistorySnapshots(dailyPack, hourly[0]?.timestamp ?? Number.MAX_SAFE_INTEGER);
+      const snapshots = sortedUniqueSnapshots([...daily, ...hourly]);
       if (controller.signal.aborted) throw cancelled();
-      cache ??= {
+      cache = {
         signature,
         manifest,
         snapshots,
-        dailyDate: manifest.generatedAt.slice(0, 10),
-        dailyPack: null,
+        dailyDate,
+        dailyPack,
         historySourceLabel: historySourceLabel(provenance, snapshots),
       };
-      cache.signature = signature;
-      cache.manifest = manifest;
-      cache.snapshots = snapshots;
-      cache.historySourceLabel = historySourceLabel(provenance, snapshots);
       sourceInfo = sourceFor(manifest, cache.historySourceLabel);
       return {
         snapshots: [...snapshots],
