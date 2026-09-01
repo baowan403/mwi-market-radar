@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "preview": "vite preview",
+    "reference:milkonomy": "tsx scripts/import-milkonomy-reference.ts",
     "cloud:update": "tsx scripts/update-cloud-history.ts",
     "cloud:validate": "tsx scripts/update-cloud-history.ts --validate-only"
   },

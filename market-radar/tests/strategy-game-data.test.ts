@@ -1,0 +1,36 @@
+import source from '../scripts/vendor/milkonomy/source.json';
+import translations from '../scripts/vendor/milkonomy/zh-tw.json';
+import strategyData from '../scripts/vendor/milkonomy/strategy-data.json';
+import { describe, expect, it } from 'vitest';
+
+describe('pinned Milkonomy reference artifacts', () => {
+  it('pins the reviewed MIT source and keeps deterministic metadata', () => {
+    expect(source).toMatchObject({
+      repository: 'https://github.com/Polokikiki/Milkonomy.git',
+      commit: 'febe90f14f7ea1e51937cc888f6f6e1907c58fff',
+      license: 'MIT',
+    });
+    expect(source.gameVersion).toMatch(/^v\d+\./);
+    expect(source.files).toEqual(expect.objectContaining({
+      gameDataSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      translationsSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      strategyDataSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+    }));
+  });
+
+  it('contains translations and only the strategy maps needed by the browser', () => {
+    expect(Object.keys(translations).length).toBeGreaterThan(500);
+    expect(strategyData).toEqual(expect.objectContaining({
+      gameVersion: expect.any(String),
+      enhancementLevelTotalBonusMultiplierTable: expect.any(Array),
+      itemDetailMap: expect.any(Object),
+      actionDetailMap: expect.any(Object),
+      communityBuffTypeDetailMap: expect.any(Object),
+      achievementTierDetailMap: expect.any(Object),
+      personalBuffTypeDetailMap: expect.any(Object),
+    }));
+    expect(strategyData).not.toHaveProperty('monsterDetailMap');
+    expect(strategyData).not.toHaveProperty('chat');
+    expect(strategyData).not.toHaveProperty('character');
+  });
+});
