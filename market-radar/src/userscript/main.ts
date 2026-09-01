@@ -151,7 +151,7 @@ export function bootstrapUserscript(
   markerTarget: StartupMarkerTarget | null | undefined = defaultStartupMarkerTarget(),
 ): OriginRoute {
   setStartupMarker(markerTarget, 'mwiRadarScript', 'loaded');
-  setStartupMarker(markerTarget, 'mwiRadarVersion', '0.1.4');
+  setStartupMarker(markerTarget, 'mwiRadarVersion', '0.1.5');
   setStartupMarker(markerTarget, 'mwiRadarTransport', 'dom-event');
   return startForCurrentOrigin(locationReference, options, markerTarget);
 }
