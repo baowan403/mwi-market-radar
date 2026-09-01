@@ -9,8 +9,9 @@ import type {
   WatchItem,
 } from '../core/types';
 import {
-  BRIDGE_REQUEST_EVENT,
-  BRIDGE_RESPONSE_EVENT,
+  BRIDGE_REQUEST_PREFIX,
+  BRIDGE_RESPONSE_PREFIX,
+  type BridgeMessageTarget,
 } from '../dashboard/client';
 import { isAllowedDashboardUrl } from './origins';
 
@@ -34,7 +35,7 @@ export interface DashboardBridgeStore {
 }
 
 export interface DashboardBridgeOptions {
-  target: EventTarget;
+  target: BridgeMessageTarget;
   currentUrl: string | URL;
   allowedBaseUrls: readonly string[];
   store: DashboardBridgeStore;
@@ -281,10 +282,10 @@ async function handleRequest(
   }
 }
 
-function parseWireRequest(detail: unknown): ParsedRequest | null {
-  if (typeof detail !== 'string') return null;
+function parseWireRequest(data: unknown): ParsedRequest | null {
+  if (typeof data !== 'string' || !data.startsWith(BRIDGE_REQUEST_PREFIX)) return null;
   try {
-    return parseRequest(JSON.parse(detail));
+    return parseRequest(JSON.parse(data.slice(BRIDGE_REQUEST_PREFIX.length)));
   } catch {
     return null;
   }
@@ -294,15 +295,27 @@ function serializeResponse(response: BridgeResponse): string {
   return JSON.stringify(response);
 }
 
+function originOf(value: string | URL): string | null {
+  try {
+    return (typeof value === 'string' ? new URL(value) : value).origin;
+  } catch {
+    return null;
+  }
+}
+
 export function installDashboardBridge(options: DashboardBridgeOptions): DashboardBridgeCleanup {
   const noop = (): void => undefined;
   if (!isAllowedDashboardUrl(options.currentUrl, options.allowedBaseUrls)) return noop;
+  const targetOrigin = originOf(options.currentUrl);
+  if (targetOrigin === null) return noop;
 
   let disposed = false;
   const snapshotCache = createSnapshotCache(options.store);
   const onRequest = (event: Event): void => {
-    if (disposed || event.type !== BRIDGE_REQUEST_EVENT) return;
-    const parsed = parseWireRequest((event as Event & { detail?: unknown }).detail);
+    if (disposed || event.type !== 'message') return;
+    const message = event as MessageEvent<unknown>;
+    if (message.origin !== targetOrigin) return;
+    const parsed = parseWireRequest(message.data);
     if (parsed === null) return;
     const id = parsed.kind === 'valid' ? parsed.request.id : parsed.id;
     if (id === null) return;
@@ -316,20 +329,21 @@ export function installDashboardBridge(options: DashboardBridgeOptions): Dashboa
     void responsePromise.then((response) => {
       if (disposed) return;
       try {
-        options.target.dispatchEvent(new CustomEvent(BRIDGE_RESPONSE_EVENT, {
-          detail: serializeResponse(response),
-        }));
+        options.target.postMessage(
+          `${BRIDGE_RESPONSE_PREFIX}${serializeResponse(response)}`,
+          targetOrigin,
+        );
       } catch {
         // The target may be disposed by the host while an async store read is pending.
       }
     });
   };
 
-  options.target.addEventListener(BRIDGE_REQUEST_EVENT, onRequest);
+  options.target.addEventListener('message', onRequest);
   return (): void => {
     if (disposed) return;
     disposed = true;
     snapshotCache.clear();
-    options.target.removeEventListener(BRIDGE_REQUEST_EVENT, onRequest);
+    options.target.removeEventListener('message', onRequest);
   };
 }

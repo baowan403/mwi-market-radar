@@ -60,16 +60,19 @@ export const bridgeFixtureSource = String.raw`
     lastErrorCode: null,
   };
 
+  const requestPrefix = 'mwi-radar:request:';
+  const responsePrefix = 'mwi-radar:response:';
   const send = (id, ok, value, error) => {
     const response = ok ? { id, ok: true, value } : { id, ok: false, error };
-    window.dispatchEvent(new CustomEvent('mwi-radar:response', { detail: JSON.stringify(response) }));
+    window.postMessage(`${responsePrefix}${JSON.stringify(response)}`, window.location.origin);
   };
 
-  window.addEventListener('mwi-radar:request', (event) => {
-    if (typeof event.detail !== 'string') return;
+  window.addEventListener('message', (event) => {
+    if (event.origin !== window.location.origin) return;
+    if (typeof event.data !== 'string' || !event.data.startsWith(requestPrefix)) return;
     let request;
     try {
-      request = JSON.parse(event.detail);
+      request = JSON.parse(event.data.slice(requestPrefix.length));
     } catch {
       return;
     }

@@ -8,7 +8,11 @@ import type {
   Snapshot,
   WatchItem,
 } from './core/types';
-import { createDashboardClient, type DashboardClient } from './dashboard/client';
+import {
+  createDashboardClient,
+  type BridgeMessageTarget,
+  type DashboardClient,
+} from './dashboard/client';
 import { filterViewRows, type DashboardFilters, type PrimaryView } from './dashboard/filters';
 import {
   cycleSort,
@@ -726,7 +730,7 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
   const content = root.querySelector<HTMLElement>('#content');
   if (!status || !content) throw new Error('Dashboard shell is incomplete');
 
-  const target = typeof window === 'undefined' ? new EventTarget() : window;
+  const target = (typeof window === 'undefined' ? new EventTarget() : window) as BridgeMessageTarget;
   const client = options.client ?? createDashboardClient(target);
   const catalogLoader = options.catalogLoader ?? defaultCatalogLoader;
   let runtime: { detailController: ItemDetailController; destroy(): void } | null = null;

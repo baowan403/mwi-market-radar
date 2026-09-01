@@ -10,11 +10,15 @@ import type {
 
 export const BRIDGE_REQUEST_EVENT = 'mwi-radar:request';
 export const BRIDGE_RESPONSE_EVENT = 'mwi-radar:response';
+export const BRIDGE_REQUEST_PREFIX = `${BRIDGE_REQUEST_EVENT}:`;
+export const BRIDGE_RESPONSE_PREFIX = `${BRIDGE_RESPONSE_EVENT}:`;
 
 // Keep the wire names available under concise aliases for callers that prefer
 // to import event constants without the bridge prefix.
 export const REQUEST_EVENT = BRIDGE_REQUEST_EVENT;
 export const RESPONSE_EVENT = BRIDGE_RESPONSE_EVENT;
+export const REQUEST_PREFIX = BRIDGE_REQUEST_PREFIX;
+export const RESPONSE_PREFIX = BRIDGE_RESPONSE_PREFIX;
 
 export const DEFAULT_SNAPSHOT_PAGE_SIZE = 12;
 export const MAX_SNAPSHOT_PAGES = 256;
@@ -24,6 +28,11 @@ export interface DashboardClientOptions {
   idFactory?: () => string;
   snapshotPageSize?: number;
   maxSnapshotPages?: number;
+  targetOrigin?: string;
+}
+
+export interface BridgeMessageTarget extends EventTarget {
+  postMessage(message: string, targetOrigin: string): void;
 }
 
 export interface DashboardClient {
@@ -79,11 +88,11 @@ function isBridgeResponse(value: unknown): value is BridgeResponse {
   return typeof value.error.code === 'string' && typeof value.error.message === 'string';
 }
 
-function parseWireResponse(detail: unknown): BridgeResponse | null {
-  if (typeof detail !== 'string') return null;
+function parseWireResponse(data: unknown): BridgeResponse | null {
+  if (typeof data !== 'string' || !data.startsWith(BRIDGE_RESPONSE_PREFIX)) return null;
 
   try {
-    const parsed: unknown = JSON.parse(detail);
+    const parsed: unknown = JSON.parse(data.slice(BRIDGE_RESPONSE_PREFIX.length));
     return isBridgeResponse(parsed) ? parsed : null;
   } catch {
     return null;
@@ -127,14 +136,22 @@ function invalidRequestError(): BridgeError {
   return new BridgeError('invalid_request', 'Invalid bridge request');
 }
 
+function defaultTargetOrigin(): string {
+  if (typeof location !== 'undefined' && typeof location.origin === 'string' && location.origin.length > 0) {
+    return location.origin;
+  }
+  return 'null';
+}
+
 export function createDashboardClient(
-  target: EventTarget,
+  target: BridgeMessageTarget,
   options: DashboardClientOptions = {},
 ): DashboardClient {
   const timeoutMs = normalizedTimeout(options.timeoutMs);
   const pageSize = normalizedPageSize(options.snapshotPageSize);
   const maxPages = normalizedMaxPages(options.maxSnapshotPages);
   const idFactory = options.idFactory ?? defaultIdFactory;
+  const targetOrigin = options.targetOrigin ?? defaultTargetOrigin();
   const activeIds = new Set<string>();
   let fallbackSequence = 0;
 
@@ -180,13 +197,15 @@ export function createDashboardClient(
         if (settled) return;
         settled = true;
         activeIds.delete(requestId);
-        target.removeEventListener(BRIDGE_RESPONSE_EVENT, onResponse);
+        target.removeEventListener('message', onResponse);
         if (timer !== undefined) globalThis.clearTimeout(timer);
       };
 
       const onResponse = (event: Event): void => {
-        if (event.type !== BRIDGE_RESPONSE_EVENT) return;
-        const response = parseWireResponse((event as CustomEvent<unknown>).detail);
+        if (event.type !== 'message') return;
+        const message = event as MessageEvent<unknown>;
+        if (message.origin !== targetOrigin) return;
+        const response = parseWireResponse(message.data);
         if (response === null || response.id !== requestId) return;
         if (response.ok && valueGuard !== undefined && !valueGuard(response.value)) return;
 
@@ -198,17 +217,17 @@ export function createDashboardClient(
         }
       };
 
-      target.addEventListener(BRIDGE_RESPONSE_EVENT, onResponse);
+      target.addEventListener('message', onResponse);
       timer = globalThis.setTimeout(() => {
         cleanup();
         reject(new BridgeError('timeout', 'Bridge request timed out'));
       }, timeoutMs);
 
       try {
-        target.dispatchEvent(new CustomEvent(BRIDGE_REQUEST_EVENT, { detail: wireDetail }));
+        target.postMessage(`${BRIDGE_REQUEST_PREFIX}${wireDetail}`, targetOrigin);
       } catch {
         cleanup();
-        reject(new BridgeError('dispatch', 'Bridge request could not be dispatched'));
+        reject(new BridgeError('dispatch', 'Bridge request could not be sent'));
       }
     });
   }

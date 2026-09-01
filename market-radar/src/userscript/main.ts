@@ -4,6 +4,7 @@ import {
   type DashboardBridgeCleanup,
   type DashboardBridgeOptions,
 } from './dashboard-bridge';
+import type { BridgeMessageTarget } from '../dashboard/client';
 import { startGameCollector as defaultStartGameCollector, type GameCollectorHandle } from './game-collector';
 import { DEFAULT_DASHBOARD_ORIGINS, isAllowedDashboardUrl } from './origins';
 
@@ -33,7 +34,7 @@ export interface OriginStartupOptions {
   startDashboardBridge?: (options: DashboardBridgeOptions) => DashboardBridgeCleanup | void;
   createGMKeyValueStore?: () => KeyValueStore;
   createMarketStore?: (storage: KeyValueStore) => MarketStore;
-  dashboardTarget?: EventTarget;
+  dashboardTarget?: BridgeMessageTarget;
 }
 
 function defaultStartupMarkerTarget(): StartupMarkerTarget | undefined {
@@ -106,7 +107,8 @@ function startDashboardRoute(
     throw new StartupFailure('gm-unavailable');
   }
   const store = (options.createMarketStore ?? ((adapter: KeyValueStore) => new MarketStore(adapter)))(storage);
-  const target = options.dashboardTarget ?? (typeof window === 'undefined' ? globalThis : window);
+  const target = options.dashboardTarget
+    ?? ((typeof window === 'undefined' ? globalThis : window) as BridgeMessageTarget);
   const install = options.startDashboardBridge ?? installDashboardBridge;
 
   install({ target, currentUrl, allowedBaseUrls, store });
