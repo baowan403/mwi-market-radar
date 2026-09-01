@@ -55,16 +55,7 @@ jobs:
           mkdir -p "$DATA_WT/data"
           echo "path=$DATA_WT" >> "$GITHUB_OUTPUT"
 
-      - name: Collect the official snapshot when scheduled, manual, or bootstrapping
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || steps.data-worktree.outputs.path == ''
-        working-directory: market-radar
-        env:
-          DATA_WT: ${{ steps.data-worktree.outputs.path }}
-        run: |
-          set -euo pipefail
-          npm run cloud:update -- --data-dir "$DATA_WT/data" --source-url https://www.milkywayidle.com/game_data/marketplace.json --min-quotes 1000
-
-      - name: Bootstrap missing market-data history on source pushes
+      - name: Require existing market-data on source pushes
         if: github.event_name == 'push'
         working-directory: market-radar
         env:
@@ -72,8 +63,18 @@ jobs:
         run: |
           set -euo pipefail
           if [ ! -f "$DATA_WT/data/manifest.json" ]; then
-            npm run cloud:update -- --data-dir "$DATA_WT/data" --source-url https://www.milkywayidle.com/game_data/marketplace.json --min-quotes 1000
+            echo "market-data is not initialized; run workflow_dispatch to bootstrap cloud history."
+            exit 1
           fi
+
+      - name: Collect the official snapshot on scheduled or manual runs
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        working-directory: market-radar
+        env:
+          DATA_WT: ${{ steps.data-worktree.outputs.path }}
+        run: |
+          set -euo pipefail
+          npm run cloud:update -- --data-dir "$DATA_WT/data" --source-url https://www.milkywayidle.com/game_data/marketplace.json --min-quotes 1000
 
       - name: Validate market-data history
         working-directory: market-radar

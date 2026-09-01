@@ -43,6 +43,33 @@ describe('market radar Pages workflow', () => {
     expect(workflow).toContain('github-actions[bot]');
   });
 
+  it('collects only for scheduled or manual runs, never for source pushes', () => {
+    const collectStep = workflow.match(
+      /- name: Collect the official snapshot[\s\S]*?(?=\n      - name:)/,
+    )?.[0] ?? '';
+    const pushGuard = workflow.match(
+      /- name: Require existing market-data on source pushes[\s\S]*?(?=\n      - name:)/,
+    )?.[0] ?? '';
+
+    expect(collectStep).toContain(
+      "if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'",
+    );
+    expect(collectStep).not.toContain("github.event_name == 'push'");
+    expect(collectStep).not.toContain('steps.data-worktree.outputs.path ==');
+    expect((workflow.match(/cloud:update/g) ?? []).length).toBe(1);
+
+    expect(pushGuard).toContain("if: github.event_name == 'push'");
+    expect(pushGuard).toContain('[ ! -f "$DATA_WT/data/manifest.json" ]');
+    expect(pushGuard).toContain(
+      'market-data is not initialized; run workflow_dispatch to bootstrap cloud history.',
+    );
+    expect(pushGuard).toContain('exit 1');
+    expect(pushGuard).not.toContain('cloud:update');
+    expect(workflow.indexOf('Require existing market-data on source pushes')).toBeLessThan(
+      workflow.indexOf('Collect the official snapshot'),
+    );
+  });
+
   it('copies and validates data before tests/build and Pages upload/deploy', () => {
     expect(workflow).toContain('public/data');
     expect(workflow).toContain('manifest.json');

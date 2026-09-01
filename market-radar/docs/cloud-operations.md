@@ -4,8 +4,9 @@
 
 ## 手動執行與排程
 
-- 在 GitHub Actions 選擇 `MWI Market Radar Pages`，使用 **Run workflow** 進行手動採集／重新部署。
-- 排程為每小時 UTC 第 13 分；`push` 到 `main` 只在建置使用最新 `market-data`，若資料分支不存在才會先建立第一份快照。
+- 在 GitHub Actions 選擇 `MWI Market Radar Pages`，使用 **Run workflow** 進行手動採集／重新部署；第一次啟用 cloud mode 也必須先這樣執行，讓 workflow 建立 `market-data` 與第一份 manifest，再完成部署。
+- 排程為每小時 UTC 第 13 分；只有排程與 **Run workflow** 會執行官方採集。`push` 到 `main` 僅建置／部署既有 `market-data`，不會因為資料分支或 manifest 缺失而自動採集。
+- 若首次只有 source push 而尚未初始化資料，push run 會在 validate、copy、artifact upload 前以固定訊息 `market-data is not initialized; run workflow_dispatch to bootstrap cloud history.` 失敗並停止部署；請改用 **Run workflow**，不要把失敗期間當成已有歷史。
 - Workflow 會在明確的 runner temporary worktree 操作 `market-data`，只將 `data/**` 的變更提交到該分支；manifest 與每個 snapshot 會在測試、建置前驗證。
 - 任一採集、驗證、測試或建置失敗都會在 Pages artifact upload 前停止，上一個可用網站不會被新失敗取代。
 
