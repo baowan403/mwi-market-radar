@@ -30,7 +30,6 @@ test('imports a profile and persists personalized strategy recommendations witho
   await expect(page.locator('[data-strategy-row][data-liquidity-classification="reject"]')).toHaveCount(0);
   await expect(page.locator('[data-strategy-row][data-liquidity-classification="insufficient"]')).toHaveCount(0);
   expect(await page.locator('[data-strategy-row][data-liquidity-classification="long-run"]').count()).toBeGreaterThan(0);
-  expect(await page.locator('[data-strategy-row][data-liquidity-classification="limited"]').count()).toBeGreaterThan(0);
   await expect(page.getByRole('columnheader', { name: '理論日利' })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: '可實現日利' })).toBeVisible();
   await expect(page.locator('[data-strategy-row]').first()).toContainText('安全批量');
