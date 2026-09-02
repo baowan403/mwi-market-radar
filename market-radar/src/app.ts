@@ -1107,9 +1107,12 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
         ?? (typeof indexedDB === 'undefined' ? new MemoryPreferencesStore() : createPreferencesStore());
       const cloud = options.cloudClient
         ?? (options.createCloudClient ?? createCloudClient)(new URL('./data/', document.baseURI));
+      const isCustomEnvironment = options.cloudClient !== undefined
+        || options.createCloudClient !== undefined
+        || options.bridgeTarget !== undefined;
       const fetchLive = options.fetchLive !== undefined
         ? options.fetchLive
-        : (options.cloudClient !== undefined ? null : ((opts: { signal?: AbortSignal }) => fetchOfficialSnapshot({ signal: opts.signal })));
+        : (isCustomEnvironment ? null : ((opts: { signal?: AbortSignal }) => fetchOfficialSnapshot({ signal: opts.signal })));
       provider = createHybridClient({ cloud, preferences, fetchLive });
 
       try {
