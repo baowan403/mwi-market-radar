@@ -178,28 +178,46 @@ function strategyRow(
   adviceCell.append(signalBadge);
   row.append(adviceCell);
 
-  // ── 欄 6：趨勢（3D/7D 漲跌幅）──
-  const trendCell = element('td', 'strategy-trend');
+  // ── 欄 6：1D 趨勢 ──
+  const trend1dCell = element('td', 'strategy-trend-cell');
+  const delta1d = element('span');
+  delta1d.className = deltaClass(signal.metrics.margin1dPct);
+  delta1d.textContent = trendPct(signal.metrics.margin1dPct);
+  trend1dCell.append(delta1d);
+  row.append(trend1dCell);
+
+  // ── 欄 7：3D 趨勢 ──
+  const trend3dCell = element('td', 'strategy-trend-cell');
   const delta3d = element('span');
   delta3d.className = deltaClass(signal.metrics.margin3dPct);
-  delta3d.textContent = `3D ${trendPct(signal.metrics.margin3dPct)}`;
+  delta3d.textContent = trendPct(signal.metrics.margin3dPct);
+  trend3dCell.append(delta3d);
+  row.append(trend3dCell);
+
+  // ── 欄 8：7D 趨勢 ──
+  const trend7dCell = element('td', 'strategy-trend-cell');
   const delta7d = element('span');
   delta7d.className = deltaClass(signal.metrics.margin7dPct);
-  delta7d.textContent = `7D ${trendPct(signal.metrics.margin7dPct)}`;
-  trendCell.append(delta3d, document.createTextNode(' '), delta7d);
-  row.append(trendCell);
+  delta7d.textContent = trendPct(signal.metrics.margin7dPct);
+  trend7dCell.append(delta7d);
+  row.append(trend7dCell);
 
-  // ── 欄 7：承接（日產量）──
-  const capacityCell = element('td', 'strategy-capacity');
-  capacityCell.textContent = `日產 ${metric(liquidity.safeBatchUnits)}`;
-  row.append(capacityCell);
+  // ── 欄 9：日產佔比（做滿24h佔市場日交易量%）──
+  const shareCell = element('td', 'strategy-market-share');
+  if (liquidity.marketSharePct !== null && Number.isFinite(liquidity.marketSharePct)) {
+    shareCell.textContent = `${liquidity.marketSharePct.toFixed(1)}%`;
+    shareCell.title = `做滿24小時產量佔市場日成交量約 ${liquidity.marketSharePct.toFixed(1)}%`;
+  } else {
+    shareCell.textContent = '—';
+  }
+  row.append(shareCell);
 
-  // ── 欄 8：資金/D ──
+  // ── 欄 10：資金/D ──
   const capital = element('td', 'strategy-capital');
   capital.textContent = money(candidate.workingCapital24h);
   row.append(capital);
 
-  // ── 欄 9：判定 ──
+  // ── 欄 11：判定 ──
   const classificationCell = element('td');
   const classification = element('span', 'strategy-classification');
   classification.dataset.classification = liquidity.classification;
@@ -356,7 +374,7 @@ function renderResults(
   const table = element('table', 'strategy-table');
   const columnGroup = element('colgroup');
   for (const key of [
-    'pin', 'step', 'path', 'profit', 'advice', 'trend', 'capacity', 'capital', 'classification',
+    'pin', 'step', 'path', 'profit', 'advice', 'trend1d', 'trend3d', 'trend7d', 'marketShare', 'capital', 'classification',
   ]) {
     const column = element('col');
     column.dataset.strategyColumn = key;
@@ -364,7 +382,7 @@ function renderResults(
   }
   const head = element('thead');
   const headerRow = element('tr');
-  for (const label of ['自選', '步驟', '路徑', '日利', '建議', '趨勢', '承接', '資金/D', '判定']) {
+  for (const label of ['自選', '步驟', '路徑', '日利', '建議', '1D', '3D', '7D', '日產佔比', '資金/D', '判定']) {
     const cell = element('th');
     cell.textContent = label;
     headerRow.append(cell);

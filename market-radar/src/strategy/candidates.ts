@@ -209,8 +209,18 @@ export function buildStrategyCandidates(options: {
     }
   }
 
+  // ── 同一條路徑與類型只保留利潤最高的最佳變體（避免不同催化劑產生重複路徑）──
+  const uniqueByPath = new Map<string, StrategyCandidate>();
+  for (const candidate of candidateMap.values()) {
+    const pathKey = `${candidate.kind}:${candidate.path.join('->')}`;
+    const existing = uniqueByPath.get(pathKey);
+    if (!existing || candidate.profitPerHour > existing.profitPerHour) {
+      uniqueByPath.set(pathKey, candidate);
+    }
+  }
+
   return {
-    candidates: [...candidateMap.values()].sort((left, right) => (
+    candidates: [...uniqueByPath.values()].sort((left, right) => (
       right.profitPerDay - left.profitPerDay || left.id.localeCompare(right.id)
     )),
     diagnostics,

@@ -28,7 +28,7 @@ function signal(action: StrategySignal['action']): StrategySignal {
     reasons: [action],
     invalidation: ['test'],
     metrics: {
-      margin3dPct: null, margin7dPct: null, capacity3dPct: null, capacity7dPct: null,
+      margin1dPct: null, margin3dPct: null, margin7dPct: null, capacity3dPct: null, capacity7dPct: null,
       cost3dPct: null, income3dPct: null, spread3dPoints: null,
     },
   };

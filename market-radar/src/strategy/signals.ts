@@ -15,6 +15,7 @@ export interface StrategySignal {
   reasons: string[];
   invalidation: string[];
   metrics: {
+    margin1dPct: number | null;
     margin3dPct: number | null;
     margin7dPct: number | null;
     capacity3dPct: number | null;
@@ -72,6 +73,7 @@ export function strategyTrendSignal(
   const latest = ordered.at(-1);
   const earliest = ordered[0];
   const emptyMetrics: StrategySignal['metrics'] = {
+    margin1dPct: null,
     margin3dPct: null,
     margin7dPct: null,
     capacity3dPct: null,
@@ -95,9 +97,11 @@ export function strategyTrendSignal(
     };
   }
 
+  const base1d = nearestPoint(ordered, latest.timestamp - 1 * DAY_MS);
   const base3d = nearestPoint(ordered, latest.timestamp - 3 * DAY_MS);
   const base7d = nearestPoint(ordered, latest.timestamp - 7 * DAY_MS);
   const metrics: StrategySignal['metrics'] = {
+    margin1dPct: percentage(latest.realizableProfitPerDay, base1d?.realizableProfitPerDay ?? null),
     margin3dPct: percentage(latest.realizableProfitPerDay, base3d?.realizableProfitPerDay ?? null),
     margin7dPct: percentage(latest.realizableProfitPerDay, base7d?.realizableProfitPerDay ?? null),
     capacity3dPct: percentage(latest.bottleneckSafeUnitsPerHour, base3d?.bottleneckSafeUnitsPerHour ?? null),

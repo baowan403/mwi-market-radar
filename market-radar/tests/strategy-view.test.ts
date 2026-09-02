@@ -124,13 +124,14 @@ describe('strategy recommendation view', () => {
     expect([...target.querySelectorAll('col[data-strategy-column]')].map((column) => (
       column.getAttribute('data-strategy-column')
     ))).toEqual([
-      'pin', 'step', 'path', 'profit', 'advice', 'trend', 'capacity', 'capital', 'classification',
+      'pin', 'step', 'path', 'profit', 'advice', 'trend1d', 'trend3d', 'trend7d', 'marketShare', 'capital', 'classification',
     ]);
     expect(target.querySelector('.strategy-step')).not.toBeNull();
     expect(target.querySelector('.strategy-path-cell')).not.toBeNull();
     expect(target.querySelector('.strategy-profit')).not.toBeNull();
     expect(target.querySelector('.strategy-advice')).not.toBeNull();
-    expect(target.querySelector('.strategy-trend')).not.toBeNull();
+    expect(target.querySelector('.strategy-trend-cell')).not.toBeNull();
+    expect(target.querySelector('.strategy-market-share')).not.toBeNull();
     const pin = target.querySelector<HTMLButtonElement>('[data-strategy-pin="workflow:redwood"]')!;
     pin.click();
     await vi.waitFor(async () => expect(await pinStore.list()).toEqual(['workflow:redwood']));
@@ -191,11 +192,9 @@ describe('strategy recommendation view', () => {
     ]);
     expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('可長掛');
     expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('限量製作');
-    expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('12K');
     expect(target.querySelector('[data-strategy-row="long"] [data-strategy-signal="execute"]')?.textContent).toContain('立即製造');
-    expect(target.querySelector('[data-strategy-row="long"] .strategy-trend')).not.toBeNull();
-    expect(target.querySelector('[data-strategy-row="long"] .strategy-trend')).not.toBeNull();
-    expect(target.querySelector('[data-strategy-row="long"] .strategy-capacity')).not.toBeNull();
+    expect(target.querySelector('[data-strategy-row="long"] .strategy-trend-cell')).not.toBeNull();
+    expect(target.querySelector('[data-strategy-row="long"] .strategy-market-share')).not.toBeNull();
 
     (target.querySelector('[data-strategy-scope="limited"]') as HTMLButtonElement).click();
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow)).toEqual([

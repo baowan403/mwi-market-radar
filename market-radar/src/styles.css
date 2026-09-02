@@ -981,16 +981,18 @@ summary:focus-visible {
   font-size: 0.8rem;
 }
 
-/* ── 9 欄 colgroup 寬度定義 ── */
+/* ── 11 欄 colgroup 寬度定義 ── */
 .strategy-table col[data-strategy-column="pin"] { width: 36px; }
-.strategy-table col[data-strategy-column="step"] { width: 90px; }
-.strategy-table col[data-strategy-column="path"] { width: 240px; }
-.strategy-table col[data-strategy-column="profit"] { width: 76px; }
-.strategy-table col[data-strategy-column="advice"] { width: 100px; }
-.strategy-table col[data-strategy-column="trend"] { width: 130px; }
-.strategy-table col[data-strategy-column="capacity"] { width: 90px; }
+.strategy-table col[data-strategy-column="step"] { width: 85px; }
+.strategy-table col[data-strategy-column="path"] { width: 230px; }
+.strategy-table col[data-strategy-column="profit"] { width: 80px; }
+.strategy-table col[data-strategy-column="advice"] { width: 90px; }
+.strategy-table col[data-strategy-column="trend1d"] { width: 68px; }
+.strategy-table col[data-strategy-column="trend3d"] { width: 68px; }
+.strategy-table col[data-strategy-column="trend7d"] { width: 68px; }
+.strategy-table col[data-strategy-column="marketShare"] { width: 80px; }
 .strategy-table col[data-strategy-column="capital"] { width: 76px; }
-.strategy-table col[data-strategy-column="classification"] { width: 68px; }
+.strategy-table col[data-strategy-column="classification"] { width: 72px; }
 
 .strategy-table th,
 .strategy-table td {
@@ -1170,8 +1172,9 @@ summary:focus-visible {
   color: var(--color-muted);
 }
 
-/* ── 趨勢欄 ── */
-.strategy-trend {
+/* ── 趨勢單元格 ── */
+.strategy-trend,
+.strategy-trend-cell {
   font-size: 0.74rem;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
@@ -1182,11 +1185,12 @@ summary:focus-visible {
 .delta-down { color: var(--color-up); }
 .delta-neutral { color: var(--color-muted); }
 
-/* ── 承接欄 ── */
-.strategy-capacity {
-  text-align: left !important;
+/* ── 日產佔比欄 ── */
+.strategy-capacity,
+.strategy-market-share {
   font-size: 0.74rem;
-  color: var(--color-muted);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
