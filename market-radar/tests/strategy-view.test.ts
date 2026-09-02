@@ -121,6 +121,18 @@ describe('strategy recommendation view', () => {
     expect(target.textContent).toContain('72M');
     expect(target.textContent).not.toContain('48,000,000');
     expect(target.textContent).not.toMatch(/\d(?:\.\d+)?B\b/);
+    expect([...target.querySelectorAll('col[data-strategy-column]')].map((column) => (
+      column.getAttribute('data-strategy-column')
+    ))).toEqual([
+      'pin', 'path', 'classification', 'signal', 'theoretical',
+      'realizable', 'safe', 'market', 'capital', 'assumptions',
+    ]);
+    expect(target.querySelector('.strategy-name-cell > .strategy-name-content')).not.toBeNull();
+    expect(target.querySelector('.strategy-signal-cell > .strategy-signal-content')).not.toBeNull();
+    expect(target.querySelector('[data-strategy-column-cell="safe"] > .strategy-metric-stack')).not.toBeNull();
+    expect(target.querySelector('[data-strategy-column-cell="market"] > .strategy-metric-stack')).not.toBeNull();
+    expect(target.querySelector('.strategy-name-cell')?.tagName).toBe('TD');
+    expect(target.querySelector('.strategy-signal-cell')?.tagName).toBe('TD');
     const pin = target.querySelector<HTMLButtonElement>('[data-strategy-pin="workflow:redwood"]')!;
     pin.click();
     await vi.waitFor(async () => expect(await pinStore.list()).toEqual(['workflow:redwood']));

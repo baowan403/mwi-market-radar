@@ -147,13 +147,15 @@ function strategyRow(
   row.append(pinCell);
 
   const strategyCell = element('td', 'strategy-name-cell');
+  const strategyContent = element('div', 'strategy-name-content');
   const type = element('span', 'strategy-kind');
   type.textContent = kindLabel(candidate.kind);
   const title = element('strong');
   title.textContent = options.itemName(candidate.path.at(-1) ?? candidate.title);
   const path = element('span', 'strategy-path');
   path.textContent = candidate.path.map(options.itemName).join(' → ');
-  strategyCell.append(type, title, path);
+  strategyContent.append(type, title, path);
+  strategyCell.append(strategyContent);
   row.append(strategyCell);
 
   const classificationCell = element('td');
@@ -164,6 +166,7 @@ function strategyRow(
   row.append(classificationCell);
 
   const signalCell = element('td', 'strategy-signal-cell');
+  const signalContent = element('div', 'strategy-signal-content');
   const signalBadge = element('span', 'strategy-signal');
   signalBadge.dataset.strategySignal = signal.action;
   signalBadge.textContent = SIGNAL_LABELS[signal.action];
@@ -171,7 +174,7 @@ function strategyRow(
   confidence.textContent = `信心 ${CONFIDENCE_LABELS[signal.confidence]}`;
   const signalDetails = element('details', 'strategy-signal-details');
   const signalSummary = element('summary');
-  signalSummary.textContent = '理由與失效';
+  signalSummary.textContent = '理由';
   const backtestSummary = element('div', 'strategy-backtest-summary');
   for (const horizon of ['3d', '7d'] as const) {
     const value = backtest.byHorizon[horizon];
@@ -192,7 +195,8 @@ function strategyRow(
     invalidation.append(item);
   }
   signalDetails.append(signalSummary, backtestSummary, reasons, invalidation);
-  signalCell.append(signalBadge, confidence, signalDetails);
+  signalContent.append(signalBadge, confidence, signalDetails);
+  signalCell.append(signalContent);
   row.append(signalCell);
 
   const theoretical = element('td', 'strategy-profit-theoretical');
@@ -205,14 +209,19 @@ function strategyRow(
   row.append(realizable);
 
   const safeCell = element('td', 'strategy-metrics');
+  safeCell.dataset.strategyColumnCell = 'safe';
+  const safeStack = element('div', 'strategy-metric-stack');
   const safeHours = element('span');
   safeHours.textContent = `可執行 ${metric(liquidity.safeHoursPerDay, ' h/日')}`;
   const safeBatch = element('span');
   safeBatch.textContent = `安全批量 ${metric(liquidity.safeBatchUnits, '/日')}`;
-  safeCell.append(safeHours, safeBatch);
+  safeStack.append(safeHours, safeBatch);
+  safeCell.append(safeStack);
   row.append(safeCell);
 
   const marketCell = element('td', 'strategy-metrics');
+  marketCell.dataset.strategyColumnCell = 'market';
+  const marketStack = element('div', 'strategy-metric-stack');
   const share = element('span');
   share.textContent = `市場占比 ${metric(liquidity.marketSharePct, '%')}`;
   const sellThrough = element('span');
@@ -221,7 +230,8 @@ function strategyRow(
   bottleneck.textContent = liquidity.bottleneckHrid === null
     ? '瓶頸 無市場交易邊'
     : `瓶頸 ${liquidity.bottleneckSide === 'input' ? '買入' : '賣出'} ${options.itemName(liquidity.bottleneckHrid)}`;
-  marketCell.append(share, sellThrough, bottleneck);
+  marketStack.append(share, sellThrough, bottleneck);
+  marketCell.append(marketStack);
   row.append(marketCell);
 
   const capital = element('td', 'strategy-capital');
@@ -231,7 +241,7 @@ function strategyRow(
   const stepCell = element('td');
   const details = element('details', 'strategy-steps');
   const summary = element('summary');
-  summary.textContent = `${candidate.steps.length} 步與假設`;
+  summary.textContent = `${candidate.steps.length} 步`;
   const list = element('ol');
   for (const step of candidate.steps) {
     const item = element('li');
@@ -355,6 +365,15 @@ function renderResults(
   options.target.append(meta);
   const scroll = element('div', 'strategy-table-scroll');
   const table = element('table', 'strategy-table');
+  const columnGroup = element('colgroup');
+  for (const key of [
+    'pin', 'path', 'classification', 'signal', 'theoretical',
+    'realizable', 'safe', 'market', 'capital', 'assumptions',
+  ]) {
+    const column = element('col');
+    column.dataset.strategyColumn = key;
+    columnGroup.append(column);
+  }
   const head = element('thead');
   const headerRow = element('tr');
   for (const label of ['自選', '策略路徑', '判定', '趨勢', '理論日利', '可實現日利', '安全執行', '市場承接', '24h 資金', '假設']) {
@@ -390,7 +409,7 @@ function renderResults(
     }
     body.append(strategyRow(assessedCandidate, assessedSignal, pinned, options));
   }
-  table.append(head, body);
+  table.append(columnGroup, head, body);
   scroll.append(table);
   options.target.append(scroll);
 }
