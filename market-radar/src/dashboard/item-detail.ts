@@ -4,6 +4,7 @@ import {
   type ChartConfiguration,
 } from 'chart.js';
 import { shortCategory } from '../core/categories';
+import { formatCompactNumber } from '../core/format-number';
 import { priceBasis, type PriceQuality } from '../core/price';
 import { PERIOD_HOURS } from '../core/trends';
 import type {
@@ -211,12 +212,18 @@ export function buildItemChartConfig(model: ItemChartModel): ChartConfiguration 
           type: 'linear',
           position: 'left',
           beginAtZero: false,
+          ticks: {
+            callback: (value) => formatCompactNumber(typeof value === 'number' ? value : Number(value)),
+          },
         },
         yVolume: {
           type: 'linear',
           position: 'right',
           beginAtZero: true,
           grid: { drawOnChartArea: false },
+          ticks: {
+            callback: (value) => formatCompactNumber(typeof value === 'number' ? value : Number(value)),
+          },
         },
       },
     },
@@ -239,10 +246,6 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className?: stri
   const node = document.createElement(tag);
   if (className) node.className = className;
   return node;
-}
-
-function valueText(value: number | null): string {
-  return value === null || !Number.isFinite(value) ? '—' : new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value);
 }
 
 function latestSnapshot(snapshots: readonly Snapshot[]): Snapshot | null {
@@ -373,7 +376,7 @@ export function createItemDetailController(options: ItemDetailControllerOptions)
       metricLabel.textContent = label;
       metric.append(metricLabel);
       const metricValue = element('strong', 'detail-metric-value');
-      metricValue.textContent = valueText(value);
+      metricValue.textContent = formatCompactNumber(value);
       metric.append(metricValue);
       quoteGrid.append(metric);
     }
@@ -397,7 +400,7 @@ export function createItemDetailController(options: ItemDetailControllerOptions)
     const stats = element('div', 'detail-stats');
     const statsText = element('p');
     statsText.dataset.detailStats = 'true';
-    statsText.textContent = `快照 ${model.stats.snapshotCount} · 有效價格 ${model.stats.validPriceSamples} · 實際間隔 ${model.stats.actualElapsedHours === null ? '—' : `${model.stats.actualElapsedHours} 小時`} · 高 ${valueText(model.stats.high)} · 低 ${valueText(model.stats.low)}`;
+    statsText.textContent = `快照 ${formatCompactNumber(model.stats.snapshotCount)} · 有效價格 ${formatCompactNumber(model.stats.validPriceSamples)} · 實際間隔 ${model.stats.actualElapsedHours === null ? '—' : `${formatCompactNumber(model.stats.actualElapsedHours)} 小時`} · 高 ${formatCompactNumber(model.stats.high)} · 低 ${formatCompactNumber(model.stats.low)}`;
     stats.append(statsText);
     const quality = element('p');
     quality.setAttribute('data-detail-quality', model.stats.latestQuality);
@@ -431,7 +434,7 @@ export function createItemDetailController(options: ItemDetailControllerOptions)
     chartContainer.append(canvas);
     const chartSummary = element('p', 'detail-chart-summary');
     chartSummary.dataset.detailChartSummary = 'true';
-    chartSummary.textContent = `圖表摘要：樣本 ${model.stats.snapshotCount}，有效價格 ${model.stats.validPriceSamples}，高 ${valueText(model.stats.high)}，低 ${valueText(model.stats.low)}${model.stats.hasGaps ? '，含缺口' : ''}`;
+    chartSummary.textContent = `圖表摘要：樣本 ${formatCompactNumber(model.stats.snapshotCount)}，有效價格 ${formatCompactNumber(model.stats.validPriceSamples)}，高 ${formatCompactNumber(model.stats.high)}，低 ${formatCompactNumber(model.stats.low)}${model.stats.hasGaps ? '，含缺口' : ''}`;
     chartContainer.append(chartSummary);
     card.append(chartContainer);
 

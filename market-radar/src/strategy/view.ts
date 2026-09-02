@@ -1,4 +1,5 @@
 import type { Snapshot } from '../core/types';
+import { formatCompactNumber } from '../core/format-number';
 import type { PlayerProfile } from '../profile/types';
 import { backtestStrategySignals, type StrategyBacktestResult } from './backtest';
 import { buildStrategyCandidates, type StrategyCandidate, type StrategyCandidateResult } from './candidates';
@@ -42,11 +43,11 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className?: stri
 }
 
 function money(value: number): string {
-  return new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 0 }).format(value);
+  return formatCompactNumber(value);
 }
 
 function quantity(value: number): string {
-  return new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 2 }).format(value);
+  return formatCompactNumber(value);
 }
 
 function metric(value: number | null, suffix = ''): string {

@@ -1,4 +1,5 @@
 import { shortCategory } from '../core/categories';
+import { formatCompactNumber } from '../core/format-number';
 import type { SortField } from '../core/rankings';
 import type { Period } from '../core/types';
 import type { DerivedMarketRow, NormalizedCatalog, SortState } from './state';
@@ -66,11 +67,6 @@ function finiteValue(value: number | null): value is number {
   return value !== null && Number.isFinite(value);
 }
 
-function formatValue(value: number | null, maximumFractionDigits = 2): string {
-  if (!finiteValue(value)) return '—';
-  return new Intl.NumberFormat('en-US', { maximumFractionDigits }).format(value);
-}
-
 function categoryName(row: DerivedMarketRow, catalog: NormalizedCatalog): string {
   return catalog.categoriesByHrid.get(row.categoryHrid)?.name
     ?? (row.categoryHrid === '/item_categories/unknown' ? '未知' : shortCategory(row.categoryHrid));
@@ -79,8 +75,8 @@ function categoryName(row: DerivedMarketRow, catalog: NormalizedCatalog): string
 function trend(value: number | null): { label: string; state: 'up' | 'down' | 'flat' } {
   if (!finiteValue(value) || value === 0) return { label: '—', state: 'flat' };
   return value > 0
-    ? { label: `▲ ${formatValue(value)}%`, state: 'up' }
-    : { label: `▼ ${formatValue(Math.abs(value))}%`, state: 'down' };
+    ? { label: `▲ ${formatCompactNumber(value)}%`, state: 'up' }
+    : { label: `▼ ${formatCompactNumber(Math.abs(value))}%`, state: 'down' };
 }
 
 function sortableHeader(
@@ -300,12 +296,12 @@ export function renderMarketTable(target: HTMLElement, options: MarketTableOptio
     appendPinCell(row, marketRow, options.onTogglePin, options.onMoveWatchItem, options.view === 'watchlist');
     appendNameCell(row, marketRow);
     appendTextCell(row, categoryName(marketRow, options.catalog));
-    appendTextCell(row, formatValue(marketRow.price), 'metric-cell current-price-cell');
-    appendTextCell(row, formatValue(marketRow.bid), 'metric-cell bid-cell');
-    appendTextCell(row, formatValue(marketRow.ask), 'metric-cell ask-cell');
-    const spreadCell = appendTextCell(row, formatValue(marketRow.spreadPct), 'metric-cell spread-cell');
+    appendTextCell(row, formatCompactNumber(marketRow.price), 'metric-cell current-price-cell');
+    appendTextCell(row, formatCompactNumber(marketRow.bid), 'metric-cell bid-cell');
+    appendTextCell(row, formatCompactNumber(marketRow.ask), 'metric-cell ask-cell');
+    const spreadCell = appendTextCell(row, formatCompactNumber(marketRow.spreadPct), 'metric-cell spread-cell');
     spreadCell.dataset.spreadRisk = marketRow.flags.includes('wide-spread') ? 'wide' : 'normal';
-    appendTextCell(row, formatValue(marketRow.volume), 'metric-cell volume-cell');
+    appendTextCell(row, formatCompactNumber(marketRow.volume), 'metric-cell volume-cell');
     appendTrendCell(row, '1d', marketRow.changes['1d']);
     appendTrendCell(row, '3d', marketRow.changes['3d']);
     appendTrendCell(row, '7d', marketRow.changes['7d']);

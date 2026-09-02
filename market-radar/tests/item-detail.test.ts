@@ -167,6 +167,22 @@ describe('createItemDetailController', () => {
     expect(dialog.querySelector('canvas')).not.toBeNull();
   });
 
+  it('uses compact K and M values for quote and history magnitudes', () => {
+    const { dialog, controller } = setup({
+      snapshots: [
+        snapshot(latest - hour, { p: 1_000_000_000, a: 1_000_000_000, b: 999_000_000, v: 1_234 }),
+        snapshot(latest, { p: 56_430_000, a: 57_000_000, b: 56_000_000, v: 12_300 }),
+      ],
+    });
+
+    controller.open(key);
+
+    expect(dialog.querySelector('[data-detail-metric="price"]')?.textContent).toContain('56.43M');
+    expect(dialog.querySelector('[data-detail-metric="volume"]')?.textContent).toContain('12.3K');
+    expect(dialog.querySelector('[data-detail-stats]')?.textContent).toContain('高 1,000M');
+    expect(dialog.textContent).not.toMatch(/\d(?:\.\d+)?B\b/);
+  });
+
   it('uses textContent for hostile names and never creates an image element', () => {
     const { dialog, controller } = setup({
       catalog: {
@@ -252,6 +268,10 @@ describe('createItemDetailController', () => {
       yPrice: { position: 'left' },
       yVolume: { position: 'right', grid: { drawOnChartArea: false } },
     });
+    const priceTick = config.options?.scales?.yPrice?.ticks?.callback;
+    const volumeTick = config.options?.scales?.yVolume?.ticks?.callback;
+    expect(priceTick?.call({} as never, 1_000_000_000, 0, [])).toBe('1,000M');
+    expect(volumeTick?.call({} as never, 12_300, 0, [])).toBe('12.3K');
   });
 
   it('reports p/ask/bid gaps and one-sided quotes even when p is present', () => {

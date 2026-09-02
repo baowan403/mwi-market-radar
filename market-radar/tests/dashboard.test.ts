@@ -386,6 +386,28 @@ describe('mountDashboard', () => {
     expect(root.querySelector('[data-status-field="state"]')?.textContent).toContain('ok');
   });
 
+  it('uses compact K and M values for market magnitudes without a B suffix', async () => {
+    const root = createRoot();
+    const largeSnapshots: Snapshot[] = [{
+      timestamp: LATEST_TIMESTAMP,
+      quotes: {
+        '/items/alpha::0': { a: 1_000_000_000, b: 56_430_000, p: 1_234_567, v: 1_234 },
+      },
+    }];
+    await mountDashboard({
+      root,
+      client: createClient({ listSnapshots: vi.fn().mockResolvedValue(largeSnapshots) }),
+      catalogLoader: vi.fn().mockResolvedValue(catalog),
+    });
+
+    const row = rowByKey(root, '/items/alpha::0');
+    expect(row.querySelector('.current-price-cell')?.textContent).toBe('1.23M');
+    expect(row.querySelector('.bid-cell')?.textContent).toBe('56.43M');
+    expect(row.querySelector('.ask-cell')?.textContent).toBe('1,000M');
+    expect(row.querySelector('.volume-cell')?.textContent).toBe('1.23K');
+    expect(row.textContent).not.toMatch(/\d(?:\.\d+)?B\b/);
+  });
+
   it('renders hostile catalog names as text and never creates an image element', async () => {
     const root = createRoot();
     await mountDashboard({ root, client: createClient(), catalogLoader: vi.fn().mockResolvedValue(catalog) });

@@ -116,9 +116,11 @@ describe('strategy recommendation view', () => {
     await view.render();
     expect(target.textContent).toContain('成交量承接估計');
     expect(target.textContent).toContain('可實現日利');
-    expect(target.textContent).toContain('48,000,000');
+    expect(target.textContent).toContain('48M');
     expect(target.textContent).toContain('紅杉原木 → 紅杉木板 → 紅杉弓');
-    expect(target.textContent).toContain('72,000,000');
+    expect(target.textContent).toContain('72M');
+    expect(target.textContent).not.toContain('48,000,000');
+    expect(target.textContent).not.toMatch(/\d(?:\.\d+)?B\b/);
     const pin = target.querySelector<HTMLButtonElement>('[data-strategy-pin="workflow:redwood"]')!;
     pin.click();
     await vi.waitFor(async () => expect(await pinStore.list()).toEqual(['workflow:redwood']));
@@ -179,7 +181,7 @@ describe('strategy recommendation view', () => {
     ]);
     expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('可長掛');
     expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('限量製作');
-    expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('12,000');
+    expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('12K');
     expect(target.querySelector('[data-strategy-row="long"] [data-strategy-signal="wait"]')?.textContent).toContain('等待');
     expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('信心 低');
     expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('回測 3D');
