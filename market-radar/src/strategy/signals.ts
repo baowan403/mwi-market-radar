@@ -40,14 +40,24 @@ function percentage(current: number | null, base: number | null): number | null 
   return Number.isFinite(value) ? value : null;
 }
 
+function profitOf(point: StrategyMarginPoint | null | undefined): number | null {
+  if (!point) return null;
+  if (finite(point.realizableProfitPerDay)) return point.realizableProfitPerDay;
+  if (finite(point.theoreticalProfitPerHour)) return point.theoreticalProfitPerHour * 24;
+  return null;
+}
+
 function nearestPoint(
   points: readonly StrategyMarginPoint[],
   targetTimestamp: number,
+  maxOffsetMs = 24 * 3600_000,
 ): StrategyMarginPoint | null {
   return points.reduce<StrategyMarginPoint | null>((nearest, point) => {
-    if (point.timestamp > targetTimestamp || !point.complete) return nearest;
+    if (profitOf(point) === null) return nearest;
+    const distance = Math.abs(point.timestamp - targetTimestamp);
+    if (distance > maxOffsetMs) return nearest;
     if (nearest === null) return point;
-    return targetTimestamp - point.timestamp < targetTimestamp - nearest.timestamp ? point : nearest;
+    return distance < Math.abs(nearest.timestamp - targetTimestamp) ? point : nearest;
   }, null);
 }
 
@@ -69,9 +79,7 @@ export function strategyTrendSignal(
   series: readonly StrategyMarginPoint[],
   options: { backtest?: StrategySignalBacktest } = {},
 ): StrategySignal {
-  const ordered = [...series]
-    .filter((point) => Number.isFinite(point.timestamp))
-    .sort((left, right) => left.timestamp - right.timestamp);
+  const ordered = [...series].sort((left, right) => left.timestamp - right.timestamp);
   const latest = ordered.at(-1);
   const earliest = ordered[0];
   const emptyMetrics: StrategySignal['metrics'] = {
@@ -102,10 +110,11 @@ export function strategyTrendSignal(
   const base1d = nearestPoint(ordered, latest.timestamp - 1 * DAY_MS);
   const base3d = nearestPoint(ordered, latest.timestamp - 3 * DAY_MS);
   const base7d = nearestPoint(ordered, latest.timestamp - 7 * DAY_MS);
+  const latestProfit = profitOf(latest);
   const metrics: StrategySignal['metrics'] = {
-    margin1dPct: percentage(latest.realizableProfitPerDay, base1d?.realizableProfitPerDay ?? null),
-    margin3dPct: percentage(latest.realizableProfitPerDay, base3d?.realizableProfitPerDay ?? null),
-    margin7dPct: percentage(latest.realizableProfitPerDay, base7d?.realizableProfitPerDay ?? null),
+    margin1dPct: percentage(latestProfit, profitOf(base1d)),
+    margin3dPct: percentage(latestProfit, profitOf(base3d)),
+    margin7dPct: percentage(latestProfit, profitOf(base7d)),
     capacity3dPct: percentage(latest.bottleneckSafeUnitsPerHour, base3d?.bottleneckSafeUnitsPerHour ?? null),
     capacity7dPct: percentage(latest.bottleneckSafeUnitsPerHour, base7d?.bottleneckSafeUnitsPerHour ?? null),
     cost3dPct: percentage(latest.costPerHour, base3d?.costPerHour ?? null),
@@ -156,20 +165,32 @@ export function strategyTrendSignal(
 
   // 綠燈：3D 利潤穩定或上升 → 立即製造
   if (m3 === null || m3 >= -2) {
-    // 趨勢動能判定優先級：
-    // 最高：1D 短線爆發（>= +1.5% 且 3D >= 0%）或長短線共振（3D >= +3% 且 7D >= 0%）
-    const isSurging = (m1 !== null && m1 >= 1.5 && (m3 === null || m3 >= 0))
-      || (m3 !== null && m3 >= 3 && (m7 === null || m7 >= 0));
-    const priority: StrategyPriority = isSurging ? 'top' : 'high';
+    // 嚴格趨勢動能判定優先級：
+    // 🔥 最高：必須 1D > 0 且處於加速擴張期（1D >= +1.5% 且 1D >= 3D），或長中短線全面共振（1D >= +0.5% 且 3D >= +3% 且 7D >= 0%）
+    const isSurging = m1 !== null && m1 >= 1.5 && (m3 === null || m3 >= 0) && (m3 === null || m1 >= m3);
+    const isResonance = m1 !== null && m1 >= 0.5 && m3 !== null && m3 >= 3 && (m7 === null || m7 >= 0);
+    const isTop = (isSurging || isResonance) && (m1 !== null && m1 > 0);
 
-    const trendNote = isSurging
-      ? (m1 !== null && m1 >= 1.5 ? `1D 利潤爆發（+${m1.toFixed(1)}%），處於擴張期` : `3D 利潤強勁（+${m3!.toFixed(1)}%）`)
-      : m7 !== null && m7 >= 0
-        ? `7D 利潤平穩，收益健康`
-        : `3D 利潤穩定（${formatted(m3)}）`;
+    let priority: StrategyPriority = 'high';
+    let trendNote = '日利為正且近期收益穩定';
+
+    if (isTop) {
+      priority = 'top';
+      trendNote = m1 !== null && m1 >= 1.5
+        ? `1D 利潤爆發（+${m1.toFixed(1)}%），且高於 3D 均速，處於加速擴張期`
+        : `長中短線共振上揚（3D +${m3!.toFixed(1)}%），動能強勁`;
+    } else if (m1 !== null && m1 < 0) {
+      // 1D 出現回調（如 -0.3%）：
+      priority = m1 < -1.5 ? 'medium' : 'high';
+      trendNote = `3D 雖增長（${formatted(m3)}），但 1D 轉為微幅回調（${formatted(m1)}），注意短線動能`;
+    } else if (m7 !== null && m7 >= 0) {
+      priority = 'high';
+      trendNote = `7D 與 3D 利潤平穩向上，收益健康`;
+    }
+
     return {
       action: 'execute', priority, confidence,
-      reasons: [trendNote, '日利為正且近期無顯著下滑'],
+      reasons: [trendNote],
       invalidation: ['3D 利潤下降超過 10% 時重新評估'], metrics,
     };
   }
