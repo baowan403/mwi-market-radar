@@ -512,6 +512,8 @@ function renderDashboard(
   pollMs = 60_000,
   setIntervalFn: (callback: () => void, delayMs: number) => unknown = (callback, delayMs) => globalThis.setInterval(callback, delayMs),
   clearIntervalFn: (handle: unknown) => void = (handle) => globalThis.clearInterval(handle as ReturnType<typeof setInterval>),
+  isStrategyActive?: () => boolean,
+  onRefreshStrategy?: () => void,
 ): { detailController: ItemDetailController; refreshProvider(): Promise<void>; renderMarket(): void; destroy(): void } | null {
   const nav = root.querySelector<HTMLElement>('#category-nav');
   const toolbar = root.querySelector<HTMLElement>('#toolbar');
@@ -590,6 +592,10 @@ function renderDashboard(
 
   const renderResultsOnly = (): void => {
     if (!isActive()) return;
+    if (isStrategyActive?.() === true) {
+      onRefreshStrategy?.();
+      return;
+    }
     const allVisibleRows = currentRows().visible;
     const totalRows = allVisibleRows.length;
     const totalPages = totalRows === 0 ? 0 : Math.ceil(totalRows / PAGE_SIZE);
@@ -1174,6 +1180,8 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       options.pollMs,
       options.setInterval,
       options.clearInterval,
+      () => strategySurfaceActive,
+      () => { if (strategySurfaceActive) void strategyView?.render(); },
     );
     if (runtime === null) throw new Error('Dashboard runtime is incomplete');
     const loadStrategyData = (): Promise<NormalizedStrategyGameData> => {
