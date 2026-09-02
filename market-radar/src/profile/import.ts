@@ -22,6 +22,14 @@ const HOUSE_ROOMS: Record<string, SkillingAction> = {
   laboratory: 'alchemy',
   observatory: 'enhancing',
 };
+const ACTION_EQUIPMENT_SLOTS = new Set([
+  ...SKILLING_ACTIONS.map((action) => `${action}_tool`),
+  'body',
+  'legs',
+  'back',
+  'charm',
+  'amulet',
+]);
 
 export class ProfileImportError extends Error {
   readonly code = 'profile_import';
@@ -182,6 +190,9 @@ function importExporter(data: Record<string, unknown>, importedAt: number): Play
 
   const achievements = achievementRecord(data.achievements);
   const inventoryMap = inventoryRecord(data.inventoryMap);
+  const specialEquipment = Object.fromEntries(
+    Object.entries(slots).filter(([slot]) => !ACTION_EQUIPMENT_SLOTS.has(slot)),
+  );
   const missingFields = [
     ...(achievements.characterId === null ? ['characterId'] : []),
     ...(Object.keys(inventoryMap).length === 0 ? ['inventoryMap'] : []),
@@ -198,7 +209,7 @@ function importExporter(data: Record<string, unknown>, importedAt: number): Play
     completeness: missingFields.length === 0 ? 'full' : 'partial',
     missingFields,
     actions,
-    specialEquipment: slots,
+    specialEquipment,
     communityBuffs: numericRecord(data.communityBuffs, true),
     shrines: numericRecord(data.shrines, true),
     achievements: achievements.completed,

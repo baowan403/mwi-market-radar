@@ -19,6 +19,13 @@ describe('Milkonomy profile import', () => {
       itemHrid: '/items/holy_alembic',
       enhancementLevel: 10,
     });
+    expect(profile.specialEquipment.pouch).toEqual({
+      itemHrid: '/items/guzzling_pouch',
+      enhancementLevel: 5,
+    });
+    expect(profile.specialEquipment).not.toHaveProperty('alchemy_tool');
+    expect(profile.specialEquipment).not.toHaveProperty('body');
+    expect(profile.specialEquipment).not.toHaveProperty('legs');
     expect(profile.communityBuffs.production_efficiency).toBe(10);
     expect(profile.shrines.rhythm).toBe(3);
     expect(JSON.stringify(profile)).not.toContain('must-not-survive');
