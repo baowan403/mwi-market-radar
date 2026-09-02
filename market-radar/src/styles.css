@@ -981,14 +981,16 @@ summary:focus-visible {
   font-size: 0.8rem;
 }
 
-/* ── 7 欄 colgroup 寬度定義 ── */
-.strategy-table col[data-strategy-column="pin"] { width: 44px; }
-.strategy-table col[data-strategy-column="path"] { width: 300px; }
-.strategy-table col[data-strategy-column="profit"] { width: 100px; }
-.strategy-table col[data-strategy-column="signal"] { width: 150px; }
-.strategy-table col[data-strategy-column="capacity"] { width: 150px; }
+/* ── 9 欄 colgroup 寬度定義 ── */
+.strategy-table col[data-strategy-column="pin"] { width: 40px; }
+.strategy-table col[data-strategy-column="step"] { width: 100px; }
+.strategy-table col[data-strategy-column="path"] { width: 260px; }
+.strategy-table col[data-strategy-column="profit"] { width: 80px; }
+.strategy-table col[data-strategy-column="advice"] { width: 110px; }
+.strategy-table col[data-strategy-column="trend"] { width: 120px; }
+.strategy-table col[data-strategy-column="capacity"] { width: 120px; }
 .strategy-table col[data-strategy-column="capital"] { width: 80px; }
-.strategy-table col[data-strategy-column="classification"] { width: 76px; }
+.strategy-table col[data-strategy-column="classification"] { width: 70px; }
 
 .strategy-table th,
 .strategy-table td {
@@ -1036,11 +1038,12 @@ summary:focus-visible {
 }
 
 .strategy-table th:nth-child(2),
-.strategy-name-cell {
-  position: sticky;
-  left: 44px;
-  z-index: 2;
-  background: var(--color-panel);
+.strategy-table td:nth-child(2) {
+  text-align: left;
+}
+
+.strategy-table th:nth-child(3),
+.strategy-table td:nth-child(3) {
   text-align: left;
 }
 
@@ -1049,120 +1052,34 @@ summary:focus-visible {
   z-index: 3;
 }
 
-/* ── 策略路徑欄 ── */
-.strategy-name-content {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: baseline;
-  gap: 2px 7px;
-  min-width: 0;
-}
-
-.strategy-name-content > strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.strategy-kind {
+/* ── 步驟欄 ── */
+.strategy-step {
   color: var(--color-info);
-  font-size: 0.68rem;
+  font-size: 0.76rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 
-.strategy-path {
-  grid-column: 1 / -1;
-  overflow: hidden;
+/* ── 路徑欄 ── */
+.strategy-path-cell {
   color: var(--color-muted);
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
-/* ── 日利欄（可實現為主角 + 理論注腳）── */
+/* ── 日利欄 ── */
 .strategy-profit {
-  white-space: nowrap;
-}
-
-.strategy-profit-main {
-  display: block;
   color: var(--color-down);
   font-size: 0.88rem;
   font-weight: 750;
-  line-height: 1.2;
-}
-
-.strategy-profit-ref {
-  display: block;
-  margin-top: 2px;
-  color: var(--color-muted);
-  font-size: 0.66rem;
-  font-weight: 500;
-  line-height: 1.2;
-}
-
-/* ── 判定徽章 ── */
-.strategy-classification {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 60px;
-  min-height: 25px;
-  padding: 4px 6px;
-  border: 1px solid var(--color-line);
-  border-radius: 7px;
-  font-size: 0.68rem;
-  font-weight: 750;
-  line-height: 1.2;
   white-space: nowrap;
 }
 
-.strategy-classification[data-classification="long-run"] {
-  border-color: rgb(54 201 143 / 32%);
-  background: rgb(54 201 143 / 11%);
-  color: var(--color-down);
-}
-
-.strategy-classification[data-classification="small-test"] {
-  border-color: rgb(120 169 255 / 32%);
-  background: rgb(120 169 255 / 11%);
-  color: var(--color-info);
-}
-
-.strategy-classification[data-classification="limited"] {
-  border-color: rgb(240 180 91 / 34%);
-  background: rgb(240 180 91 / 11%);
-  color: var(--color-warning);
-}
-
-.strategy-classification[data-classification="reject"] {
-  border-color: rgb(255 90 98 / 32%);
-  background: rgb(255 90 98 / 11%);
-  color: var(--color-up);
-}
-
-.strategy-classification[data-classification="insufficient"] {
-  border-color: rgb(145 160 182 / 26%);
-  background: rgb(145 160 182 / 8%);
-  color: var(--color-muted);
-}
-
-/* ── 趨勢欄 ── */
-.strategy-signal-cell {
+/* ── 建議欄 ── */
+.strategy-advice {
   text-align: left !important;
-}
-
-.strategy-signal-content {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.strategy-signal-line {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  white-space: nowrap;
 }
 
 .strategy-signal {
@@ -1211,16 +1128,61 @@ summary:focus-visible {
 }
 
 .strategy-signal-confidence {
+  margin-left: 4px;
   color: var(--color-muted);
   font-size: 0.66rem;
   white-space: nowrap;
 }
 
-/* 3D/7D 利潤趨勢變化（Radar 核心差異化資訊） */
-.strategy-trend-delta {
-  display: flex;
-  gap: 8px;
-  font-size: 0.72rem;
+/* ── 判定徽章 ── */
+.strategy-classification {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  min-height: 23px;
+  padding: 3px 6px;
+  border: 1px solid var(--color-line);
+  border-radius: 7px;
+  font-size: 0.68rem;
+  font-weight: 750;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.strategy-classification[data-classification="long-run"] {
+  border-color: rgb(54 201 143 / 32%);
+  background: rgb(54 201 143 / 11%);
+  color: var(--color-down);
+}
+
+.strategy-classification[data-classification="small-test"] {
+  border-color: rgb(120 169 255 / 32%);
+  background: rgb(120 169 255 / 11%);
+  color: var(--color-info);
+}
+
+.strategy-classification[data-classification="limited"] {
+  border-color: rgb(240 180 91 / 34%);
+  background: rgb(240 180 91 / 11%);
+  color: var(--color-warning);
+}
+
+.strategy-classification[data-classification="reject"] {
+  border-color: rgb(255 90 98 / 32%);
+  background: rgb(255 90 98 / 11%);
+  color: var(--color-up);
+}
+
+.strategy-classification[data-classification="insufficient"] {
+  border-color: rgb(145 160 182 / 26%);
+  background: rgb(145 160 182 / 8%);
+  color: var(--color-muted);
+}
+
+/* ── 趨勢欄 ── */
+.strategy-trend {
+  font-size: 0.74rem;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1230,66 +1192,15 @@ summary:focus-visible {
 .delta-down { color: var(--color-up); }
 .delta-neutral { color: var(--color-muted); }
 
-.strategy-signal-details {
-  min-width: 0;
-}
-
-.strategy-signal-details summary {
-  cursor: pointer;
-  color: var(--color-accent);
-  font-size: 0.68rem;
-}
-
-.strategy-signal-details ul {
-  margin: 4px 0 0;
-  padding-left: 16px;
-  color: var(--color-muted);
-  font-size: 0.68rem;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-
-.strategy-backtest-summary {
-  display: grid;
-  gap: 2px;
-  margin-top: 4px;
-  color: var(--color-info);
-  font-size: 0.66rem;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-}
-
-.strategy-signal-details .strategy-invalidation {
-  color: var(--color-warning);
-}
-
-/* ── 執行量與承接欄（合併原安全執行 + 市場承接）── */
+/* ── 承接欄 ── */
 .strategy-capacity {
   text-align: left !important;
   font-size: 0.74rem;
-  line-height: 1.35;
   color: var(--color-muted);
+  white-space: nowrap;
 }
 
-.strategy-capacity-stack {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  white-space: normal;
-}
-
-.strategy-capacity-primary {
-  color: var(--color-text);
-  font-weight: 650;
-}
-
-.strategy-capacity-bottleneck {
-  color: var(--color-warning);
-  font-size: 0.68rem;
-}
-
-/* ── 24h 資金欄 ── */
+/* ── 資金/D 欄 ── */
 .strategy-capital {
   color: var(--color-warning);
   white-space: nowrap;

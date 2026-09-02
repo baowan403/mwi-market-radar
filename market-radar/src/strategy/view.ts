@@ -153,103 +153,55 @@ function strategyRow(
   pinCell.append(pin);
   row.append(pinCell);
 
-  // ── 欄 2：策略路徑 ──
-  const strategyCell = element('td', 'strategy-name-cell');
-  const strategyContent = element('div', 'strategy-name-content');
-  const type = element('span', 'strategy-kind');
-  type.textContent = kindLabel(candidate.kind);
-  const title = element('strong');
-  title.textContent = options.itemName(candidate.path.at(-1) ?? candidate.title);
-  const path = element('span', 'strategy-path');
-  path.textContent = candidate.path.map(options.itemName).join(' → ');
-  strategyContent.append(type, title, path);
-  strategyCell.append(strategyContent);
-  row.append(strategyCell);
+  // ── 欄 2：步驟（動作類型）──
+  const stepCell = element('td', 'strategy-step');
+  stepCell.textContent = kindLabel(candidate.kind);
+  row.append(stepCell);
 
-  // ── 欄 3：日利（只顯示可實現）──
+  // ── 欄 3：路徑（材料流程）──
+  const pathCell = element('td', 'strategy-path-cell');
+  pathCell.textContent = candidate.path.map(options.itemName).join(' → ');
+  row.append(pathCell);
+
+  // ── 欄 4：日利 ──
   const profitCell = element('td', 'strategy-profit');
-  const profitMain = element('span', 'strategy-profit-main');
-  profitMain.textContent = liquidity.realizableProfitPerDay === null
+  profitCell.textContent = liquidity.realizableProfitPerDay === null
     ? '—'
     : money(liquidity.realizableProfitPerDay);
-  profitCell.append(profitMain);
   row.append(profitCell);
 
-  // ── 欄 4：趨勢（行動徽章 + 3D/7D 變化百分比）──
-  const signalCell = element('td', 'strategy-signal-cell');
-  const signalContent = element('div', 'strategy-signal-content');
-
-  const signalLine = element('div', 'strategy-signal-line');
+  // ── 欄 5：建議（操作建議 + 信心）──
+  const adviceCell = element('td', 'strategy-advice');
   const signalBadge = element('span', 'strategy-signal');
   signalBadge.dataset.strategySignal = signal.action;
   signalBadge.textContent = SIGNAL_LABELS[signal.action];
   const confidence = element('span', 'strategy-signal-confidence');
   confidence.textContent = CONFIDENCE_LABELS[signal.confidence];
-  signalLine.append(signalBadge, confidence);
+  adviceCell.append(signalBadge, confidence);
+  row.append(adviceCell);
 
-  // 直接顯示 3D/7D 利潤趨勢變化（Radar 核心差異化資訊）
-  const trendDelta = element('div', 'strategy-trend-delta');
+  // ── 欄 6：趨勢（3D/7D 漲跌幅）──
+  const trendCell = element('td', 'strategy-trend');
   const delta3d = element('span');
   delta3d.className = deltaClass(signal.metrics.margin3dPct);
   delta3d.textContent = `3D ${trendPct(signal.metrics.margin3dPct)}`;
   const delta7d = element('span');
   delta7d.className = deltaClass(signal.metrics.margin7dPct);
   delta7d.textContent = `7D ${trendPct(signal.metrics.margin7dPct)}`;
-  trendDelta.append(delta3d, delta7d);
+  trendCell.append(delta3d, document.createTextNode(' '), delta7d);
+  row.append(trendCell);
 
-  // 折疊：理由、失效條件與回測統計
-  const signalDetails = element('details', 'strategy-signal-details');
-  const signalSummary = element('summary');
-  signalSummary.textContent = '理由';
-  const reasons = element('ul');
-  for (const reason of signal.reasons) {
-    const item = element('li');
-    item.textContent = reason;
-    reasons.append(item);
-  }
-  const invalidation = element('ul', 'strategy-invalidation');
-  for (const condition of signal.invalidation) {
-    const item = element('li');
-    item.textContent = `失效：${condition}`;
-    invalidation.append(item);
-  }
-  const backtestSummary = element('div', 'strategy-backtest-summary');
-  for (const horizon of ['3d', '7d'] as const) {
-    const value = backtest.byHorizon[horizon];
-    const line = element('span');
-    line.textContent = `回測 ${horizon.toUpperCase()} ${value.samples} 次・命中 ${metric(value.hitRate === null ? null : value.hitRate * 100, '%')}・平均 ${metric(value.averageChangePct, '%')}・最大逆向 ${metric(value.maximumAdversePct, '%')}`;
-    backtestSummary.append(line);
-  }
-  signalDetails.append(signalSummary, reasons, invalidation, backtestSummary);
-
-  signalContent.append(signalLine, trendDelta, signalDetails);
-  signalCell.append(signalContent);
-  row.append(signalCell);
-
-  // ── 欄 5：承接（合併原安全執行 + 市場承接）──
+  // ── 欄 7：承接（日批量 · 市占%）──
   const capacityCell = element('td', 'strategy-capacity');
-  const capacityStack = element('div', 'strategy-capacity-stack');
-  const safeHours = element('span', 'strategy-capacity-primary');
-  safeHours.textContent = `${metric(liquidity.safeHoursPerDay, ' h/日')}`;
-  const safeBatch = element('span');
-  safeBatch.textContent = `批量 ${metric(liquidity.safeBatchUnits, '/日')}`;
-  const share = element('span');
-  share.textContent = `市占 ${metric(liquidity.marketSharePct, '%')}`;
-  const bottleneck = element('span', 'strategy-capacity-bottleneck');
-  bottleneck.textContent = liquidity.bottleneckHrid === null
-    ? ''
-    : `瓶頸 ${liquidity.bottleneckSide === 'input' ? '買' : '賣'} ${options.itemName(liquidity.bottleneckHrid)}`;
-  capacityStack.append(safeHours, safeBatch, share);
-  if (bottleneck.textContent) capacityStack.append(bottleneck);
-  capacityCell.append(capacityStack);
+  capacityCell.textContent = `${metric(liquidity.safeBatchUnits, '/日')} · ${metric(liquidity.marketSharePct, '%')}`;
   row.append(capacityCell);
 
-  // ── 欄 6：資金/D ──
+  // ── 欄 8：資金/D ──
   const capital = element('td', 'strategy-capital');
   capital.textContent = money(candidate.workingCapital24h);
   row.append(capital);
 
-  // ── 欄 7：判定（移至最後）──
+  // ── 欄 9：判定 ──
   const classificationCell = element('td');
   const classification = element('span', 'strategy-classification');
   classification.dataset.classification = liquidity.classification;
@@ -406,7 +358,7 @@ function renderResults(
   const table = element('table', 'strategy-table');
   const columnGroup = element('colgroup');
   for (const key of [
-    'pin', 'path', 'profit', 'signal', 'capacity', 'capital', 'classification',
+    'pin', 'step', 'path', 'profit', 'advice', 'trend', 'capacity', 'capital', 'classification',
   ]) {
     const column = element('col');
     column.dataset.strategyColumn = key;
@@ -414,7 +366,7 @@ function renderResults(
   }
   const head = element('thead');
   const headerRow = element('tr');
-  for (const label of ['自選', '策略路徑', '日利', '趨勢', '承接', '資金/D', '判定']) {
+  for (const label of ['自選', '步驟', '路徑', '日利', '建議', '趨勢', '承接', '資金/D', '判定']) {
     const cell = element('th');
     cell.textContent = label;
     headerRow.append(cell);
