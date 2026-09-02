@@ -28,7 +28,7 @@ function series(
 }
 
 describe('explainable strategy trend signals', () => {
-  it('executes only when margin and capacity expand together', () => {
+  it('recommends execute when margin is stable or rising (3D >= -2%)', () => {
     const signal = strategyTrendSignal(series(31, (ratio) => ({
       cost: 100,
       income: 200 + 100 * ratio,
@@ -39,46 +39,44 @@ describe('explainable strategy trend signals', () => {
     expect(signal.action).toBe('execute');
     expect(signal.confidence).toBe('medium');
     expect(signal.reasons.join(' ')).toContain('利潤');
-    expect(signal.reasons.join(' ')).toContain('容量');
-    expect(signal.invalidation.join(' ')).toContain('10%');
   });
 
-  it('prepares instead of executing when price margin rises without volume confirmation', () => {
+  it('recommends execute for flat margin (no significant decline)', () => {
     const signal = strategyTrendSignal(series(8, (ratio) => ({
       cost: 100,
-      income: 200 + 50 * ratio,
+      income: 200,
+      capacity: 100,
+      spread: 1,
+    })));
+
+    expect(signal.action).toBe('execute');
+    expect(signal.confidence).toBe('low');
+  });
+
+  it('recommends prepare when 3D margin dips moderately (-2% to -8%)', () => {
+    // income drops by ~6% over 3D → margin drops ~6%
+    const signal = strategyTrendSignal(series(8, (ratio) => ({
+      cost: 100,
+      income: 200 - 15 * ratio,
       capacity: 100,
       spread: 1,
     })));
 
     expect(signal.action).toBe('prepare');
-    expect(signal.confidence).toBe('low');
-    expect(signal.reasons.join(' ')).toContain('尚未同步增加');
+    expect(signal.reasons.join(' ')).toContain('注意趨勢');
   });
 
-  it('waits when input inflation compresses an otherwise positive margin', () => {
+  it('waits when 3D margin drops sharply (>= -8%)', () => {
+    // income drops significantly → margin drops > 8%
     const signal = strategyTrendSignal(series(8, (ratio) => ({
-      cost: 100 + 40 * ratio,
-      income: 200,
+      cost: 100,
+      income: 200 - 40 * ratio,
       capacity: 100,
       spread: 1,
     })));
 
     expect(signal.action).toBe('wait');
-    expect(signal.reasons.join(' ')).toContain('投入成本');
-  });
-
-  it('waits when spread widens enough to undermine executable pricing', () => {
-    const signal = strategyTrendSignal(series(8, (ratio) => ({
-      cost: 100,
-      income: 200,
-      capacity: 100,
-      spread: 1 + 9 * ratio,
-    })));
-
-    expect(signal.action).toBe('wait');
-    expect(signal.reasons.join(' ')).toContain('價差');
-    expect(signal.invalidation.join(' ')).toContain('3');
+    expect(signal.reasons.join(' ')).toContain('下滑');
   });
 
   it('stops when a previously stronger margin reverses sharply', () => {
@@ -88,7 +86,7 @@ describe('explainable strategy trend signals', () => {
     }));
 
     expect(signal.action).toBe('stop');
-    expect(signal.reasons.join(' ')).toContain('反轉');
+    expect(signal.reasons.join(' ')).toContain('暴跌');
   });
 
   it('sells existing output when price rises while capacity falls', () => {

@@ -191,9 +191,9 @@ function strategyRow(
   trendCell.append(delta3d, document.createTextNode(' '), delta7d);
   row.append(trendCell);
 
-  // ── 欄 7：承接（日批量 · 市占%）──
+  // ── 欄 7：承接（日產量）──
   const capacityCell = element('td', 'strategy-capacity');
-  capacityCell.textContent = `${metric(liquidity.safeBatchUnits, '/日')} · ${metric(liquidity.marketSharePct, '%')}`;
+  capacityCell.textContent = `日產 ${metric(liquidity.safeBatchUnits)}`;
   row.append(capacityCell);
 
   // ── 欄 8：資金/D ──

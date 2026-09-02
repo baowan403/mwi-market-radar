@@ -118,68 +118,66 @@ export function strategyTrendSignal(
   const recentPeak = ordered
     .filter((point) => point.timestamp >= latest.timestamp - 7 * DAY_MS && finite(point.realizableProfitPerDay))
     .reduce((peak, point) => Math.max(peak, point.realizableProfitPerDay!), latest.realizableProfitPerDay);
+
+  // ── 紅燈：利潤歸零或暴跌 → 停止 ──
   if (
     latest.realizableProfitPerDay <= 0
     || (metrics.margin3dPct !== null && metrics.margin3dPct <= -30 && recentPeak > latest.realizableProfitPerDay * 1.5)
   ) {
     return {
       action: 'stop', confidence,
-      reasons: [latest.realizableProfitPerDay <= 0 ? '可實現利潤已轉為零或負值' : `3D 利潤反轉 ${formatted(metrics.margin3dPct)}`],
-      invalidation: ['只有可實現利潤恢復為正，且 3D 改善至少 10% 才重新評估'], metrics,
+      reasons: [latest.realizableProfitPerDay <= 0 ? '可實現利潤已轉為零或負值' : `3D 利潤暴跌 ${formatted(metrics.margin3dPct)}`],
+      invalidation: ['利潤恢復為正，且 3D 改善至少 10% 才重新評估'], metrics,
     };
   }
 
-  if (metrics.spread3dPoints !== null && metrics.spread3dPoints >= 3) {
-    return {
-      action: 'wait', confidence,
-      reasons: [`3D 買賣價差擴大 ${metrics.spread3dPoints.toFixed(1)} 個百分點`],
-      invalidation: ['價差需回落至少 3 個百分點，且成交容量不再下降'], metrics,
-    };
-  }
-
-  if (
-    metrics.cost3dPct !== null && metrics.cost3dPct >= 8
-    && metrics.margin3dPct !== null && metrics.margin3dPct <= -5
-  ) {
-    return {
-      action: 'wait', confidence,
-      reasons: [`3D 投入成本上升 ${formatted(metrics.cost3dPct)}，正在壓縮利潤`],
-      invalidation: ['投入成本 3D 漲幅降至 3% 以下，且利潤重新成長'], metrics,
-    };
-  }
-
+  // ── 黃燈：售價飆升但承接崩塌 → 出售獲利 ──
   if (
     metrics.income3dPct !== null && metrics.income3dPct >= 10
     && metrics.capacity3dPct !== null && metrics.capacity3dPct <= -10
   ) {
     return {
       action: 'sell', confidence,
-      reasons: [`3D 售價收入上升 ${formatted(metrics.income3dPct)}，但承接容量下降 ${formatted(metrics.capacity3dPct)}`],
+      reasons: [`3D 售價上升 ${formatted(metrics.income3dPct)}，但承接容量下降 ${formatted(metrics.capacity3dPct)}`],
       invalidation: ['若承接容量 3D 回升至 -5% 以上，改回生產評估'], metrics,
     };
   }
 
-  const marginExpanding = (metrics.margin3dPct ?? Number.NEGATIVE_INFINITY) >= 3
-    && (metrics.margin7dPct ?? Number.NEGATIVE_INFINITY) >= 5;
-  const capacityConfirmed = (metrics.capacity3dPct ?? Number.NEGATIVE_INFINITY) >= 2
-    && (metrics.capacity7dPct ?? Number.NEGATIVE_INFINITY) >= 5;
-  if (marginExpanding && capacityConfirmed) {
+  // ── 以下為「利潤為正」的分級推薦邏輯 ──
+  const m3 = metrics.margin3dPct;
+  const m7 = metrics.margin7dPct;
+
+  // 綠燈：3D 利潤穩定或上升 → 立即製造
+  if (m3 === null || m3 >= -2) {
+    // 額外加分：7D 也是正向
+    const trendNote = m7 !== null && m7 >= 3
+      ? `7D 利潤上漲 ${formatted(m7)}，趨勢良好`
+      : m7 !== null && m7 >= 0
+        ? `7D 利潤持平，短期穩定`
+        : `3D 利潤穩定（${formatted(m3)}）`;
     return {
       action: 'execute', confidence,
-      reasons: [`3D／7D 利潤同步擴張（${formatted(metrics.margin3dPct)}／${formatted(metrics.margin7dPct)}）`, `3D／7D 容量同步增加（${formatted(metrics.capacity3dPct)}／${formatted(metrics.capacity7dPct)}）`],
-      invalidation: ['3D 可實現日利下降超過 10%，或市場容量下降超過 20% 時停止加量'], metrics,
+      reasons: [trendNote, '日利為正且近期無顯著下滑'],
+      invalidation: ['3D 利潤下降超過 10% 時重新評估'], metrics,
     };
   }
-  if (marginExpanding) {
+
+  // 橙燈：3D 小幅下滑（-2%～-8%），但還沒崩 → 囤原料觀察
+  if (m3 > -8) {
+    const riskNote = m7 !== null && m7 >= 0
+      ? `7D 仍為正向（${formatted(m7)}），但 3D 開始回調（${formatted(m3)}）`
+      : `3D 下滑 ${formatted(m3)}，注意趨勢反轉風險`;
     return {
       action: 'prepare', confidence,
-      reasons: [`利潤正在擴張，但市場容量尚未同步增加（3D ${formatted(metrics.capacity3dPct)}）`],
-      invalidation: ['3D 利潤下降超過 10% 則取消準備；容量提升至少 5% 才升級為執行'], metrics,
+      reasons: [riskNote],
+      invalidation: ['3D 改善至 -2% 以上則升級為推薦；惡化至 -10% 以下則降級為觀望'], metrics,
     };
   }
+
+  // 灰燈：3D 下滑明顯（-8% 以上）→ 暫停觀望
   return {
     action: 'wait', confidence,
-    reasons: [`3D／7D 利潤尚未形成一致擴張（${formatted(metrics.margin3dPct)}／${formatted(metrics.margin7dPct)}）`],
-    invalidation: ['3D 利潤成長至少 3%、7D 至少 5%，再檢查成交容量'], metrics,
+    reasons: [`3D 利潤下滑 ${formatted(m3)}，建議暫時觀望`],
+    invalidation: ['3D 利潤止跌回升至 -3% 以上再重新評估'], metrics,
   };
 }

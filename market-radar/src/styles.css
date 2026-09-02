@@ -982,22 +982,22 @@ summary:focus-visible {
 }
 
 /* ── 9 欄 colgroup 寬度定義 ── */
-.strategy-table col[data-strategy-column="pin"] { width: 40px; }
-.strategy-table col[data-strategy-column="step"] { width: 100px; }
-.strategy-table col[data-strategy-column="path"] { width: 260px; }
-.strategy-table col[data-strategy-column="profit"] { width: 80px; }
-.strategy-table col[data-strategy-column="advice"] { width: 110px; }
-.strategy-table col[data-strategy-column="trend"] { width: 120px; }
-.strategy-table col[data-strategy-column="capacity"] { width: 120px; }
-.strategy-table col[data-strategy-column="capital"] { width: 80px; }
-.strategy-table col[data-strategy-column="classification"] { width: 70px; }
+.strategy-table col[data-strategy-column="pin"] { width: 36px; }
+.strategy-table col[data-strategy-column="step"] { width: 90px; }
+.strategy-table col[data-strategy-column="path"] { width: 240px; }
+.strategy-table col[data-strategy-column="profit"] { width: 76px; }
+.strategy-table col[data-strategy-column="advice"] { width: 100px; }
+.strategy-table col[data-strategy-column="trend"] { width: 130px; }
+.strategy-table col[data-strategy-column="capacity"] { width: 90px; }
+.strategy-table col[data-strategy-column="capital"] { width: 76px; }
+.strategy-table col[data-strategy-column="classification"] { width: 68px; }
 
 .strategy-table th,
 .strategy-table td {
   box-sizing: border-box;
-  padding: 10px 10px;
+  padding: 10px 8px;
   border-bottom: 1px solid var(--color-line);
-  text-align: right;
+  text-align: center;
   vertical-align: middle;
   font-variant-numeric: tabular-nums;
 }
@@ -1034,17 +1034,6 @@ summary:focus-visible {
   left: 0;
   z-index: 2;
   background: var(--color-panel);
-  text-align: center;
-}
-
-.strategy-table th:nth-child(2),
-.strategy-table td:nth-child(2) {
-  text-align: left;
-}
-
-.strategy-table th:nth-child(3),
-.strategy-table td:nth-child(3) {
-  text-align: left;
 }
 
 .strategy-table thead th:first-child,
@@ -1060,8 +1049,9 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
-/* ── 路徑欄 ── */
+/* ── 路徑欄（左對齊，長文字居中會很醜）── */
 .strategy-path-cell {
+  text-align: left !important;
   color: var(--color-muted);
   font-size: 0.74rem;
   line-height: 1.35;
