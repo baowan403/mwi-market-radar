@@ -32,6 +32,20 @@ test('imports and persists a Milkonomy profile without profile network egress', 
   await expect(page.locator('#profile-summary')).toContainText('測試牛一號');
   await expect(page.locator('#profile-summary')).toContainText('煉金 103');
 
+  await page.getByRole('button', { name: '角色快照' }).click();
+  const assumptions = page.locator('[data-profile-assumptions]');
+  const alchemy = page.locator('[data-profile-action="alchemy"]');
+  await expect(assumptions).toContainText('目前計算配置');
+  await expect(page.locator('[data-profile-action]')).toHaveCount(10);
+  await expect(alchemy).toContainText('煉金 103');
+  await expect(alchemy).toContainText('神圣蒸馏器 +10');
+  await expect(alchemy).toContainText('暴饮之囊 +5');
+  await expect(alchemy).toContainText('究极炼金茶、效率茶、催化茶');
+  await expect(alchemy).toContainText('實驗室 Lv4');
+  await expect(assumptions).toContainText('生產效率 Lv10');
+  await expect(assumptions).toContainText('節奏神龕 Lv3');
+  await page.getByRole('button', { name: '關閉' }).click();
+
   const outbound = requestBodies.join('\n');
   expect(outbound).not.toContain('測試牛一號');
   expect(outbound).not.toContain('character:700001');
