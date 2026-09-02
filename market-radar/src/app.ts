@@ -1014,12 +1014,16 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
   if (!profileOpen || !profileSummary || !profileDialog || !productMarket || !productStrategy || !categoryNav || !toolbar) {
     throw new Error('Profile shell is incomplete');
   }
+  let profileItemName = (hrid: string): string => (
+    hrid.split('/').at(-1)?.replaceAll('_', ' ') ?? hrid
+  );
   const profilePanel: ProfilePanel = createProfilePanel({
     openButton: profileOpen,
     summary: profileSummary,
     dialog: profileDialog,
     store: profileStore,
     now: options.now,
+    itemName: (hrid) => profileItemName(hrid),
     onActiveProfileChange: () => {
       if (strategySurfaceActive) void strategyView?.render();
     },
@@ -1122,6 +1126,10 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       preferencesWarning: provider !== null && bootstrap.preferencesWarning === 'preferences_unavailable'
         ? PREFERENCES_WARNING_MESSAGE
         : null,
+    };
+    profileItemName = (hrid) => {
+      const item = state.catalog.itemsByHrid.get(hrid);
+      return item ? catalogItemName(item) : hrid.split('/').at(-1)?.replaceAll('_', ' ') ?? hrid;
     };
     runtime = renderDashboard(
       root,

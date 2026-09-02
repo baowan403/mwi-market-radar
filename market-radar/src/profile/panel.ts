@@ -1,6 +1,11 @@
 import { ProfileImportError, importPlayerProfile } from './import';
 import type { ProfileStore } from './store';
-import type { PlayerProfile } from './types';
+import {
+  SKILLING_ACTIONS,
+  type PlayerProfile,
+  type ProfileEquipment,
+  type SkillingAction,
+} from './types';
 
 export interface ProfilePanel {
   open(): Promise<void>;
@@ -18,8 +23,59 @@ export interface ProfilePanelOptions {
   store: ProfileStore;
   now?: () => number;
   confirmDelete?: (message: string) => boolean;
+  itemName?: (hrid: string) => string;
   onActiveProfileChange?: (profile: PlayerProfile | null) => void;
 }
+
+const ACTION_LABELS: Record<SkillingAction, string> = {
+  milking: '擠奶',
+  foraging: '採摘',
+  woodcutting: '伐木',
+  cheesesmithing: '乳酪鍛造',
+  crafting: '製作',
+  tailoring: '裁縫',
+  cooking: '烹飪',
+  brewing: '沖泡',
+  alchemy: '煉金',
+  enhancing: '強化',
+};
+
+const HOUSE_LABELS: Record<SkillingAction, string> = {
+  milking: '乳牛棚',
+  foraging: '花園',
+  woodcutting: '原木棚',
+  cheesesmithing: '鍛造坊',
+  crafting: '工作坊',
+  tailoring: '裁縫室',
+  cooking: '廚房',
+  brewing: '沖泡室',
+  alchemy: '實驗室',
+  enhancing: '觀測站',
+};
+
+const COMMUNITY_LABELS: Record<string, string> = {
+  experience: '經驗',
+  gathering_quantity: '採集數量',
+  production_efficiency: '生產效率',
+  enhancing_speed: '強化速度',
+  moo_card: '牛牛卡',
+};
+
+const SHRINE_LABELS: Record<string, string> = {
+  power: '力量神龕',
+  rhythm: '節奏神龕',
+  spirit: '精神神龕',
+  rare: '稀有神龕',
+  scholar: '學者神龕',
+};
+
+const ACHIEVEMENT_TIER_LABELS: Record<string, string> = {
+  beginner: '初心者',
+  novice: '新手',
+  adept: '熟練者',
+  veteran: '老手',
+  champion: '冠軍',
+};
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
@@ -42,9 +98,114 @@ function profileSummary(profile: PlayerProfile, now: number): string {
   return `${profile.name}｜煉金 ${profile.actions.alchemy.playerLevel}${partial}｜${snapshotAge(profile.importedAt, now)}`;
 }
 
+function fallbackItemName(hrid: string): string {
+  return hrid.split('/').at(-1)?.replaceAll('_', ' ') ?? hrid;
+}
+
+function equipmentText(
+  value: ProfileEquipment | null,
+  itemName: (hrid: string) => string,
+): string {
+  if (value === null) return '未設定';
+  return `${itemName(value.itemHrid)} +${value.enhancementLevel}`;
+}
+
+function appendAssumptionRow(target: HTMLElement, label: string, value: string): void {
+  const term = element('span', 'profile-assumption-label');
+  term.textContent = label;
+  const detail = element('strong', 'profile-assumption-value');
+  detail.textContent = value;
+  target.append(term, detail);
+}
+
+function positiveModifiers(
+  values: Record<string, number>,
+  labels: Record<string, string>,
+): string[] {
+  return Object.entries(values)
+    .filter(([, level]) => Number.isFinite(level) && level > 0)
+    .map(([key, level]) => `${labels[key] ?? key.replaceAll('_', ' ')} Lv${level}`);
+}
+
+function renderProfileAssumptions(
+  profile: PlayerProfile,
+  itemName: (hrid: string) => string,
+): HTMLElement {
+  const section = element('section', 'profile-assumptions');
+  section.dataset.profileAssumptions = 'true';
+  const heading = element('h3');
+  heading.textContent = '目前計算配置';
+  const note = element('p', 'profile-assumption-note');
+  note.textContent = '顯示匯入快照的實際設定，不會從倉庫自動替換裝備。';
+  section.append(heading, note);
+
+  const actions = element('div', 'profile-assumption-actions');
+  const pouch = profile.specialEquipment.pouch ?? null;
+  for (const action of SKILLING_ACTIONS) {
+    const config = profile.actions[action];
+    const details = element('details', 'profile-assumption-action');
+    details.dataset.profileAction = action;
+    details.open = action === 'alchemy';
+    const summary = element('summary');
+    summary.textContent = `${ACTION_LABELS[action]} ${config.playerLevel}`;
+    const grid = element('div', 'profile-assumption-grid');
+    appendAssumptionRow(grid, '工具', equipmentText(config.tool, itemName));
+    for (const [label, equipment] of [
+      ['上衣', config.body],
+      ['下衣', config.legs],
+      ['背部', config.back],
+      ['護符', config.charm],
+      ['口袋', pouch],
+    ] as const) {
+      if (equipment !== null) appendAssumptionRow(grid, label, equipmentText(equipment, itemName));
+    }
+    appendAssumptionRow(
+      grid,
+      '茶飲',
+      config.teas.length === 0 ? '未設定' : config.teas.map(itemName).join('、'),
+    );
+    appendAssumptionRow(
+      grid,
+      '房屋',
+      config.houseLevel > 0 ? `${HOUSE_LABELS[action]} Lv${config.houseLevel}` : '未設定',
+    );
+    details.append(summary, grid);
+    actions.append(details);
+  }
+  section.append(actions);
+
+  const modifiers = element('details', 'profile-assumption-modifiers');
+  modifiers.open = true;
+  const modifierSummary = element('summary');
+  modifierSummary.textContent = '共用增益';
+  const modifierGrid = element('div', 'profile-assumption-grid');
+  const community = positiveModifiers(profile.communityBuffs, COMMUNITY_LABELS);
+  const shrines = positiveModifiers(profile.shrines, SHRINE_LABELS);
+  const tierAchievements = Object.entries(profile.achievements)
+    .filter(([key, enabled]) => enabled && key in ACHIEVEMENT_TIER_LABELS)
+    .map(([key]) => ACHIEVEMENT_TIER_LABELS[key]);
+  const completedAchievements = Object.entries(profile.achievements)
+    .filter(([key, enabled]) => enabled && key.startsWith('/achievements/')).length;
+  appendAssumptionRow(modifierGrid, '社群', community.length === 0 ? '未設定' : community.join('、'));
+  appendAssumptionRow(modifierGrid, '神龕', shrines.length === 0 ? '未設定' : shrines.join('、'));
+  appendAssumptionRow(
+    modifierGrid,
+    '成就',
+    tierAchievements.length > 0
+      ? tierAchievements.join('、')
+      : completedAchievements > 0
+        ? `已完成 ${completedAchievements} 項`
+        : '未設定',
+  );
+  modifiers.append(modifierSummary, modifierGrid);
+  section.append(modifiers);
+  return section;
+}
+
 export function createProfilePanel(options: ProfilePanelOptions): ProfilePanel {
   const now = options.now ?? Date.now;
   const confirmDelete = options.confirmDelete ?? ((message: string) => window.confirm(message));
+  const itemName = options.itemName ?? fallbackItemName;
   let destroyed = false;
   let activeProfile: PlayerProfile | null = null;
   let textArea: HTMLTextAreaElement | null = null;
@@ -110,6 +271,8 @@ export function createProfilePanel(options: ProfilePanelOptions): ProfilePanel {
     });
     selectLabel.append(select);
     card.append(selectLabel);
+
+    if (activeProfile !== null) card.append(renderProfileAssumptions(activeProfile, itemName));
 
     const importLabel = element('label');
     importLabel.textContent = '貼上 Milkonomy 角色快照';
