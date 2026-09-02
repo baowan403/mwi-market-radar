@@ -29,6 +29,8 @@ const snapshot: Snapshot = {
     '/items/efficiency_tea::0': { a: 2_000, b: 1_800, p: 1_900, v: 1_000 },
     '/items/catalytic_tea::0': { a: 3_000, b: 2_800, p: 2_900, v: 1_000 },
     '/items/alchemy_essence::0': { a: 2_000, b: 1_800, p: 1_900, v: 10_000 },
+    '/items/emp_tea_leaf::0': { a: 116, b: 115, p: 115.5, v: 600_000 },
+    '/items/brewing_essence::0': { a: 292, b: 290, p: 291, v: 600_000 },
     '/items/bag_of_10_cowbells::0': { a: 1_000, b: 1_000, p: 1_000, v: 1_000 },
     '/items/shard_of_protection::0': { a: 10, b: 10, p: 10, v: 1_000 },
     '/items/mirror_of_protection::0': { a: 15, b: 15, p: 15, v: 1_000 },
@@ -55,6 +57,9 @@ describe('personalized strategy candidate enumeration', () => {
       && item.path.includes('/items/redwood_bow'))).toBe(true);
     expect(result.candidates.some((item) => item.kind === 'decompose-coinify'
       && item.path.includes('/items/pirate_refinement_shard'))).toBe(true);
+    const voidTea = result.candidates.find((item) => item.kind === 'decompose'
+      && item.steps[0]?.inputs.some((flow) => flow.itemHrid === '/items/emp_tea_leaf'));
+    expect(voidTea?.path).toEqual(['/items/emp_tea_leaf', '/items/brewing_essence']);
     expect(new Set(result.candidates.map((item) => item.id)).size).toBe(result.candidates.length);
     expect(result.candidates.map((item) => item.profitPerDay)).toEqual(
       [...result.candidates.map((item) => item.profitPerDay)].sort((left, right) => right - left),

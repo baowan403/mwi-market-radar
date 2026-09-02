@@ -46,7 +46,7 @@ function titleFor(hrid: string, data: NormalizedStrategyGameData): string {
 }
 
 function stepPath(step: StrategyStepResult): string[] {
-  const input = step.inputs.find((flow) => flow.market && !flow.itemHrid.includes('tea'))?.itemHrid;
+  const input = step.inputs.find((flow) => flow.market && !flow.itemHrid.endsWith('_tea'))?.itemHrid;
   return [...(input ? [input] : []), step.outputHrid];
 }
 
