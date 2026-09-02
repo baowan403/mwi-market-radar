@@ -35,7 +35,7 @@ interface ColumnDefinition {
 const COLUMNS: ColumnDefinition[] = [
   { label: '自選', key: 'pin', className: 'pin-column' },
   { field: 'name', label: '物品 / 強化', key: 'name', className: 'name-column' },
-  { field: 'category', label: '官方分類', key: 'category' },
+  { field: 'category', label: '分類', key: 'category' },
   { field: 'price', label: '目前價', key: 'price' },
   { field: 'bid', label: '買一', key: 'bid' },
   { field: 'ask', label: '賣一', key: 'ask' },
@@ -44,7 +44,6 @@ const COLUMNS: ColumnDefinition[] = [
   { field: 'change1d', label: '1D', key: 'change-1d' },
   { field: 'change3d', label: '3D', key: 'change-3d' },
   { field: 'change7d', label: '7D', key: 'change-7d' },
-  { label: '資料品質', key: 'quality' },
 ];
 
 const QUALITY_LABELS: Record<DerivedMarketRow['quality'], string> = {
@@ -305,8 +304,6 @@ export function renderMarketTable(target: HTMLElement, options: MarketTableOptio
     appendTrendCell(row, '1d', marketRow.changes['1d']);
     appendTrendCell(row, '3d', marketRow.changes['3d']);
     appendTrendCell(row, '7d', marketRow.changes['7d']);
-    const qualityCell = appendTextCell(row, QUALITY_LABELS[marketRow.quality], 'quality-cell');
-    qualityCell.dataset.quality = marketRow.quality;
     body.append(row);
   }
   table.append(body);

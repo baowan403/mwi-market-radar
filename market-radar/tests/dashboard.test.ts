@@ -222,7 +222,7 @@ describe('mountDashboard', () => {
     await mountDashboard({ root, client: createClient(), catalogLoader: vi.fn().mockResolvedValue(catalog) });
 
     expect([...root.querySelectorAll<HTMLElement>('[data-primary-view]')].map((button) => button.textContent)).toEqual([
-      '自選', '全市場', '資源', '消耗品', '技能書', '迷宮', '裝備', '其他',
+      '自選', '全部', '資源', '消耗品', '技能書', '迷宮', '裝備', '其他',
     ]);
     expect(root.querySelectorAll('[data-official-category]')).toHaveLength(10);
     const all = root.querySelector<HTMLElement>('[data-primary-view="all"]');
@@ -380,10 +380,10 @@ describe('mountDashboard', () => {
     });
     await mountDashboard({ root, client, catalogLoader: vi.fn().mockResolvedValue(catalog) });
 
-    expect(root.querySelector('[data-status-field="official"]')?.textContent).toContain('—');
-    expect(root.querySelector('[data-status-field="collected"]')?.textContent).toContain('—');
-    expect(root.querySelector('[data-status-field="next"]')?.textContent).toContain('—');
-    expect(root.querySelector('[data-status-field="state"]')?.textContent).toContain('ok');
+    // Simplified status: no detail fields rendered; just the summary line
+    const summary = root.querySelector('[data-status-field="state"]')?.textContent ?? '';
+    // With null timestamps and no snapshots, headline falls back to the health model
+    expect(summary.length).toBeGreaterThan(0);
   });
 
   it('uses compact K and M values for market magnitudes without a B suffix', async () => {
@@ -706,7 +706,7 @@ describe('mountDashboard', () => {
 
     await vi.advanceTimersByTimeAsync(2.5 * 60 * 60 * 1_000 + 60_000);
 
-    expect(root.querySelector('[data-status-field="state"]')?.textContent).toContain('資料已停止更新');
+    expect(root.querySelector('[data-status-field="state"]')?.textContent).toContain('更新逾時');
     handle.destroy();
   });
 

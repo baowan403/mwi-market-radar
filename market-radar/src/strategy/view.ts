@@ -73,11 +73,11 @@ const CLASSIFICATION_LABELS: Record<LiquidityClassification, string> = {
 };
 
 const SIGNAL_LABELS: Record<StrategySignalAction, string> = {
-  execute: '執行',
-  prepare: '準備',
-  wait: '等待',
-  sell: '出售',
-  stop: '停止',
+  execute: '立即製造',
+  prepare: '囤原料',
+  wait: '暫停觀望',
+  sell: '賣出清倉',
+  stop: '逐步出場',
 };
 
 const CONFIDENCE_LABELS: Record<StrategySignalConfidence, string> = {
@@ -166,26 +166,16 @@ function strategyRow(
   strategyCell.append(strategyContent);
   row.append(strategyCell);
 
-  // ── 欄 3：判定 ──
-  const classificationCell = element('td');
-  const classification = element('span', 'strategy-classification');
-  classification.dataset.classification = liquidity.classification;
-  classification.textContent = CLASSIFICATION_LABELS[liquidity.classification];
-  classificationCell.append(classification);
-  row.append(classificationCell);
-
-  // ── 欄 4：日利（可實現為主角，理論為小字注腳）──
+  // ── 欄 3：日利（只顯示可實現）──
   const profitCell = element('td', 'strategy-profit');
   const profitMain = element('span', 'strategy-profit-main');
   profitMain.textContent = liquidity.realizableProfitPerDay === null
     ? '—'
     : money(liquidity.realizableProfitPerDay);
-  const profitRef = element('span', 'strategy-profit-ref');
-  profitRef.textContent = `理論 ${money(liquidity.theoreticalProfitPerDay)}`;
-  profitCell.append(profitMain, profitRef);
+  profitCell.append(profitMain);
   row.append(profitCell);
 
-  // ── 欄 5：趨勢（行動徽章 + 3D/7D 變化百分比）──
+  // ── 欄 4：趨勢（行動徽章 + 3D/7D 變化百分比）──
   const signalCell = element('td', 'strategy-signal-cell');
   const signalContent = element('div', 'strategy-signal-content');
 
@@ -236,7 +226,7 @@ function strategyRow(
   signalCell.append(signalContent);
   row.append(signalCell);
 
-  // ── 欄 6：執行量與承接（合併原安全執行 + 市場承接）──
+  // ── 欄 5：承接（合併原安全執行 + 市場承接）──
   const capacityCell = element('td', 'strategy-capacity');
   const capacityStack = element('div', 'strategy-capacity-stack');
   const safeHours = element('span', 'strategy-capacity-primary');
@@ -254,10 +244,18 @@ function strategyRow(
   capacityCell.append(capacityStack);
   row.append(capacityCell);
 
-  // ── 欄 7：24h 資金 ──
+  // ── 欄 6：資金/D ──
   const capital = element('td', 'strategy-capital');
   capital.textContent = money(candidate.workingCapital24h);
   row.append(capital);
+
+  // ── 欄 7：判定（移至最後）──
+  const classificationCell = element('td');
+  const classification = element('span', 'strategy-classification');
+  classification.dataset.classification = liquidity.classification;
+  classification.textContent = CLASSIFICATION_LABELS[liquidity.classification];
+  classificationCell.append(classification);
+  row.append(classificationCell);
 
   return row;
 }
@@ -408,7 +406,7 @@ function renderResults(
   const table = element('table', 'strategy-table');
   const columnGroup = element('colgroup');
   for (const key of [
-    'pin', 'path', 'classification', 'profit', 'signal', 'capacity', 'capital',
+    'pin', 'path', 'profit', 'signal', 'capacity', 'capital', 'classification',
   ]) {
     const column = element('col');
     column.dataset.strategyColumn = key;
@@ -416,7 +414,7 @@ function renderResults(
   }
   const head = element('thead');
   const headerRow = element('tr');
-  for (const label of ['自選', '策略路徑', '判定', '日利', '趨勢', '執行量與承接', '24h 資金']) {
+  for (const label of ['自選', '策略路徑', '日利', '趨勢', '承接', '資金/D', '判定']) {
     const cell = element('th');
     cell.textContent = label;
     headerRow.append(cell);

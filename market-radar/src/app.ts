@@ -86,7 +86,6 @@ const dashboardMarkup = `
       <div class="brand-lockup">
         <p class="eyebrow">Milky Way Idle</p>
         <h1>Market Radar</h1>
-        <p class="brand-note">公開市場快照的本機看盤頁</p>
       </div>
       <div id="collector-status" class="collector-status" data-testid="collector-status" role="status" aria-live="polite">
         <span class="status-dot" aria-hidden="true"></span>
@@ -120,7 +119,7 @@ const dashboardMarkup = `
 
 const PRIMARY_VIEWS: Array<{ key: PrimaryView; label: string }> = [
   { key: 'watchlist', label: '自選' },
-  { key: 'all', label: '全市場' },
+  { key: 'all', label: '全部' },
   { key: 'resource', label: '資源' },
   { key: 'consumable', label: '消耗品' },
   { key: 'ability_book', label: '技能書' },
@@ -286,7 +285,7 @@ function renderOfficialCategories(
 ): void {
   const details = createElement('details', 'official-categories');
   const summary = createElement('summary');
-  summary.textContent = '官方分類';
+  summary.textContent = '分類';
   details.append(summary);
   const list = createElement('div', 'official-category-list');
 
@@ -328,7 +327,26 @@ function renderToolbar(
 ): void {
   target.replaceChildren();
 
-  renderRankingModeButtons(target, state.mode, onMode);
+  // 次級篩選：全部 / 資源 / 消耗品 / ... （原 primary views，降級至工具列）
+  const viewGroup = createElement('nav', 'toolbar-views');
+  viewGroup.setAttribute('aria-label', '物品分類');
+  for (const view of PRIMARY_VIEWS) {
+    const button = createElement('button', 'toolbar-button view-button');
+    button.type = 'button';
+    button.dataset.primaryView = view.key;
+    button.setAttribute('aria-pressed', String(state.view === view.key));
+    button.classList.toggle('is-active', state.view === view.key);
+    button.textContent = view.label;
+    button.addEventListener('click', () => {
+      state.view = view.key;
+      state.pageIndex = 0;
+      // Re-render toolbar to update pressed state + results
+      renderToolbar(target, state, rows, onMode, onPeriod, onQuery, onEnhancements, onMinimumVolume, onMaximumSpread, onCategories, onResetSort, onRefresh);
+      onMode(state.mode); // trigger results re-render
+    });
+    viewGroup.append(button);
+  }
+  target.append(viewGroup);
 
   const periodGroup = createElement('div', 'period-controls');
   const periodLabel = createElement('span', 'control-label');
@@ -689,14 +707,17 @@ function renderDashboard(
   };
 
   const updateModeButtons = (): void => {
-    updateRankingModeButtons(toolbar, state.mode);
+    updateRankingModeButtons(nav, state.mode);
   };
 
   const renderNavigationOnly = (): void => {
     if (!isActive()) return;
-    renderPrimaryNavigation(nav, state, (view) => {
+    // 主導航第一排：行情表 / 漲幅榜 / 跌幅榜 ...
+    nav.replaceChildren();
+    renderRankingModeButtons(nav, state.mode, (mode) => {
       if (!isActive()) return;
-      state.view = view;
+      state.mode = mode;
+      state.sortState = null;
       state.pageIndex = 0;
       renderNavigationOnly();
       renderResultsOnly();

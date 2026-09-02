@@ -223,25 +223,17 @@ export function renderCollectorStatus(
   const summary = document.createElement('span');
   summary.className = 'status-summary';
   summary.dataset.statusField = 'state';
-  summary.textContent = health === null
-    ? `採集${STATE_LABELS[status.state]} (${status.state})`
-    : `${health.headline} (${status.state})`;
-  target.append(summary);
-
-  const details = document.createElement('div');
-  details.className = 'status-details';
-  details.append(field('官方快照', 'official', formatTaipeiTime(status.officialTimestamp)));
-  details.append(field('本機採集', 'collected', formatTaipeiTime(status.lastSuccessAt)));
-  details.append(field('下次採集', 'next', formatTaipeiTime(status.nextRunAt)));
-  target.append(details);
-
-  if (health !== null) {
-    const healthElement = document.createElement('span');
-    healthElement.className = 'status-health';
-    healthElement.dataset.statusHealth = 'true';
-    healthElement.textContent = health.detail;
-    target.append(healthElement);
+  if (health === null) {
+    summary.textContent = `採集${STATE_LABELS[status.state]}`;
+  } else if (health.latestTimestamp !== null) {
+    const time = formatTaipeiTime(health.latestTimestamp).slice(-8);
+    summary.textContent = health.stale
+      ? `更新逾時 ─ 最後 ${time}`
+      : `最後更新 ${time}`;
+  } else {
+    summary.textContent = health.headline;
   }
+  target.append(summary);
 
   if (transientError !== null && SAFE_TRANSIENT_ERRORS.has(transientError)) {
     const error = document.createElement('span');
@@ -269,7 +261,7 @@ export function renderBridgeUnavailable(target: HTMLElement, message = NO_BRIDGE
   target.append(summary);
 }
 
-/** Render a fixed source label and safe cloud/local freshness metadata. */
+/** Render a minimal source indicator; verbose metadata removed for cleanliness. */
 export function renderDataSource(
   target: HTMLElement,
   sourceInfo: DashboardDataSourceInfo | null,
@@ -281,27 +273,6 @@ export function renderDataSource(
   const label = document.createElement('span');
   label.className = 'data-source-label';
   label.dataset.sourceLabel = 'true';
-  label.textContent = typeof sourceInfo?.historySourceLabel === 'string'
-    ? `歷史回填：${sourceInfo.historySourceLabel}；最新行情：MWI 官方`
-    : DATA_SOURCE_LABELS[source];
+  label.textContent = DATA_SOURCE_LABELS[source];
   target.append(label);
-
-  const detail = document.createElement('span');
-  detail.className = 'data-source-detail';
-  detail.dataset.sourceDetail = 'true';
-  if (sourceInfo === null) {
-    detail.textContent = '等待可用資料來源';
-  } else {
-    const parts: string[] = [];
-    if (sourceInfo.latestTimestamp !== null) {
-      parts.push(`最新 ${formatTaipeiTime(sourceInfo.latestTimestamp)}`);
-    }
-    if (sourceInfo.generatedAt !== null) {
-      const generatedAt = Date.parse(sourceInfo.generatedAt);
-      if (isDateRepresentable(generatedAt)) parts.push(`產生 ${formatTaipeiTime(generatedAt)}`);
-    }
-    if (sourceInfo.stale) parts.push('雲端資料已超過 2.5 小時');
-    detail.textContent = parts.join('；') || '尚無來源時間';
-  }
-  target.append(detail);
 }

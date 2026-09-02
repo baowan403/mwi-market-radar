@@ -223,9 +223,10 @@ h2 {
 
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  gap: 8px;
+  padding: 8px 12px;
   border-top: 0;
 }
 
@@ -249,9 +250,11 @@ h2 {
 }
 
 .toolbar-button {
-  padding: 10px 14px;
+  min-height: 36px;
+  padding: 7px 12px;
   border-color: var(--color-line);
   color: var(--color-text);
+  font-size: 0.78rem;
 }
 
 .toolbar-button:hover {
@@ -390,9 +393,25 @@ h2 {
   scrollbar-width: none;
 }
 
+.toolbar-views {
+  display: flex;
+  flex-basis: 100%;
+  gap: 5px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.view-button[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  background: rgb(114 167 255 / 12%);
+  color: var(--color-text);
+}
+
 .ranking-mode-button {
   flex: 0 0 auto;
-  padding: 8px 11px;
+  min-height: 36px;
+  padding: 7px 12px;
   border: 1px solid var(--color-line);
   border-radius: 8px;
   background: transparent;
@@ -964,12 +983,12 @@ summary:focus-visible {
 
 /* ── 7 欄 colgroup 寬度定義 ── */
 .strategy-table col[data-strategy-column="pin"] { width: 44px; }
-.strategy-table col[data-strategy-column="path"] { width: 240px; }
+.strategy-table col[data-strategy-column="path"] { width: 300px; }
+.strategy-table col[data-strategy-column="profit"] { width: 100px; }
+.strategy-table col[data-strategy-column="signal"] { width: 150px; }
+.strategy-table col[data-strategy-column="capacity"] { width: 150px; }
+.strategy-table col[data-strategy-column="capital"] { width: 80px; }
 .strategy-table col[data-strategy-column="classification"] { width: 76px; }
-.strategy-table col[data-strategy-column="profit"] { width: 120px; }
-.strategy-table col[data-strategy-column="signal"] { width: 130px; }
-.strategy-table col[data-strategy-column="capacity"] { width: 200px; }
-.strategy-table col[data-strategy-column="capital"] { width: 90px; }
 
 .strategy-table th,
 .strategy-table td {

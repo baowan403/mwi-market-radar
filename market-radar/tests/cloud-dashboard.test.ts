@@ -137,9 +137,7 @@ describe('cloud dashboard provider', () => {
     });
 
     expect(root.querySelector('[data-source="cloud"] [data-source-label]')?.textContent)
-      .toBe('歷史回填：牛牛股市；最新行情：MWI 官方');
-    expect(root.querySelector('[data-source="cloud"] [data-source-detail]')?.textContent)
-      .toContain('最新');
+      .toBe('雲端共同行情');
     handle.destroy();
   });
 

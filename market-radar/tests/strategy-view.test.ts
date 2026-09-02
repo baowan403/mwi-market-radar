@@ -124,12 +124,11 @@ describe('strategy recommendation view', () => {
     expect([...target.querySelectorAll('col[data-strategy-column]')].map((column) => (
       column.getAttribute('data-strategy-column')
     ))).toEqual([
-      'pin', 'path', 'classification', 'profit', 'signal', 'capacity', 'capital',
+      'pin', 'path', 'profit', 'signal', 'capacity', 'capital', 'classification',
     ]);
     expect(target.querySelector('.strategy-name-cell > .strategy-name-content')).not.toBeNull();
     expect(target.querySelector('.strategy-signal-cell > .strategy-signal-content')).not.toBeNull();
     expect(target.querySelector('.strategy-profit-main')).not.toBeNull();
-    expect(target.querySelector('.strategy-profit-ref')).not.toBeNull();
     expect(target.querySelector('.strategy-capacity .strategy-capacity-stack')).not.toBeNull();
     expect(target.querySelector('.strategy-name-cell')?.tagName).toBe('TD');
     expect(target.querySelector('.strategy-signal-cell')?.tagName).toBe('TD');
@@ -194,7 +193,7 @@ describe('strategy recommendation view', () => {
     expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('可長掛');
     expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('限量製作');
     expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('12K');
-    expect(target.querySelector('[data-strategy-row="long"] [data-strategy-signal="wait"]')?.textContent).toContain('等待');
+    expect(target.querySelector('[data-strategy-row="long"] [data-strategy-signal="wait"]')?.textContent).toContain('暫停觀望');
     expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('低');
     expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('回測 3D');
     expect(target.textContent).toContain('批量');

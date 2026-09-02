@@ -145,7 +145,7 @@ describe('snapshot health', () => {
     const target = document.createElement('div');
     target.setAttribute('aria-live', 'polite');
     renderCollectorStatus(target, status(), 'private stack/body', health);
-    expect(target.textContent).toContain('資料缺口');
+    expect(target.textContent).toContain('最後更新');
     expect(target.textContent).not.toContain('private stack/body');
     expect(target.getAttribute('aria-live')).toBe('polite');
 
