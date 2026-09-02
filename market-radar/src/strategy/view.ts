@@ -14,6 +14,7 @@ import {
 import type { StrategyPinStore } from './store';
 import {
   strategyTrendSignal,
+  type StrategyPriority,
   type StrategySignal,
   type StrategySignalAction,
   type StrategySignalConfidence,
@@ -78,6 +79,13 @@ const SIGNAL_LABELS: Record<StrategySignalAction, string> = {
   wait: '暫停觀望',
   sell: '賣出清倉',
   stop: '逐步出場',
+};
+
+const PRIORITY_LABELS: Record<StrategyPriority, string> = {
+  top: '最高',
+  high: '高',
+  medium: '中',
+  low: '低',
 };
 
 const CONFIDENCE_LABELS: Record<StrategySignalConfidence, string> = {
@@ -164,21 +172,14 @@ function strategyRow(
   row.append(pathCell);
 
   // ── 欄 4：日利 ──
+  // ── 欄 4：日利 ──
   const profitCell = element('td', 'strategy-profit');
   profitCell.textContent = liquidity.realizableProfitPerDay === null
     ? '—'
     : money(liquidity.realizableProfitPerDay);
   row.append(profitCell);
 
-  // ── 欄 5：建議 ──
-  const adviceCell = element('td', 'strategy-advice');
-  const signalBadge = element('span', 'strategy-signal');
-  signalBadge.dataset.strategySignal = signal.action;
-  signalBadge.textContent = SIGNAL_LABELS[signal.action];
-  adviceCell.append(signalBadge);
-  row.append(adviceCell);
-
-  // ── 欄 6：1D 趨勢 ──
+  // ── 欄 5：1D 趨勢 ──
   const trend1dCell = element('td', 'strategy-trend-cell');
   const delta1d = element('span');
   delta1d.className = deltaClass(signal.metrics.margin1dPct);
@@ -186,7 +187,7 @@ function strategyRow(
   trend1dCell.append(delta1d);
   row.append(trend1dCell);
 
-  // ── 欄 7：3D 趨勢 ──
+  // ── 欄 6：3D 趨勢 ──
   const trend3dCell = element('td', 'strategy-trend-cell');
   const delta3d = element('span');
   delta3d.className = deltaClass(signal.metrics.margin3dPct);
@@ -194,7 +195,7 @@ function strategyRow(
   trend3dCell.append(delta3d);
   row.append(trend3dCell);
 
-  // ── 欄 8：7D 趨勢 ──
+  // ── 欄 7：7D 趨勢 ──
   const trend7dCell = element('td', 'strategy-trend-cell');
   const delta7d = element('span');
   delta7d.className = deltaClass(signal.metrics.margin7dPct);
@@ -202,7 +203,7 @@ function strategyRow(
   trend7dCell.append(delta7d);
   row.append(trend7dCell);
 
-  // ── 欄 9：日產佔比（做滿24h佔市場日交易量%）──
+  // ── 欄 8：日產佔比（做滿24h佔市場日交易量%）──
   const shareCell = element('td', 'strategy-market-share');
   if (liquidity.marketSharePct !== null && Number.isFinite(liquidity.marketSharePct)) {
     shareCell.textContent = `${liquidity.marketSharePct.toFixed(1)}%`;
@@ -212,18 +213,27 @@ function strategyRow(
   }
   row.append(shareCell);
 
-  // ── 欄 10：資金/D ──
+  // ── 欄 9：資金/D ──
   const capital = element('td', 'strategy-capital');
   capital.textContent = money(candidate.workingCapital24h);
   row.append(capital);
 
-  // ── 欄 11：判定 ──
+  // ── 欄 10：判定 ──
   const classificationCell = element('td');
   const classification = element('span', 'strategy-classification');
   classification.dataset.classification = liquidity.classification;
   classification.textContent = CLASSIFICATION_LABELS[liquidity.classification];
   classificationCell.append(classification);
   row.append(classificationCell);
+
+  // ── 欄 11：優先級 ──
+  const priorityCell = element('td', 'strategy-priority-cell');
+  const priorityBadge = element('span', 'strategy-priority-badge');
+  priorityBadge.dataset.strategyPriority = signal.priority;
+  priorityBadge.textContent = PRIORITY_LABELS[signal.priority];
+  priorityBadge.title = signal.reasons.join('；');
+  priorityCell.append(priorityBadge);
+  row.append(priorityCell);
 
   return row;
 }
@@ -374,7 +384,7 @@ function renderResults(
   const table = element('table', 'strategy-table');
   const columnGroup = element('colgroup');
   for (const key of [
-    'pin', 'step', 'path', 'profit', 'advice', 'trend1d', 'trend3d', 'trend7d', 'marketShare', 'capital', 'classification',
+    'pin', 'step', 'path', 'profit', 'trend1d', 'trend3d', 'trend7d', 'marketShare', 'capital', 'classification', 'priority',
   ]) {
     const column = element('col');
     column.dataset.strategyColumn = key;
@@ -382,7 +392,7 @@ function renderResults(
   }
   const head = element('thead');
   const headerRow = element('tr');
-  for (const label of ['自選', '步驟', '路徑', '日利', '建議', '1D', '3D', '7D', '日產佔比', '資金/D', '判定']) {
+  for (const label of ['自選', '步驟', '路徑', '日利', '1D', '3D', '7D', '日產佔比', '資金/D', '判定', '優先級']) {
     const cell = element('th');
     cell.textContent = label;
     headerRow.append(cell);

@@ -24,6 +24,7 @@ function series(days: number, profit: (day: number) => number): StrategyMarginPo
 function signal(action: StrategySignal['action']): StrategySignal {
   return {
     action,
+    priority: 'high',
     confidence: 'low',
     reasons: [action],
     invalidation: ['test'],

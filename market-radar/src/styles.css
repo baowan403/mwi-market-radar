@@ -986,13 +986,13 @@ summary:focus-visible {
 .strategy-table col[data-strategy-column="step"] { width: 85px; }
 .strategy-table col[data-strategy-column="path"] { width: 230px; }
 .strategy-table col[data-strategy-column="profit"] { width: 80px; }
-.strategy-table col[data-strategy-column="advice"] { width: 90px; }
 .strategy-table col[data-strategy-column="trend1d"] { width: 68px; }
 .strategy-table col[data-strategy-column="trend3d"] { width: 68px; }
 .strategy-table col[data-strategy-column="trend7d"] { width: 68px; }
 .strategy-table col[data-strategy-column="marketShare"] { width: 80px; }
 .strategy-table col[data-strategy-column="capital"] { width: 76px; }
 .strategy-table col[data-strategy-column="classification"] { width: 72px; }
+.strategy-table col[data-strategy-column="priority"] { width: 80px; }
 
 .strategy-table th,
 .strategy-table td {
@@ -1068,62 +1068,50 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
-/* ── 建議欄 ── */
-.strategy-advice {
-  text-align: left !important;
+/* ── 優先級徽章 ── */
+.strategy-priority-cell {
+  text-align: center !important;
   white-space: nowrap;
 }
 
-.strategy-signal {
+.strategy-priority-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: fit-content;
-  min-width: 42px;
+  min-width: 44px;
   min-height: 23px;
-  padding: 3px 7px;
+  padding: 3px 8px;
   border: 1px solid var(--color-line);
   border-radius: 6px;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 750;
   line-height: 1.2;
+  white-space: nowrap;
 }
 
-.strategy-signal[data-strategy-signal="execute"] {
-  border-color: rgb(54 201 143 / 32%);
-  background: rgb(54 201 143 / 11%);
+.strategy-priority-badge[data-strategy-priority="top"] {
+  border-color: rgb(255 215 0 / 60%);
+  background: rgb(255 215 0 / 18%);
+  color: #ffdf40;
+  box-shadow: 0 0 6px rgb(255 215 0 / 25%);
+}
+
+.strategy-priority-badge[data-strategy-priority="high"] {
+  border-color: rgb(54 201 143 / 36%);
+  background: rgb(54 201 143 / 12%);
   color: var(--color-down);
 }
 
-.strategy-signal[data-strategy-signal="prepare"] {
-  border-color: rgb(120 169 255 / 32%);
-  background: rgb(120 169 255 / 11%);
-  color: var(--color-info);
-}
-
-.strategy-signal[data-strategy-signal="wait"] {
-  border-color: rgb(145 160 182 / 28%);
-  background: rgb(145 160 182 / 8%);
-  color: var(--color-muted);
-}
-
-.strategy-signal[data-strategy-signal="sell"] {
+.strategy-priority-badge[data-strategy-priority="medium"] {
   border-color: rgb(240 180 91 / 34%);
-  background: rgb(240 180 91 / 11%);
+  background: rgb(240 180 91 / 12%);
   color: var(--color-warning);
 }
 
-.strategy-signal[data-strategy-signal="stop"] {
-  border-color: rgb(255 90 98 / 32%);
-  background: rgb(255 90 98 / 11%);
-  color: var(--color-up);
-}
-
-.strategy-signal-confidence {
-  margin-left: 4px;
+.strategy-priority-badge[data-strategy-priority="low"] {
+  border-color: rgb(145 160 182 / 24%);
+  background: rgb(145 160 182 / 8%);
   color: var(--color-muted);
-  font-size: 0.66rem;
-  white-space: nowrap;
 }
 
 /* ── 判定徽章 ── */

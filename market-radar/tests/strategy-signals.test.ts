@@ -37,6 +37,7 @@ describe('explainable strategy trend signals', () => {
     })), { backtest: { passed: true, sampleSize: 10, hitRate: 0.6 } });
 
     expect(signal.action).toBe('execute');
+    expect(signal.priority).toBe('top');
     expect(signal.confidence).toBe('medium');
     expect(signal.reasons.join(' ')).toContain('利潤');
   });

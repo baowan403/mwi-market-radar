@@ -2,6 +2,7 @@ import type { StrategyMarginPoint } from './margin-series';
 
 export type StrategySignalAction = 'execute' | 'prepare' | 'wait' | 'sell' | 'stop';
 export type StrategySignalConfidence = 'none' | 'low' | 'medium' | 'high';
+export type StrategyPriority = 'top' | 'high' | 'medium' | 'low';
 
 export interface StrategySignalBacktest {
   passed: boolean;
@@ -11,6 +12,7 @@ export interface StrategySignalBacktest {
 
 export interface StrategySignal {
   action: StrategySignalAction;
+  priority: StrategyPriority;
   confidence: StrategySignalConfidence;
   reasons: string[];
   invalidation: string[];
@@ -84,7 +86,7 @@ export function strategyTrendSignal(
   };
   if (!latest || !earliest) {
     return {
-      action: 'wait', confidence: 'none', reasons: ['尚無策略歷史資料'],
+      action: 'wait', priority: 'low', confidence: 'none', reasons: ['尚無策略歷史資料'],
       invalidation: ['累積至少 7 天有效資料後重新判斷'], metrics: emptyMetrics,
     };
   }
@@ -92,7 +94,7 @@ export function strategyTrendSignal(
   const confidence = confidenceFor(spanDays, options.backtest);
   if (spanDays < 7) {
     return {
-      action: 'wait', confidence, reasons: ['有效歷史不足 7 天，不宣稱趨勢'],
+      action: 'wait', priority: 'low', confidence, reasons: ['有效歷史不足 7 天，不宣稱趨勢'],
       invalidation: ['累積滿 7 天有效資料後重新判斷'], metrics: emptyMetrics,
     };
   }
@@ -114,7 +116,7 @@ export function strategyTrendSignal(
   };
   if (!latest.complete || !finite(latest.realizableProfitPerDay)) {
     return {
-      action: 'wait', confidence, reasons: ['最新市場承接資料仍不完整'],
+      action: 'wait', priority: 'low', confidence, reasons: ['最新市場承接資料仍不完整'],
       invalidation: ['補齊 3D／7D 成交量樣本後重新判斷'], metrics,
     };
   }
@@ -129,7 +131,7 @@ export function strategyTrendSignal(
     || (metrics.margin3dPct !== null && metrics.margin3dPct <= -30 && recentPeak > latest.realizableProfitPerDay * 1.5)
   ) {
     return {
-      action: 'stop', confidence,
+      action: 'stop', priority: 'low', confidence,
       reasons: [latest.realizableProfitPerDay <= 0 ? '可實現利潤已轉為零或負值' : `3D 利潤暴跌 ${formatted(metrics.margin3dPct)}`],
       invalidation: ['利潤恢復為正，且 3D 改善至少 10% 才重新評估'], metrics,
     };
@@ -141,26 +143,32 @@ export function strategyTrendSignal(
     && metrics.capacity3dPct !== null && metrics.capacity3dPct <= -10
   ) {
     return {
-      action: 'sell', confidence,
+      action: 'sell', priority: 'medium', confidence,
       reasons: [`3D 售價上升 ${formatted(metrics.income3dPct)}，但承接容量下降 ${formatted(metrics.capacity3dPct)}`],
       invalidation: ['若承接容量 3D 回升至 -5% 以上，改回生產評估'], metrics,
     };
   }
 
   // ── 以下為「利潤為正」的分級推薦邏輯 ──
+  const m1 = metrics.margin1dPct;
   const m3 = metrics.margin3dPct;
   const m7 = metrics.margin7dPct;
 
   // 綠燈：3D 利潤穩定或上升 → 立即製造
   if (m3 === null || m3 >= -2) {
-    // 額外加分：7D 也是正向
-    const trendNote = m7 !== null && m7 >= 3
-      ? `7D 利潤上漲 ${formatted(m7)}，趨勢良好`
+    // 趨勢動能判定優先級：
+    // 最高：1D 短線爆發（>= +1.5% 且 3D >= 0%）或長短線共振（3D >= +3% 且 7D >= 0%）
+    const isSurging = (m1 !== null && m1 >= 1.5 && (m3 === null || m3 >= 0))
+      || (m3 !== null && m3 >= 3 && (m7 === null || m7 >= 0));
+    const priority: StrategyPriority = isSurging ? 'top' : 'high';
+
+    const trendNote = isSurging
+      ? (m1 !== null && m1 >= 1.5 ? `1D 利潤爆發（+${m1.toFixed(1)}%），處於擴張期` : `3D 利潤強勁（+${m3!.toFixed(1)}%）`)
       : m7 !== null && m7 >= 0
-        ? `7D 利潤持平，短期穩定`
+        ? `7D 利潤平穩，收益健康`
         : `3D 利潤穩定（${formatted(m3)}）`;
     return {
-      action: 'execute', confidence,
+      action: 'execute', priority, confidence,
       reasons: [trendNote, '日利為正且近期無顯著下滑'],
       invalidation: ['3D 利潤下降超過 10% 時重新評估'], metrics,
     };
@@ -172,7 +180,7 @@ export function strategyTrendSignal(
       ? `7D 仍為正向（${formatted(m7)}），但 3D 開始回調（${formatted(m3)}）`
       : `3D 下滑 ${formatted(m3)}，注意趨勢反轉風險`;
     return {
-      action: 'prepare', confidence,
+      action: 'prepare', priority: 'medium', confidence,
       reasons: [riskNote],
       invalidation: ['3D 改善至 -2% 以上則升級為推薦；惡化至 -10% 以下則降級為觀望'], metrics,
     };
@@ -180,7 +188,7 @@ export function strategyTrendSignal(
 
   // 灰燈：3D 下滑明顯（-8% 以上）→ 暫停觀望
   return {
-    action: 'wait', confidence,
+    action: 'wait', priority: 'low', confidence,
     reasons: [`3D 利潤下滑 ${formatted(m3)}，建議暫時觀望`],
     invalidation: ['3D 利潤止跌回升至 -3% 以上再重新評估'], metrics,
   };
