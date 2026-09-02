@@ -115,6 +115,12 @@ function renderNoProfile(options: StrategyViewOptions): void {
   options.target.append(empty);
 }
 
+/** 格式化趨勢百分比：正值帶 +，null 顯示 — */
+function trendPct(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return '—';
+  return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
+}
+
 function strategyRow(
   assessed: AssessedStrategy,
   assessedSignal: AssessedSignal,
@@ -127,6 +133,7 @@ function strategyRow(
   row.dataset.strategyRow = candidate.id;
   row.dataset.liquidityClassification = liquidity.classification;
 
+  // ── 欄 1：自選 ──
   const pinCell = element('td');
   const pin = element('button', 'pin-button');
   pin.type = 'button';
@@ -146,6 +153,7 @@ function strategyRow(
   pinCell.append(pin);
   row.append(pinCell);
 
+  // ── 欄 2：策略路徑 ──
   const strategyCell = element('td', 'strategy-name-cell');
   const strategyContent = element('div', 'strategy-name-content');
   const type = element('span', 'strategy-kind');
@@ -158,6 +166,7 @@ function strategyRow(
   strategyCell.append(strategyContent);
   row.append(strategyCell);
 
+  // ── 欄 3：判定 ──
   const classificationCell = element('td');
   const classification = element('span', 'strategy-classification');
   classification.dataset.classification = liquidity.classification;
@@ -165,23 +174,43 @@ function strategyRow(
   classificationCell.append(classification);
   row.append(classificationCell);
 
+  // ── 欄 4：日利（可實現為主角，理論為小字注腳）──
+  const profitCell = element('td', 'strategy-profit');
+  const profitMain = element('span', 'strategy-profit-main');
+  profitMain.textContent = liquidity.realizableProfitPerDay === null
+    ? '—'
+    : money(liquidity.realizableProfitPerDay);
+  const profitRef = element('span', 'strategy-profit-ref');
+  profitRef.textContent = `理論 ${money(liquidity.theoreticalProfitPerDay)}`;
+  profitCell.append(profitMain, profitRef);
+  row.append(profitCell);
+
+  // ── 欄 5：趨勢（行動徽章 + 3D/7D 變化百分比）──
   const signalCell = element('td', 'strategy-signal-cell');
   const signalContent = element('div', 'strategy-signal-content');
+
+  const signalLine = element('div', 'strategy-signal-line');
   const signalBadge = element('span', 'strategy-signal');
   signalBadge.dataset.strategySignal = signal.action;
   signalBadge.textContent = SIGNAL_LABELS[signal.action];
   const confidence = element('span', 'strategy-signal-confidence');
-  confidence.textContent = `信心 ${CONFIDENCE_LABELS[signal.confidence]}`;
+  confidence.textContent = CONFIDENCE_LABELS[signal.confidence];
+  signalLine.append(signalBadge, confidence);
+
+  // 直接顯示 3D/7D 利潤趨勢變化（Radar 核心差異化資訊）
+  const trendDelta = element('div', 'strategy-trend-delta');
+  const delta3d = element('span');
+  delta3d.className = deltaClass(signal.metrics.margin3dPct);
+  delta3d.textContent = `3D ${trendPct(signal.metrics.margin3dPct)}`;
+  const delta7d = element('span');
+  delta7d.className = deltaClass(signal.metrics.margin7dPct);
+  delta7d.textContent = `7D ${trendPct(signal.metrics.margin7dPct)}`;
+  trendDelta.append(delta3d, delta7d);
+
+  // 折疊：理由、失效條件與回測統計
   const signalDetails = element('details', 'strategy-signal-details');
   const signalSummary = element('summary');
   signalSummary.textContent = '理由';
-  const backtestSummary = element('div', 'strategy-backtest-summary');
-  for (const horizon of ['3d', '7d'] as const) {
-    const value = backtest.byHorizon[horizon];
-    const line = element('span');
-    line.textContent = `回測 ${horizon.toUpperCase()} ${value.samples} 次・命中 ${metric(value.hitRate === null ? null : value.hitRate * 100, '%')}・平均 ${metric(value.averageChangePct, '%')}・最大逆向 ${metric(value.maximumAdversePct, '%')}`;
-    backtestSummary.append(line);
-  }
   const reasons = element('ul');
   for (const reason of signal.reasons) {
     const item = element('li');
@@ -194,63 +223,75 @@ function strategyRow(
     item.textContent = `失效：${condition}`;
     invalidation.append(item);
   }
-  signalDetails.append(signalSummary, backtestSummary, reasons, invalidation);
-  signalContent.append(signalBadge, confidence, signalDetails);
+  const backtestSummary = element('div', 'strategy-backtest-summary');
+  for (const horizon of ['3d', '7d'] as const) {
+    const value = backtest.byHorizon[horizon];
+    const line = element('span');
+    line.textContent = `回測 ${horizon.toUpperCase()} ${value.samples} 次・命中 ${metric(value.hitRate === null ? null : value.hitRate * 100, '%')}・平均 ${metric(value.averageChangePct, '%')}・最大逆向 ${metric(value.maximumAdversePct, '%')}`;
+    backtestSummary.append(line);
+  }
+  signalDetails.append(signalSummary, reasons, invalidation, backtestSummary);
+
+  signalContent.append(signalLine, trendDelta, signalDetails);
   signalCell.append(signalContent);
   row.append(signalCell);
 
-  const theoretical = element('td', 'strategy-profit-theoretical');
-  theoretical.textContent = money(liquidity.theoreticalProfitPerDay);
-  row.append(theoretical);
-  const realizable = element('td', 'strategy-profit');
-  realizable.textContent = liquidity.realizableProfitPerDay === null
-    ? '—'
-    : money(liquidity.realizableProfitPerDay);
-  row.append(realizable);
-
-  const safeCell = element('td', 'strategy-metrics');
-  safeCell.dataset.strategyColumnCell = 'safe';
-  const safeStack = element('div', 'strategy-metric-stack');
-  const safeHours = element('span');
-  safeHours.textContent = `可執行 ${metric(liquidity.safeHoursPerDay, ' h/日')}`;
+  // ── 欄 6：執行量與承接（合併原安全執行 + 市場承接）──
+  const capacityCell = element('td', 'strategy-capacity');
+  const capacityStack = element('div', 'strategy-capacity-stack');
+  const safeHours = element('span', 'strategy-capacity-primary');
+  safeHours.textContent = `${metric(liquidity.safeHoursPerDay, ' h/日')}`;
   const safeBatch = element('span');
-  safeBatch.textContent = `安全批量 ${metric(liquidity.safeBatchUnits, '/日')}`;
-  safeStack.append(safeHours, safeBatch);
-  safeCell.append(safeStack);
-  row.append(safeCell);
-
-  const marketCell = element('td', 'strategy-metrics');
-  marketCell.dataset.strategyColumnCell = 'market';
-  const marketStack = element('div', 'strategy-metric-stack');
+  safeBatch.textContent = `批量 ${metric(liquidity.safeBatchUnits, '/日')}`;
   const share = element('span');
-  share.textContent = `市場占比 ${metric(liquidity.marketSharePct, '%')}`;
-  const sellThrough = element('span');
-  sellThrough.textContent = `售出估計 ${metric(liquidity.sellThroughDays, ' 日')}`;
-  const bottleneck = element('span');
+  share.textContent = `市占 ${metric(liquidity.marketSharePct, '%')}`;
+  const bottleneck = element('span', 'strategy-capacity-bottleneck');
   bottleneck.textContent = liquidity.bottleneckHrid === null
-    ? '瓶頸 無市場交易邊'
-    : `瓶頸 ${liquidity.bottleneckSide === 'input' ? '買入' : '賣出'} ${options.itemName(liquidity.bottleneckHrid)}`;
-  marketStack.append(share, sellThrough, bottleneck);
-  marketCell.append(marketStack);
-  row.append(marketCell);
+    ? ''
+    : `瓶頸 ${liquidity.bottleneckSide === 'input' ? '買' : '賣'} ${options.itemName(liquidity.bottleneckHrid)}`;
+  capacityStack.append(safeHours, safeBatch, share);
+  if (bottleneck.textContent) capacityStack.append(bottleneck);
+  capacityCell.append(capacityStack);
+  row.append(capacityCell);
 
+  // ── 欄 7：24h 資金 ──
   const capital = element('td', 'strategy-capital');
   capital.textContent = money(candidate.workingCapital24h);
   row.append(capital);
 
-  const stepCell = element('td');
-  const details = element('details', 'strategy-steps');
-  const summary = element('summary');
-  summary.textContent = `${candidate.steps.length} 步`;
+  return row;
+}
+
+/** 判斷趨勢百分比的色彩 class */
+function deltaClass(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return 'delta-neutral';
+  if (value >= 3) return 'delta-up';
+  if (value <= -3) return 'delta-down';
+  return 'delta-neutral';
+}
+
+/** 生成列展開詳情子列（步驟假設） */
+function detailRow(
+  candidate: StrategyCandidate,
+  options: StrategyViewOptions,
+): HTMLTableRowElement {
+  const row = element('tr', 'strategy-detail-row');
+  row.dataset.strategyDetailFor = candidate.id;
+  const cell = element('td');
+  cell.colSpan = 7;
+  const content = element('div', 'strategy-detail-content');
+  const heading = element('strong');
+  heading.textContent = `${candidate.steps.length} 步驟明細`;
+  content.append(heading);
   const list = element('ol');
   for (const step of candidate.steps) {
     const item = element('li');
     item.append(stepAssumptions(step, options));
     list.append(item);
   }
-  details.append(summary, list);
-  stepCell.append(details);
-  row.append(stepCell);
+  content.append(list);
+  cell.append(content);
+  row.append(cell);
   return row;
 }
 
@@ -299,7 +340,7 @@ function renderResults(
   const heading = element('h2');
   heading.textContent = '策略推薦';
   const warning = element('p', 'strategy-warning');
-  warning.textContent = '可實現日利採所有市場買賣邊的 3D／7D 成交量中位數與 5% 安全市占估算；這是成交量承接估計，不等同訂單簿深度或滑價保證。市場賣出按現行 5% 稅計算，點金不課市場稅。';
+  warning.textContent = '日利依所有市場邊的 3D／7D 成交量中位數與 5% 安全市占估算，不等同訂單簿深度。出售扣 5% 稅，點金免稅。';
   header.append(heading, warning);
   options.target.append(header);
 
@@ -361,14 +402,13 @@ function renderResults(
   }
 
   const meta = element('p', 'strategy-meta');
-  meta.textContent = `顯示前 ${Math.min(100, chosen.length)} / ${chosen.length} 條；預設依可實現日利排序`;
+  meta.textContent = `顯示前 ${Math.min(100, chosen.length)} / ${chosen.length} 條；依可實現日利排序`;
   options.target.append(meta);
   const scroll = element('div', 'strategy-table-scroll');
   const table = element('table', 'strategy-table');
   const columnGroup = element('colgroup');
   for (const key of [
-    'pin', 'path', 'classification', 'signal', 'theoretical',
-    'realizable', 'safe', 'market', 'capital', 'assumptions',
+    'pin', 'path', 'classification', 'profit', 'signal', 'capacity', 'capital',
   ]) {
     const column = element('col');
     column.dataset.strategyColumn = key;
@@ -376,7 +416,7 @@ function renderResults(
   }
   const head = element('thead');
   const headerRow = element('tr');
-  for (const label of ['自選', '策略路徑', '判定', '趨勢', '理論日利', '可實現日利', '安全執行', '市場承接', '24h 資金', '假設']) {
+  for (const label of ['自選', '策略路徑', '判定', '日利', '趨勢', '執行量與承接', '24h 資金']) {
     const cell = element('th');
     cell.textContent = label;
     headerRow.append(cell);
@@ -407,7 +447,19 @@ function renderResults(
       };
       signalCache.set(assessedCandidate.candidate.id, assessedSignal);
     }
-    body.append(strategyRow(assessedCandidate, assessedSignal, pinned, options));
+    const mainRow = strategyRow(assessedCandidate, assessedSignal, pinned, options);
+    const detail = detailRow(assessedCandidate.candidate, options);
+    detail.hidden = true;
+    // 點擊列展開/收合步驟面板
+    mainRow.addEventListener('click', (event) => {
+      // 不攔截按鈕、連結、details/summary 的點擊
+      const target = event.target as HTMLElement;
+      if (target.closest('button, a, summary')) return;
+      detail.hidden = !detail.hidden;
+      mainRow.classList.toggle('strategy-row-expanded', !detail.hidden);
+    });
+    mainRow.style.cursor = 'pointer';
+    body.append(mainRow, detail);
   }
   table.append(columnGroup, head, body);
   scroll.append(table);

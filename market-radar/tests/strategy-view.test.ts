@@ -114,8 +114,8 @@ describe('strategy recommendation view', () => {
     });
 
     await view.render();
-    expect(target.textContent).toContain('成交量承接估計');
-    expect(target.textContent).toContain('可實現日利');
+    expect(target.textContent).toContain('成交量');
+    expect(target.textContent).toContain('日利');
     expect(target.textContent).toContain('48M');
     expect(target.textContent).toContain('紅杉原木 → 紅杉木板 → 紅杉弓');
     expect(target.textContent).toContain('72M');
@@ -124,13 +124,13 @@ describe('strategy recommendation view', () => {
     expect([...target.querySelectorAll('col[data-strategy-column]')].map((column) => (
       column.getAttribute('data-strategy-column')
     ))).toEqual([
-      'pin', 'path', 'classification', 'signal', 'theoretical',
-      'realizable', 'safe', 'market', 'capital', 'assumptions',
+      'pin', 'path', 'classification', 'profit', 'signal', 'capacity', 'capital',
     ]);
     expect(target.querySelector('.strategy-name-cell > .strategy-name-content')).not.toBeNull();
     expect(target.querySelector('.strategy-signal-cell > .strategy-signal-content')).not.toBeNull();
-    expect(target.querySelector('[data-strategy-column-cell="safe"] > .strategy-metric-stack')).not.toBeNull();
-    expect(target.querySelector('[data-strategy-column-cell="market"] > .strategy-metric-stack')).not.toBeNull();
+    expect(target.querySelector('.strategy-profit-main')).not.toBeNull();
+    expect(target.querySelector('.strategy-profit-ref')).not.toBeNull();
+    expect(target.querySelector('.strategy-capacity .strategy-capacity-stack')).not.toBeNull();
     expect(target.querySelector('.strategy-name-cell')?.tagName).toBe('TD');
     expect(target.querySelector('.strategy-signal-cell')?.tagName).toBe('TD');
     const pin = target.querySelector<HTMLButtonElement>('[data-strategy-pin="workflow:redwood"]')!;
@@ -195,10 +195,10 @@ describe('strategy recommendation view', () => {
     expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('限量製作');
     expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('12K');
     expect(target.querySelector('[data-strategy-row="long"] [data-strategy-signal="wait"]')?.textContent).toContain('等待');
-    expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('信心 低');
+    expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('低');
     expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('回測 3D');
-    expect(target.textContent).toContain('安全批量');
-    expect(target.textContent).toContain('市場占比');
+    expect(target.textContent).toContain('批量');
+    expect(target.textContent).toContain('市占');
 
     (target.querySelector('[data-strategy-scope="limited"]') as HTMLButtonElement).click();
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow)).toEqual([

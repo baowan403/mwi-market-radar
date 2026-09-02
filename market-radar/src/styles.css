@@ -870,6 +870,7 @@ summary:focus-visible {
   color: var(--color-muted);
 }
 
+/* ── 策略推薦：空狀態與載入 ── */
 .strategy-empty,
 .strategy-no-result,
 .strategy-loading {
@@ -887,6 +888,7 @@ summary:focus-visible {
   color: var(--color-text);
 }
 
+/* ── 策略推薦：標頭與警告 ── */
 .strategy-header {
   display: grid;
   gap: 8px;
@@ -911,6 +913,7 @@ summary:focus-visible {
   font-size: 0.76rem;
 }
 
+/* ── 策略推薦：分類分頁 ── */
 .strategy-scopes {
   display: flex;
   flex-wrap: wrap;
@@ -919,14 +922,16 @@ summary:focus-visible {
 }
 
 .strategy-scope-button {
-  min-height: 36px;
-  padding: 7px 12px;
+  min-height: 40px;
+  padding: 8px 14px;
   border: 1px solid var(--color-line);
   border-radius: 8px;
   background: transparent;
   color: var(--color-muted);
   font-size: 0.8rem;
   font-weight: 650;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .strategy-scope-button:hover,
@@ -941,30 +946,30 @@ summary:focus-visible {
   outline-offset: 2px;
 }
 
+/* ── 策略推薦：表格容器與基礎 ── */
 .strategy-table-scroll {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   min-height: 420px;
 }
 
 .strategy-table {
   width: 100%;
-  min-width: 1214px;
+  min-width: 900px;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.8rem;
 }
 
-.strategy-table col[data-strategy-column="pin"] { width: 52px; }
-.strategy-table col[data-strategy-column="path"] { width: 220px; }
-.strategy-table col[data-strategy-column="classification"] { width: 84px; }
-.strategy-table col[data-strategy-column="signal"] { width: 120px; }
-.strategy-table col[data-strategy-column="theoretical"] { width: 105px; }
-.strategy-table col[data-strategy-column="realizable"] { width: 108px; }
-.strategy-table col[data-strategy-column="safe"] { width: 145px; }
-.strategy-table col[data-strategy-column="market"] { width: 185px; }
-.strategy-table col[data-strategy-column="capital"] { width: 105px; }
-.strategy-table col[data-strategy-column="assumptions"] { width: 90px; }
+/* ── 7 欄 colgroup 寬度定義 ── */
+.strategy-table col[data-strategy-column="pin"] { width: 44px; }
+.strategy-table col[data-strategy-column="path"] { width: 240px; }
+.strategy-table col[data-strategy-column="classification"] { width: 76px; }
+.strategy-table col[data-strategy-column="profit"] { width: 120px; }
+.strategy-table col[data-strategy-column="signal"] { width: 130px; }
+.strategy-table col[data-strategy-column="capacity"] { width: 200px; }
+.strategy-table col[data-strategy-column="capital"] { width: 90px; }
 
 .strategy-table th,
 .strategy-table td {
@@ -997,6 +1002,11 @@ summary:focus-visible {
   background: rgb(114 167 255 / 7%);
 }
 
+.strategy-row-expanded {
+  background: rgb(114 167 255 / 5%);
+}
+
+/* ── Sticky 自選 + 策略路徑 ── */
 .strategy-table th:first-child,
 .strategy-table td:first-child {
   position: sticky;
@@ -1009,7 +1019,7 @@ summary:focus-visible {
 .strategy-table th:nth-child(2),
 .strategy-name-cell {
   position: sticky;
-  left: 52px;
+  left: 44px;
   z-index: 2;
   background: var(--color-panel);
   text-align: left;
@@ -1020,6 +1030,7 @@ summary:focus-visible {
   z-index: 3;
 }
 
+/* ── 策略路徑欄 ── */
 .strategy-name-content {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -1050,29 +1061,39 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
-.strategy-profit,
-.strategy-profit-hour {
+/* ── 日利欄（可實現為主角 + 理論注腳）── */
+.strategy-profit {
+  white-space: nowrap;
+}
+
+.strategy-profit-main {
+  display: block;
   color: var(--color-down);
-  font-weight: 700;
-  white-space: nowrap;
+  font-size: 0.88rem;
+  font-weight: 750;
+  line-height: 1.2;
 }
 
-.strategy-profit-theoretical {
-  color: var(--color-text);
-  font-weight: 650;
-  white-space: nowrap;
+.strategy-profit-ref {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-muted);
+  font-size: 0.66rem;
+  font-weight: 500;
+  line-height: 1.2;
 }
 
+/* ── 判定徽章 ── */
 .strategy-classification {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 72px;
+  min-width: 60px;
   min-height: 25px;
-  padding: 4px 7px;
+  padding: 4px 6px;
   border: 1px solid var(--color-line);
   border-radius: 7px;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 750;
   line-height: 1.2;
   white-space: nowrap;
@@ -1108,16 +1129,21 @@ summary:focus-visible {
   color: var(--color-muted);
 }
 
+/* ── 趨勢欄 ── */
 .strategy-signal-cell {
   text-align: left !important;
 }
 
 .strategy-signal-content {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 4px 6px;
+  gap: 4px;
   min-width: 0;
+}
+
+.strategy-signal-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .strategy-signal {
@@ -1125,12 +1151,12 @@ summary:focus-visible {
   align-items: center;
   justify-content: center;
   width: fit-content;
-  min-width: 54px;
-  min-height: 25px;
-  padding: 4px 8px;
+  min-width: 42px;
+  min-height: 23px;
+  padding: 3px 7px;
   border: 1px solid var(--color-line);
-  border-radius: 7px;
-  font-size: 0.72rem;
+  border-radius: 6px;
+  font-size: 0.68rem;
   font-weight: 750;
   line-height: 1.2;
 }
@@ -1167,37 +1193,50 @@ summary:focus-visible {
 
 .strategy-signal-confidence {
   color: var(--color-muted);
-  font-size: 0.7rem;
+  font-size: 0.66rem;
   white-space: nowrap;
 }
 
+/* 3D/7D 利潤趨勢變化（Radar 核心差異化資訊） */
+.strategy-trend-delta {
+  display: flex;
+  gap: 8px;
+  font-size: 0.72rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.delta-up { color: var(--color-down); }
+.delta-down { color: var(--color-up); }
+.delta-neutral { color: var(--color-muted); }
+
 .strategy-signal-details {
-  grid-column: 1 / -1;
   min-width: 0;
 }
 
 .strategy-signal-details summary {
   cursor: pointer;
   color: var(--color-accent);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
 }
 
 .strategy-signal-details ul {
-  margin: 6px 0 0;
-  padding-left: 18px;
+  margin: 4px 0 0;
+  padding-left: 16px;
   color: var(--color-muted);
-  font-size: 0.72rem;
-  line-height: 1.45;
+  font-size: 0.68rem;
+  line-height: 1.4;
   overflow-wrap: anywhere;
 }
 
 .strategy-backtest-summary {
   display: grid;
-  gap: 3px;
-  margin-top: 6px;
+  gap: 2px;
+  margin-top: 4px;
   color: var(--color-info);
-  font-size: 0.7rem;
-  line-height: 1.4;
+  font-size: 0.66rem;
+  line-height: 1.35;
   overflow-wrap: anywhere;
 }
 
@@ -1205,50 +1244,75 @@ summary:focus-visible {
   color: var(--color-warning);
 }
 
-.strategy-metrics {
-  color: var(--color-muted);
+/* ── 執行量與承接欄（合併原安全執行 + 市場承接）── */
+.strategy-capacity {
+  text-align: left !important;
   font-size: 0.74rem;
   line-height: 1.35;
-  text-align: left !important;
+  color: var(--color-muted);
 }
 
-.strategy-metric-stack {
+.strategy-capacity-stack {
   display: grid;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
   overflow-wrap: anywhere;
   white-space: normal;
 }
 
-.strategy-metric-stack span:first-child {
+.strategy-capacity-primary {
   color: var(--color-text);
   font-weight: 650;
 }
 
+.strategy-capacity-bottleneck {
+  color: var(--color-warning);
+  font-size: 0.68rem;
+}
+
+/* ── 24h 資金欄 ── */
 .strategy-capital {
   color: var(--color-warning);
   white-space: nowrap;
 }
 
-.strategy-steps summary {
-  cursor: pointer;
-  color: var(--color-accent);
-  white-space: nowrap;
+/* ── 列展開詳情面板 ── */
+.strategy-detail-row td {
+  padding: 0;
+  border-bottom: 2px solid var(--color-line);
+  text-align: left;
+  background: rgb(114 167 255 / 4%);
 }
 
-.strategy-steps ol {
-  margin: 8px 0 0;
-  padding-left: 18px;
+.strategy-detail-content {
+  padding: 14px 20px 16px;
+  font-size: 0.76rem;
+  color: var(--color-text);
+}
+
+.strategy-detail-content > strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+}
+
+.strategy-detail-content ol {
+  margin: 0;
+  padding-left: 20px;
   color: var(--color-muted);
-  text-align: left;
-  white-space: normal;
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
 .strategy-step-assumptions {
   display: grid;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
+  margin-bottom: 10px;
+}
+
+.strategy-step-assumptions > strong {
+  color: var(--color-text);
 }
 
 .strategy-step-assumptions > span {
@@ -1258,9 +1322,18 @@ summary:focus-visible {
 
 .strategy-step-assumptions ul {
   display: grid;
-  gap: 3px;
+  gap: 2px;
   margin: 0;
   padding-left: 18px;
+  font-size: 0.7rem;
+}
+
+/* ── 手機版 pin 按鈕觸控區域 ── */
+.pin-button {
+  min-width: 36px;
+  min-height: 36px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .pagination {
