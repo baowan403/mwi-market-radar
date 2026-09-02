@@ -193,7 +193,7 @@ describe('strategy recommendation view', () => {
     expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('限量製作');
     expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('12K');
     expect(target.querySelector('[data-strategy-row="long"] [data-strategy-signal="execute"]')?.textContent).toContain('立即製造');
-    expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('低');
+    expect(target.querySelector('[data-strategy-row="long"] .strategy-trend')).not.toBeNull();
     expect(target.querySelector('[data-strategy-row="long"] .strategy-trend')).not.toBeNull();
     expect(target.querySelector('[data-strategy-row="long"] .strategy-capacity')).not.toBeNull();
 

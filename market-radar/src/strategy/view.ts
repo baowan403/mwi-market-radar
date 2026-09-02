@@ -170,14 +170,12 @@ function strategyRow(
     : money(liquidity.realizableProfitPerDay);
   row.append(profitCell);
 
-  // ── 欄 5：建議（操作建議 + 信心）──
+  // ── 欄 5：建議 ──
   const adviceCell = element('td', 'strategy-advice');
   const signalBadge = element('span', 'strategy-signal');
   signalBadge.dataset.strategySignal = signal.action;
   signalBadge.textContent = SIGNAL_LABELS[signal.action];
-  const confidence = element('span', 'strategy-signal-confidence');
-  confidence.textContent = CONFIDENCE_LABELS[signal.confidence];
-  adviceCell.append(signalBadge, confidence);
+  adviceCell.append(signalBadge);
   row.append(adviceCell);
 
   // ── 欄 6：趨勢（3D/7D 漲跌幅）──
