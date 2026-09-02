@@ -943,21 +943,36 @@ summary:focus-visible {
 
 .strategy-table-scroll {
   overflow-x: auto;
+  min-height: 420px;
 }
 
 .strategy-table {
   width: 100%;
-  min-width: 1590px;
-  border-collapse: collapse;
+  min-width: 1214px;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.8rem;
 }
 
+.strategy-table col[data-strategy-column="pin"] { width: 52px; }
+.strategy-table col[data-strategy-column="path"] { width: 220px; }
+.strategy-table col[data-strategy-column="classification"] { width: 84px; }
+.strategy-table col[data-strategy-column="signal"] { width: 120px; }
+.strategy-table col[data-strategy-column="theoretical"] { width: 105px; }
+.strategy-table col[data-strategy-column="realizable"] { width: 108px; }
+.strategy-table col[data-strategy-column="safe"] { width: 145px; }
+.strategy-table col[data-strategy-column="market"] { width: 185px; }
+.strategy-table col[data-strategy-column="capital"] { width: 105px; }
+.strategy-table col[data-strategy-column="assumptions"] { width: 90px; }
+
 .strategy-table th,
 .strategy-table td {
-  padding: 11px 12px;
+  box-sizing: border-box;
+  padding: 10px 10px;
   border-bottom: 1px solid var(--color-line);
   text-align: right;
-  vertical-align: top;
+  vertical-align: middle;
   font-variant-numeric: tabular-nums;
 }
 
@@ -967,19 +982,56 @@ summary:focus-visible {
   z-index: 1;
   background: var(--color-panel);
   color: var(--color-muted);
-  font-size: 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.strategy-table tbody tr {
+  transition: background-color 120ms ease;
+}
+
+.strategy-table tbody tr:hover,
+.strategy-table tbody tr:focus-visible {
+  background: rgb(114 167 255 / 7%);
 }
 
 .strategy-table th:first-child,
-.strategy-table td:first-child,
+.strategy-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--color-panel);
+  text-align: center;
+}
+
+.strategy-table th:nth-child(2),
 .strategy-name-cell {
+  position: sticky;
+  left: 52px;
+  z-index: 2;
+  background: var(--color-panel);
   text-align: left;
 }
 
-.strategy-name-cell {
+.strategy-table thead th:first-child,
+.strategy-table thead th:nth-child(2) {
+  z-index: 3;
+}
+
+.strategy-name-content {
   display: grid;
-  min-width: 250px;
-  gap: 4px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 2px 7px;
+  min-width: 0;
+}
+
+.strategy-name-content > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .strategy-kind {
@@ -989,21 +1041,26 @@ summary:focus-visible {
 }
 
 .strategy-path {
+  grid-column: 1 / -1;
+  overflow: hidden;
   color: var(--color-muted);
   font-size: 0.72rem;
-  line-height: 1.45;
-  white-space: normal;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .strategy-profit,
 .strategy-profit-hour {
   color: var(--color-down);
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .strategy-profit-theoretical {
   color: var(--color-text);
   font-weight: 650;
+  white-space: nowrap;
 }
 
 .strategy-classification {
@@ -1052,11 +1109,15 @@ summary:focus-visible {
 }
 
 .strategy-signal-cell {
-  display: grid;
-  min-width: 150px;
-  gap: 5px;
   text-align: left !important;
-  white-space: normal;
+}
+
+.strategy-signal-content {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
 }
 
 .strategy-signal {
@@ -1107,6 +1168,12 @@ summary:focus-visible {
 .strategy-signal-confidence {
   color: var(--color-muted);
   font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.strategy-signal-details {
+  grid-column: 1 / -1;
+  min-width: 0;
 }
 
 .strategy-signal-details summary {
@@ -1116,22 +1183,22 @@ summary:focus-visible {
 }
 
 .strategy-signal-details ul {
-  min-width: 280px;
   margin: 6px 0 0;
   padding-left: 18px;
   color: var(--color-muted);
   font-size: 0.72rem;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .strategy-backtest-summary {
   display: grid;
-  min-width: 330px;
   gap: 3px;
   margin-top: 6px;
   color: var(--color-info);
   font-size: 0.7rem;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .strategy-signal-details .strategy-invalidation {
@@ -1139,43 +1206,49 @@ summary:focus-visible {
 }
 
 .strategy-metrics {
-  display: grid;
-  min-width: 165px;
-  gap: 4px;
   color: var(--color-muted);
   font-size: 0.74rem;
   line-height: 1.35;
   text-align: left !important;
+}
+
+.strategy-metric-stack {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow-wrap: anywhere;
   white-space: normal;
 }
 
-.strategy-metrics span:first-child {
+.strategy-metric-stack span:first-child {
   color: var(--color-text);
   font-weight: 650;
 }
 
 .strategy-capital {
   color: var(--color-warning);
+  white-space: nowrap;
 }
 
 .strategy-steps summary {
   cursor: pointer;
   color: var(--color-accent);
+  white-space: nowrap;
 }
 
 .strategy-steps ol {
-  min-width: 260px;
   margin: 8px 0 0;
   padding-left: 18px;
   color: var(--color-muted);
   text-align: left;
   white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .strategy-step-assumptions {
   display: grid;
   gap: 5px;
-  min-width: 330px;
+  min-width: 0;
 }
 
 .strategy-step-assumptions > span {

@@ -38,8 +38,50 @@ test('imports a profile and persists personalized strategy recommendations witho
   await expect(page.locator('[data-strategy-row]').first().locator('[data-strategy-signal]')).toBeVisible();
   await expect(page.locator('[data-strategy-row]').first()).toContainText('信心 低');
   await expect(page.locator('[data-strategy-row]').first()).toContainText('回測 3D');
-  await page.locator('[data-strategy-row]').first().locator('.strategy-signal-details > summary').click();
+  const firstRow = page.locator('[data-strategy-row]').first();
+  const closedGeometry = await firstRow.evaluate((row) => {
+    const cells = [...row.querySelectorAll('td')];
+    const table = row.closest('table') as HTMLTableElement;
+    const scroll = table.parentElement as HTMLElement;
+    const path = row.querySelector('.strategy-name-cell') as HTMLElement;
+    const classification = cells[2] as HTMLElement;
+    const assumptions = cells[9] as HTMLElement;
+    const theoretical = row.querySelector('.strategy-profit-theoretical') as HTMLElement;
+    const realizable = row.querySelector('.strategy-profit') as HTMLElement;
+    return {
+      displays: cells.map((cell) => getComputedStyle(cell).display),
+      rowHeight: row.getBoundingClientRect().height,
+      pathWidth: path.getBoundingClientRect().width,
+      classificationWidth: classification.getBoundingClientRect().width,
+      assumptionsWidth: assumptions.getBoundingClientRect().width,
+      theoreticalWhiteSpace: getComputedStyle(theoretical).whiteSpace,
+      realizableWhiteSpace: getComputedStyle(realizable).whiteSpace,
+      tableWidth: table.getBoundingClientRect().width,
+      scrollWidth: scroll.getBoundingClientRect().width,
+      bodyScrollWidth: document.body.scrollWidth,
+      bodyClientWidth: document.body.clientWidth,
+    };
+  });
+  expect(closedGeometry.displays.every((display) => display === 'table-cell')).toBe(true);
+  expect(closedGeometry.pathWidth).toBeGreaterThan(closedGeometry.classificationWidth);
+  expect(closedGeometry.pathWidth).toBeGreaterThan(closedGeometry.assumptionsWidth);
+  expect(closedGeometry.rowHeight).toBeLessThanOrEqual(104);
+  expect(closedGeometry.theoreticalWhiteSpace).toBe('nowrap');
+  expect(closedGeometry.realizableWhiteSpace).toBe('nowrap');
+  expect(closedGeometry.bodyScrollWidth).toBeLessThanOrEqual(closedGeometry.bodyClientWidth + 1);
+  if ((page.viewportSize()?.width ?? 1280) < 800) {
+    expect(closedGeometry.tableWidth).toBeGreaterThan(closedGeometry.scrollWidth);
+  }
+
+  const pathWidthBeforeDisclosure = closedGeometry.pathWidth;
+  await firstRow.locator('.strategy-signal-details > summary').click();
   await expect(page.locator('[data-strategy-row]').first()).toContainText('失效：');
+  const openGeometry = await firstRow.evaluate((row) => ({
+    rowHeight: row.getBoundingClientRect().height,
+    pathWidth: (row.querySelector('.strategy-name-cell') as HTMLElement).getBoundingClientRect().width,
+  }));
+  expect(openGeometry.rowHeight).toBeGreaterThan(closedGeometry.rowHeight);
+  expect(Math.abs(openGeometry.pathWidth - pathWidthBeforeDisclosure)).toBeLessThan(1);
   const classificationStyle = await page.locator('.strategy-classification').first().evaluate((element) => ({
     background: getComputedStyle(element).backgroundColor,
     radius: Number.parseFloat(getComputedStyle(element).borderTopLeftRadius),
@@ -53,6 +95,10 @@ test('imports a profile and persists personalized strategy recommendations witho
   expect(signalStyle.background).not.toBe('rgba(0, 0, 0, 0)');
   expect(signalStyle.radius).toBeGreaterThan(0);
   await expect(page.locator('[data-strategy-row*="redwood"]').first()).toBeVisible();
+  const strategyText = await page.locator('#content').innerText();
+  expect(strategyText).toMatch(/\d(?:\.\d+)?M/);
+  expect(strategyText).not.toMatch(/\d(?:\.\d+)?B\b/);
+  expect(strategyText).not.toMatch(/\b\d{1,3}(?:,\d{3}){2,}\b/);
 
   await page.locator('[data-strategy-scope="limited"]').click();
   await expect(page.locator('[data-strategy-row]')).not.toHaveCount(0);
