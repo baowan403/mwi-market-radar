@@ -43,6 +43,9 @@ import {
   createCloudClient,
 } from './dashboard/cloud-client';
 import {
+  fetchOfficialSnapshot,
+} from './collector/official-client';
+import {
   createHybridClient,
   type HybridClient,
   type HybridCloudClient,
@@ -173,6 +176,7 @@ export interface DashboardMountOptions {
   waitForBridgeReady?: (target: BridgeDomTarget, options?: BridgeReadyWaitOptions) => Promise<boolean>;
   bridgeReadyTimeoutMs?: number;
   cloudClient?: HybridCloudClient;
+  fetchLive?: ((options: { signal?: AbortSignal }) => Promise<Snapshot>) | null;
   preferencesStore?: PreferencesStore;
   createCloudClient?: (baseDataUrl: string | URL) => HybridCloudClient;
   createPreferencesStore?: () => PreferencesStore;
@@ -1103,7 +1107,10 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
         ?? (typeof indexedDB === 'undefined' ? new MemoryPreferencesStore() : createPreferencesStore());
       const cloud = options.cloudClient
         ?? (options.createCloudClient ?? createCloudClient)(new URL('./data/', document.baseURI));
-      provider = createHybridClient({ cloud, preferences });
+      const fetchLive = options.fetchLive !== undefined
+        ? options.fetchLive
+        : (options.cloudClient !== undefined ? null : ((opts: { signal?: AbortSignal }) => fetchOfficialSnapshot({ signal: opts.signal })));
+      provider = createHybridClient({ cloud, preferences, fetchLive });
 
       try {
         [bootstrap, snapshots] = await Promise.all([provider.bootstrap(), provider.listSnapshots()]);

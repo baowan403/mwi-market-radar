@@ -38,6 +38,8 @@ export interface HybridClientOptions {
   cloud: HybridCloudClient;
   local?: DashboardClient;
   preferences: PreferencesStore;
+  /** Optional live snapshot fetcher. Defaults to MWI official API. Set to null to disable. */
+  fetchLive?: ((options: { signal?: AbortSignal }) => Promise<Snapshot>) | null;
 }
 
 export interface HybridRefreshOptions {
@@ -153,6 +155,7 @@ function statusFromSource(
 }
 
 export function createHybridClient(options: HybridClientOptions): HybridClient {
+  const liveFetcher = options.fetchLive ?? null;
   let localClient = options.local;
   let state: HybridState | null = null;
   let activeOperation: HybridOperation | null = null;
@@ -293,7 +296,7 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
       cloudPromise,
       localListPromise,
       localBootstrapPromise,
-    ]).then(([cloudResult, localListResult, localBootstrapResult]) => {
+    ]).then(async ([cloudResult, localListResult, localBootstrapResult]) => {
       if (
         operation.cancelled
         || controller.signal.aborted
@@ -338,6 +341,45 @@ export function createHybridClient(options: HybridClientOptions): HybridClient {
         sourceInfo,
         collectorStatus: statusFromSource(sourceInfo, localBootstrap?.collectorStatus ?? null),
       };
+
+      // ── 官方 API 即時行情增補 ──
+      // 不論 cloud 是否 stale，都嘗試從官方 API 取最新快照
+      // 失敗時靜默忽略，不影響已有資料
+      try {
+        if (liveFetcher !== null && !controller.signal.aborted && !destroyed) {
+          const liveSnapshot = await liveFetcher({ signal: controller.signal });
+          // 只有當官方快照比現有最新還新時才合併
+          const existingLatest = latestTimestamp(nextState.snapshots);
+          if (
+            liveSnapshot.timestamp > 0
+            && (existingLatest === null || liveSnapshot.timestamp >= existingLatest)
+          ) {
+            const byTimestamp = new Map<number, Snapshot>();
+            for (const s of nextState.snapshots) byTimestamp.set(s.timestamp, s);
+            byTimestamp.set(liveSnapshot.timestamp, liveSnapshot);
+            nextState.snapshots = [...byTimestamp.values()].sort((a, b) => a.timestamp - b.timestamp);
+            // 更新 sourceInfo 反映即時資料
+            nextState.sourceInfo = {
+              ...nextState.sourceInfo,
+              stale: false,
+              warningCode: null,
+              warning: null,
+              latestTimestamp: liveSnapshot.timestamp,
+            };
+            nextState.collectorStatus = {
+              state: 'ok',
+              lastAttemptAt: liveSnapshot.timestamp,
+              lastSuccessAt: liveSnapshot.timestamp,
+              officialTimestamp: liveSnapshot.timestamp,
+              nextRunAt: null,
+              lastErrorCode: null,
+            };
+          }
+        }
+      } catch {
+        // 官方 API 失敗（網路錯誤、超時等）→ 不影響已有 cloud/local 資料
+      }
+
       if (
         operation.cancelled
         || controller.signal.aborted
