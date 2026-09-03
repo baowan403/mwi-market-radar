@@ -4,7 +4,8 @@ import type { PlayerProfile, SkillingAction } from '../profile/types';
 import { backtestStrategySignals, type StrategyBacktestResult } from './backtest';
 import { buildStrategyCandidates, type StrategyCandidate, type StrategyCandidateResult } from './candidates';
 import type { NormalizedStrategyGameData } from './game-data';
-import { buildStrategyMarginSeries, repriceFixedCandidate } from './margin-series';
+import { buildStrategyMarginSeries, repriceFixedCandidate, type StrategyMarginPoint } from './margin-series';
+import { generateSparklineSvg } from './sparkline';
 import { createStrategyPriceBook } from './price-book';
 import {
   evaluateRealizableStrategy,
@@ -66,11 +67,11 @@ function kindLabel(kind: StrategyCandidate['kind']): string {
 }
 
 const CLASSIFICATION_LABELS: Record<LiquidityClassification, string> = {
-  'long-run': '可長掛',
-  'small-test': '小量試單',
-  limited: '限量製作',
-  reject: '不建議',
-  insufficient: '資料不足',
+  'long-run': '低',
+  'small-test': '中',
+  limited: '高',
+  reject: '極高',
+  insufficient: '缺資料',
 };
 
 const SIGNAL_LABELS: Record<StrategySignalAction, string> = {
@@ -165,6 +166,7 @@ interface AssessedStrategy {
 interface AssessedSignal {
   signal: StrategySignal;
   backtest: StrategyBacktestResult;
+  series: readonly StrategyMarginPoint[];
 }
 
 function renderNoProfile(options: StrategyViewOptions): void {
@@ -231,15 +233,31 @@ function strategyRow(
   pathCell.textContent = candidate.path.map(options.itemName).join(' → ');
   row.append(pathCell);
 
-  // ── 欄 4：日利 ──
-  // ── 欄 4：日利 ──
+  // ── 欄 4：理論日利（主）+ 次級折算值（副）──
   const profitCell = element('td', 'strategy-profit');
-  profitCell.textContent = liquidity.realizableProfitPerDay === null
-    ? '—'
-    : money(liquidity.realizableProfitPerDay);
+  const mainProfit = element('div', 'strategy-profit-main');
+  mainProfit.textContent = money(candidate.profitPerDay);
+  profitCell.append(mainProfit);
+
+  if (
+    liquidity.realizableProfitPerDay !== null
+    && Number.isFinite(liquidity.realizableProfitPerDay)
+    && liquidity.realizableProfitPerDay < candidate.profitPerDay * 0.98
+  ) {
+    const subProfit = element('div', 'strategy-profit-sub');
+    subProfit.textContent = `折算 ~${money(liquidity.realizableProfitPerDay)}`;
+    subProfit.title = `市場容量限制：每日安全折算為 ${money(liquidity.realizableProfitPerDay)}`;
+    profitCell.append(subProfit);
+  }
   row.append(profitCell);
 
-  // ── 欄 5：1D 趨勢 ──
+  // ── 欄 5：72H 走勢（Mini Sparkline 折線圖）──
+  const sparkCell = element('td', 'strategy-sparkline-cell');
+  sparkCell.innerHTML = generateSparklineSvg(assessedSignal.series, { width: 72, height: 20 });
+  sparkCell.title = '過去 72 小時利潤走勢波形（綠漲紅跌）';
+  row.append(sparkCell);
+
+  // ── 欄 6：1D 趨勢 ──
   const trend1dCell = element('td', 'strategy-trend-cell');
   const delta1d = element('span');
   delta1d.className = deltaClass(signal.metrics.margin1dPct);
@@ -247,7 +265,7 @@ function strategyRow(
   trend1dCell.append(delta1d);
   row.append(trend1dCell);
 
-  // ── 欄 6：3D 趨勢 ──
+  // ── 欄 7：3D 趨勢 ──
   const trend3dCell = element('td', 'strategy-trend-cell');
   const delta3d = element('span');
   delta3d.className = deltaClass(signal.metrics.margin3dPct);
@@ -255,7 +273,7 @@ function strategyRow(
   trend3dCell.append(delta3d);
   row.append(trend3dCell);
 
-  // ── 欄 7：7D 趨勢 ──
+  // ── 欄 8：7D 趨勢 ──
   const trend7dCell = element('td', 'strategy-trend-cell');
   const delta7d = element('span');
   delta7d.className = deltaClass(signal.metrics.margin7dPct);
@@ -263,30 +281,35 @@ function strategyRow(
   trend7dCell.append(delta7d);
   row.append(trend7dCell);
 
-  // ── 欄 8：日產佔比（做滿24h佔市場日交易量%）──
+  // ── 欄 9：日產佔比（做滿24h佔市場日交易量%）──
   const shareCell = element('td', 'strategy-market-share');
   if (liquidity.marketSharePct !== null && Number.isFinite(liquidity.marketSharePct)) {
-    shareCell.textContent = `${liquidity.marketSharePct.toFixed(1)}%`;
-    shareCell.title = `做滿24小時產量佔市場日成交量約 ${liquidity.marketSharePct.toFixed(1)}%`;
+    const pct = liquidity.marketSharePct;
+    shareCell.textContent = `${pct.toFixed(1)}%`;
+    if (pct <= 5) shareCell.classList.add('share-safe');
+    else if (pct <= 10) shareCell.classList.add('share-warning');
+    else if (pct <= 25) shareCell.classList.add('share-danger');
+    else shareCell.classList.add('share-critical');
+    shareCell.title = `做滿24小時產量佔市場日成交量約 ${pct.toFixed(1)}%`;
   } else {
     shareCell.textContent = '—';
   }
   row.append(shareCell);
 
-  // ── 欄 9：資金/D ──
+  // ── 欄 10：資金/D ──
   const capital = element('td', 'strategy-capital');
   capital.textContent = money(candidate.workingCapital24h);
   row.append(capital);
 
-  // ── 欄 10：判定 ──
-  const classificationCell = element('td');
+  // ── 欄 11：滯銷風險 ──
+  const classificationCell = element('td', 'strategy-classification-cell');
   const classification = element('span', 'strategy-classification');
   classification.dataset.classification = liquidity.classification;
   classification.textContent = CLASSIFICATION_LABELS[liquidity.classification];
   classificationCell.append(classification);
   row.append(classificationCell);
 
-  // ── 欄 11：優先級 ──
+  // ── 欄 12：優先級 ──
   const priorityCell = element('td', 'strategy-priority-cell');
   const priorityBadge = element('span', 'strategy-priority-badge');
   priorityBadge.dataset.strategyPriority = signal.priority;
@@ -314,7 +337,7 @@ function detailRow(
   const row = element('tr', 'strategy-detail-row');
   row.dataset.strategyDetailFor = candidate.id;
   const cell = element('td');
-  cell.colSpan = 7;
+  cell.colSpan = 12;
   const content = element('div', 'strategy-detail-content');
   const heading = element('strong');
   heading.textContent = `${candidate.steps.length} 步驟明細`;
@@ -341,21 +364,21 @@ function flowAssumption(
 }
 
 function stepAssumptions(step: StrategyStepResult, options: StrategyViewOptions): HTMLElement {
-  const wrapper = element('div', 'strategy-step-assumptions');
-  const headline = element('strong');
-  headline.textContent = `${step.action}｜${options.itemName(step.outputHrid)}｜${quantity(step.actionsPerHour)} 次/h`;
-  const economics = element('span');
+  const wrapper = element('div', 'strategy-step-item');
+  const headline = element('p', 'strategy-step-title');
+  headline.textContent = `${step.action}: ${options.itemName(step.outputHrid)}・${quantity(step.actionsPerHour)} 次/h`;
+  const economics = element('p', 'strategy-step-metrics');
   economics.textContent = `成本 ${metric(step.costPerHour, '/h')}・收入 ${metric(step.incomePerHour, '/h')}・利潤 ${metric(step.profitPerHour, '/h')}`;
-  const flows = element('ul');
-  for (const input of step.inputs) {
-    const line = element('li');
-    line.textContent = flowAssumption(input, '投入', options);
-    flows.append(line);
+  const flows = element('ul', 'strategy-step-flows');
+  for (const flow of step.inputs) {
+    const item = element('li');
+    item.textContent = flowAssumption(flow, '投入', options);
+    flows.append(item);
   }
-  for (const output of step.outputs) {
-    const line = element('li');
-    line.textContent = flowAssumption(output, '產出', options);
-    flows.append(line);
+  for (const flow of step.outputs) {
+    const item = element('li');
+    item.textContent = flowAssumption(flow, '產出', options);
+    flows.append(item);
   }
   wrapper.append(headline, economics, flows);
   return wrapper;
@@ -383,7 +406,7 @@ function renderResults(
   const heading = element('h2');
   heading.textContent = '策略推薦';
   const warning = element('p', 'strategy-warning');
-  warning.textContent = '日利依所有市場邊的 3D／7D 成交量中位數與 5% 安全市占估算，不等同訂單簿深度。出售扣 5% 稅，點金免稅。';
+  warning.textContent = '日利依全額產能估算，日產佔比依市場成交量計算，下方附註流動性折算參考。出售扣 5% 稅，點金免稅。';
   header.append(heading, warning);
   options.target.append(header);
 
@@ -462,19 +485,19 @@ function renderResults(
       return liquidity.classification === 'reject' || liquidity.classification === 'insufficient';
     });
 
-    // 排序：釘選優先，接著依日利降序
+    // 排序：釘選優先，接著依理論日利降序
     matched.sort((left, right) => {
       const byPinned = Number(pinned.has(right.candidate.id)) - Number(pinned.has(left.candidate.id));
       if (byPinned) return byPinned;
       if (!isSearchActive && filterState.scope === 'limited' && left.liquidity.classification !== right.liquidity.classification) {
         return left.liquidity.classification === 'insufficient' ? -1 : 1;
       }
-      const leftProfit = left.liquidity.realizableProfitPerDay ?? left.liquidity.theoreticalProfitPerDay;
-      const rightProfit = right.liquidity.realizableProfitPerDay ?? right.liquidity.theoreticalProfitPerDay;
+      const leftProfit = left.candidate.profitPerDay;
+      const rightProfit = right.candidate.profitPerDay;
       return rightProfit - leftProfit || left.candidate.id.localeCompare(right.candidate.id);
     });
 
-    // 筆數限制：一般模式取前 50 筆日利最高排名
+    // 筆數限制：一般模式取前 50 筆最高日利
     const chosen = matched.slice(0, 50);
 
     // 未搜尋時渲染 scope 分類切換鈕
@@ -527,10 +550,10 @@ function renderResults(
       meta.textContent = `搜尋「${filterState.searchQuery.trim()}」：顯示前 ${chosen.length} 條（依日利排序，含特例查詢項目）`;
     } else if (filterState.selectedSkill !== 'all') {
       const skillName = STRATEGY_SKILL_OPTIONS.find((s) => s.value === filterState.selectedSkill)?.label ?? '';
-      meta.textContent = `技能「${skillName}」：顯示前 ${chosen.length} 條；排除資料不足，依可實現日利排序`;
+      meta.textContent = `技能「${skillName}」：顯示前 ${chosen.length} 條；排除資料不足，依理論日利排序`;
     } else {
       meta.textContent = filterState.scope === 'actionable'
-        ? `顯示前 ${chosen.length} 條最高日利排名；排除資料不足，依可實現日利排序`
+        ? `顯示前 ${chosen.length} 條最高日利排名；排除資料不足，依理論日利排序`
         : `顯示前 ${chosen.length} / ${matched.length} 條觀察與資料不足項目`;
     }
     resultsContainer.append(meta);
@@ -539,7 +562,7 @@ function renderResults(
     const table = element('table', 'strategy-table');
     const columnGroup = element('colgroup');
     for (const key of [
-      'pin', 'step', 'path', 'profit', 'trend1d', 'trend3d', 'trend7d', 'marketShare', 'capital', 'classification', 'priority',
+      'pin', 'step', 'path', 'profit', 'sparkline', 'trend1d', 'trend3d', 'trend7d', 'marketShare', 'capital', 'classification', 'priority',
     ]) {
       const column = element('col');
       column.dataset.strategyColumn = key;
@@ -547,7 +570,7 @@ function renderResults(
     }
     const head = element('thead');
     const headerRow = element('tr');
-    for (const label of ['自選', '步驟', '路徑', '日利', '1D', '3D', '7D', '日產佔比', '資金/D', '判定', '優先級']) {
+    for (const label of ['自選', '步驟', '路徑', '日利', '72H走勢', '1D', '3D', '7D', '日產佔比', '資金/D', '滯銷風險', '優先級']) {
       const cell = element('th');
       cell.textContent = label;
       headerRow.append(cell);
@@ -575,6 +598,7 @@ function renderResults(
         assessedSignal = {
           signal: strategyTrendSignal(series, { backtest: backtest.summary }),
           backtest,
+          series,
         };
         signalCache.set(assessedCandidate.candidate.id, assessedSignal);
       }

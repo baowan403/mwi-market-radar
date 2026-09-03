@@ -1044,23 +1044,24 @@ summary:focus-visible {
   font-size: 0.8rem;
 }
 
-/* ── 11 欄 colgroup 寬度定義 ── */
+/* ── 12 欄 colgroup 寬度定義 ── */
 .strategy-table col[data-strategy-column="pin"] { width: 36px; }
 .strategy-table col[data-strategy-column="step"] { width: 85px; }
-.strategy-table col[data-strategy-column="path"] { width: 230px; }
-.strategy-table col[data-strategy-column="profit"] { width: 80px; }
-.strategy-table col[data-strategy-column="trend1d"] { width: 68px; }
-.strategy-table col[data-strategy-column="trend3d"] { width: 68px; }
-.strategy-table col[data-strategy-column="trend7d"] { width: 68px; }
+.strategy-table col[data-strategy-column="path"] { width: 220px; }
+.strategy-table col[data-strategy-column="profit"] { width: 100px; }
+.strategy-table col[data-strategy-column="sparkline"] { width: 86px; }
+.strategy-table col[data-strategy-column="trend1d"] { width: 66px; }
+.strategy-table col[data-strategy-column="trend3d"] { width: 66px; }
+.strategy-table col[data-strategy-column="trend7d"] { width: 66px; }
 .strategy-table col[data-strategy-column="marketShare"] { width: 80px; }
-.strategy-table col[data-strategy-column="capital"] { width: 76px; }
-.strategy-table col[data-strategy-column="classification"] { width: 72px; }
-.strategy-table col[data-strategy-column="priority"] { width: 80px; }
+.strategy-table col[data-strategy-column="capital"] { width: 80px; }
+.strategy-table col[data-strategy-column="classification"] { width: 70px; }
+.strategy-table col[data-strategy-column="priority"] { width: 75px; }
 
 .strategy-table th,
 .strategy-table td {
   box-sizing: border-box;
-  padding: 10px 8px;
+  padding: 8px 6px;
   border-bottom: 1px solid var(--color-line);
   text-align: center;
   vertical-align: middle;
@@ -1108,27 +1109,91 @@ summary:focus-visible {
 
 /* ── 步驟欄 ── */
 .strategy-step {
-  color: var(--color-info);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  font-weight: 650;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* ── 策略路徑欄 ── */
+.strategy-path-cell {
+  text-align: left;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* ── 理論日利 + 折算次文字 ── */
+.strategy-profit {
+  font-variant-numeric: tabular-nums;
+}
+
+.strategy-profit-main {
+  font-size: 0.82rem;
+  font-weight: 750;
+  color: #34d399;
+}
+
+.strategy-profit-sub {
+  font-size: 0.68rem;
+  font-weight: 550;
+  color: var(--color-muted);
+  margin-top: 2px;
+}
+
+/* ── 72H Mini Sparkline 走勢欄 ── */
+.strategy-sparkline-cell {
+  padding: 4px 6px;
+}
+
+.strategy-sparkline {
+  display: block;
+  margin: 0 auto;
+  overflow: visible;
+}
+
+/* ── 日產佔比色彩警示 ── */
+.strategy-market-share {
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.strategy-market-share.share-safe {
+  color: #34d399;
+  font-weight: 650;
+}
+
+.strategy-market-share.share-warning {
+  color: #fbbf24;
+  font-weight: 650;
+}
+
+.strategy-market-share.share-danger {
+  color: #fb923c;
+  font-weight: 700;
+}
+
+.strategy-market-share.share-critical {
+  color: #f87171;
+  font-weight: 800;
+}
+
+/* ── 趨勢儲存格 ── */
+.strategy-trend-cell {
   font-size: 0.76rem;
   font-weight: 700;
-  white-space: nowrap;
 }
 
-/* ── 路徑欄（左對齊，長文字居中會很醜）── */
-.strategy-path-cell {
-  text-align: left !important;
-  color: var(--color-muted);
+/* ── 資金儲存格 ── */
+.strategy-capital {
   font-size: 0.74rem;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-}
-
-/* ── 日利欄 ── */
-.strategy-profit {
-  color: var(--color-down);
-  font-size: 0.88rem;
-  font-weight: 750;
-  white-space: nowrap;
+  color: var(--color-muted);
 }
 
 /* ── 優先級徽章 ── */
@@ -1177,49 +1242,49 @@ summary:focus-visible {
   color: var(--color-muted);
 }
 
-/* ── 判定徽章 ── */
+/* ── 滯銷風險徽章 ── */
 .strategy-classification {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 52px;
-  min-height: 23px;
-  padding: 3px 6px;
+  min-width: 42px;
+  min-height: 22px;
+  padding: 2px 6px;
   border: 1px solid var(--color-line);
-  border-radius: 7px;
-  font-size: 0.68rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
   font-weight: 750;
   line-height: 1.2;
   white-space: nowrap;
 }
 
 .strategy-classification[data-classification="long-run"] {
-  border-color: rgb(54 201 143 / 32%);
-  background: rgb(54 201 143 / 11%);
-  color: var(--color-down);
+  border-color: rgb(52 211 153 / 36%);
+  background: rgb(52 211 153 / 12%);
+  color: #34d399;
 }
 
 .strategy-classification[data-classification="small-test"] {
-  border-color: rgb(120 169 255 / 32%);
-  background: rgb(120 169 255 / 11%);
-  color: var(--color-info);
+  border-color: rgb(251 191 36 / 36%);
+  background: rgb(251 191 36 / 12%);
+  color: #fbbf24;
 }
 
 .strategy-classification[data-classification="limited"] {
-  border-color: rgb(240 180 91 / 34%);
-  background: rgb(240 180 91 / 11%);
-  color: var(--color-warning);
+  border-color: rgb(251 146 60 / 40%);
+  background: rgb(251 146 60 / 14%);
+  color: #fb923c;
 }
 
 .strategy-classification[data-classification="reject"] {
-  border-color: rgb(255 90 98 / 32%);
-  background: rgb(255 90 98 / 11%);
-  color: var(--color-up);
+  border-color: rgb(248 113 113 / 40%);
+  background: rgb(248 113 113 / 14%);
+  color: #f87171;
 }
 
 .strategy-classification[data-classification="insufficient"] {
-  border-color: rgb(145 160 182 / 26%);
-  background: rgb(145 160 182 / 8%);
+  border-color: rgb(156 163 175 / 24%);
+  background: rgb(156 163 175 / 8%);
   color: var(--color-muted);
 }
 

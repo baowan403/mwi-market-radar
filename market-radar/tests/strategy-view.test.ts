@@ -125,7 +125,7 @@ describe('strategy recommendation view', () => {
     expect([...target.querySelectorAll('col[data-strategy-column]')].map((column) => (
       column.getAttribute('data-strategy-column')
     ))).toEqual([
-      'pin', 'step', 'path', 'profit', 'trend1d', 'trend3d', 'trend7d', 'marketShare', 'capital', 'classification', 'priority',
+      'pin', 'step', 'path', 'profit', 'sparkline', 'trend1d', 'trend3d', 'trend7d', 'marketShare', 'capital', 'classification', 'priority',
     ]);
     expect(target.querySelector('.strategy-step')).not.toBeNull();
     expect(target.querySelector('.strategy-path-cell')).not.toBeNull();
@@ -189,11 +189,12 @@ describe('strategy recommendation view', () => {
     await view.render();
     expect(target.querySelector('[data-strategy-scope="actionable"]')?.getAttribute('aria-pressed')).toBe('true');
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow)).toEqual([
-      'long', 'limited',
+      'limited', 'long',
     ]);
-    expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('可長掛');
-    expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('限量製作');
+    expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('低');
+    expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('高');
     expect(target.querySelector('[data-strategy-row="long"] [data-strategy-priority]')).not.toBeNull();
+    expect(target.querySelector('[data-strategy-row="long"] .strategy-sparkline')).not.toBeNull();
     expect(target.querySelector('[data-strategy-row="long"] .strategy-trend-cell')).not.toBeNull();
     expect(target.querySelector('[data-strategy-row="long"] .strategy-market-share')).not.toBeNull();
 
@@ -201,8 +202,8 @@ describe('strategy recommendation view', () => {
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow)).toEqual([
       'insufficient', 'reject',
     ]);
-    expect(target.querySelector('[data-strategy-row="reject"]')?.textContent).toContain('不建議');
-    expect(target.querySelector('[data-strategy-row="insufficient"]')?.textContent).toContain('資料不足');
+    expect(target.querySelector('[data-strategy-row="reject"]')?.textContent).toContain('極高');
+    expect(target.querySelector('[data-strategy-row="insufficient"]')?.textContent).toContain('缺資料');
     view.destroy();
   });
 
@@ -331,7 +332,7 @@ describe('strategy recommendation view', () => {
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
       'goblin_staff',
     ]);
-    expect(target.querySelector('[data-strategy-row="goblin_staff"]')?.textContent).toContain('資料不足');
+    expect(target.querySelector('[data-strategy-row="goblin_staff"]')?.textContent).toContain('缺資料');
 
     view.destroy();
   });
