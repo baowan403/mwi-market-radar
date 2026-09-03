@@ -6,7 +6,6 @@ import {
 } from './dashboard-bridge';
 import type { BridgeDomTarget } from '../dashboard/client';
 import { startGameCollector as defaultStartGameCollector, type GameCollectorHandle } from './game-collector';
-import { hookGameWebSocket, installRadarExportButton } from './radar-exporter';
 import { DEFAULT_DASHBOARD_ORIGINS, isAllowedDashboardUrl } from './origins';
 
 declare const __MWI_RADAR_DASHBOARD_ORIGINS__: readonly string[];
@@ -129,8 +128,6 @@ export function startForCurrentOrigin(
 
   try {
     if (route === 'mwi') {
-      hookGameWebSocket();
-      installRadarExportButton();
       (options.startGameCollector ?? defaultStartGameCollector)();
     } else if (route === 'dashboard') {
       startDashboardRoute(
