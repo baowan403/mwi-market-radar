@@ -10,7 +10,7 @@ describe('market radar Pages workflow', () => {
     expect(workflow).toContain('push:');
     expect(workflow).toContain('branches: [main]');
     expect(workflow).toContain('schedule:');
-    expect(workflow).toContain('cron: "13 * * * *"');
+    expect(workflow).toContain('cron: "13,28,43,58 * * * *"');
     expect(workflow).toContain('workflow_dispatch:');
     expect(workflow).toContain('contents: write');
     expect(workflow).toContain('pages: write');

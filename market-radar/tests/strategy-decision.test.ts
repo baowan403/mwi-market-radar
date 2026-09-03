@@ -72,13 +72,13 @@ describe('strategy decision and inventory-aware funding', () => {
     expect(short.rankValue).toBe(4_000);
   });
 
-  it('fails closed when the latest market snapshot is older than 60 minutes', () => {
-    expect(strategyDataFreshness(15 * 60_000)).toBe('fresh');
-    expect(strategyDataFreshness(60 * 60_000)).toBe('delayed');
-    expect(strategyDataFreshness(60 * 60_000 + 1)).toBe('stale');
+  it('fails closed when the latest market snapshot is older than 180 minutes', () => {
+    expect(strategyDataFreshness(20 * 60_000)).toBe('fresh');
+    expect(strategyDataFreshness(180 * 60_000)).toBe('delayed');
+    expect(strategyDataFreshness(180 * 60_000 + 1)).toBe('stale');
     expect(assessStrategyDecision({
       candidate, liquidity: liquidity(24), profile, plannedHours: 8, mode: 'steady',
-      latestSnapshotAgeMs: 61 * 60_000,
+      latestSnapshotAgeMs: 181 * 60_000,
     }).actionable).toBe(false);
   });
 });

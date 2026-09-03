@@ -30,8 +30,8 @@ const MINUTE_MS = 60_000;
 
 export function strategyDataFreshness(ageMs: number): StrategyDataFreshness {
   if (!Number.isFinite(ageMs) || ageMs < 0) return 'stale';
-  if (ageMs <= 15 * MINUTE_MS) return 'fresh';
-  if (ageMs <= 60 * MINUTE_MS) return 'delayed';
+  if (ageMs <= 20 * MINUTE_MS) return 'fresh';
+  if (ageMs <= 180 * MINUTE_MS) return 'delayed';
   return 'stale';
 }
 

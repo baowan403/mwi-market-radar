@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: "13 * * * *"
+    - cron: "13,28,43,58 * * * *"
   workflow_dispatch:
     inputs:
       backfill_stockmarket_7d:
