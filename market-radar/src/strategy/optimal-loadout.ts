@@ -70,6 +70,14 @@ export function enrichProfileWithBestLoadout(
   const enrichedActions = { ...profile.actions };
   const enrichedSpecial = { ...profile.specialEquipment };
 
+  // 若尚未配置 pouch，且倉庫/背包中有暴飲之囊 (Guzzling Pouch)，自動穿上最高強化者
+  if (!enrichedSpecial.pouch && profile.inventoryMap['/items/guzzling_pouch'] !== undefined) {
+    enrichedSpecial.pouch = {
+      itemHrid: '/items/guzzling_pouch',
+      enhancementLevel: profile.inventoryMap['/items/guzzling_pouch'],
+    };
+  }
+
   for (const [actionKey, actionProfile] of Object.entries(enrichedActions)) {
     const action = actionKey as SkillingAction;
     const teas = (actionProfile.teas && actionProfile.teas.length > 0)

@@ -4,6 +4,8 @@ import type { NormalizedStrategyGameData } from './game-data';
 import { expandStrategyLiquidation } from './liquidation';
 import { calculateManufacture, type PricedCount } from './manufacture';
 import type { MarketPriceBook } from './price-book';
+import { findOptimalTeasForManufacture } from './tea-optimizer';
+import { optimalTeasForAction } from './optimal-loadout';
 import type { DropItem, StrategyActionDetail, StrategyFlow, StrategyStepResult } from './types';
 
 const MANUFACTURING_ACTIONS = new Set<SkillingAction>([
@@ -97,7 +99,22 @@ export function calculateManufactureAction(options: {
   if (!detail || !Array.isArray(detail.outputItems) || detail.outputItems.length === 0) {
     throw new StrategyRecipeError();
   }
-  const buffs = options.buffs ?? actionBuffs(profile, action, data);
+  let activeTeas = profile.actions[action]?.teas ?? [];
+  const defaultTeas = optimalTeasForAction(action);
+  const isAutoOptimal = activeTeas.length === 0
+    || (activeTeas.length === defaultTeas.length && activeTeas.every((t, i) => t === defaultTeas[i]));
+
+  let buffs: ActionBuffs;
+  if (options.buffs) {
+    buffs = options.buffs;
+  } else if (isAutoOptimal) {
+    const optimal = findOptimalTeasForManufacture({ action, detail, profile, data, prices });
+    activeTeas = optimal.teas;
+    buffs = optimal.buffs;
+  } else {
+    buffs = actionBuffs(profile, action, data);
+  }
+
   if (buffs.Level < detail.levelRequirement.level) throw new StrategyRecipeError();
   const ingredients: PricedCount[] = [];
   if (typeof detail.upgradeItemHrid === 'string' && detail.upgradeItemHrid.startsWith('/items/')) {
@@ -122,7 +139,7 @@ export function calculateManufactureAction(options: {
     price: prices.bid(item.itemHrid),
     taxable: taxable(item.itemHrid, data),
   }));
-  const teas: PricedCount[] = profile.actions[action].teas
+  const teas: PricedCount[] = activeTeas
     .filter((itemHrid) => prices.ask(itemHrid) !== null)
     .map((itemHrid) => ({
       itemHrid,
