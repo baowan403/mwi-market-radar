@@ -352,4 +352,59 @@ describe('strategy recommendation view', () => {
 
     view.destroy();
   });
+
+  it('excludes intermediate products from procurement list in multi-step workflows', async () => {
+    const target = document.createElement('section');
+    const snapshots = history({
+      '/items/raw_material': 10_000,
+      '/items/intermediate_material': 10_000,
+      '/items/final_product': 10_000,
+    });
+    const multiStepResult: StrategyCandidateResult = {
+      diagnostics: [],
+      candidates: [
+        {
+          id: 'workflow:chain', kind: 'workflow', title: '三步鏈條',
+          path: ['/items/raw_material', '/items/intermediate_material', '/items/final_product'],
+          profitPerHour: 5_000, profitPerDay: 120_000, costPerHour: 1_000, incomePerHour: 6_000,
+          workingCapital24h: 24_000,
+          steps: [
+            {
+              id: 'step1', action: 'crafting', actionHrid: '/actions/crafting/step1', outputHrid: '/items/intermediate_material',
+              valid: true, actionsPerHour: 1, costPerHour: 1_000, incomePerHour: 2_000, profitPerHour: 1_000, experiencePerHour: 10,
+              inputs: [{ itemHrid: '/items/raw_material', enhancementLevel: 0, unitsPerHour: 10, unitPrice: 100, market: true }],
+              outputs: [{ itemHrid: '/items/intermediate_material', enhancementLevel: 0, unitsPerHour: 20, unitPrice: 150, market: true }],
+            },
+            {
+              id: 'step2', action: 'crafting', actionHrid: '/actions/crafting/step2', outputHrid: '/items/final_product',
+              valid: true, actionsPerHour: 1, costPerHour: 2_000, incomePerHour: 6_000, profitPerHour: 4_000, experiencePerHour: 10,
+              inputs: [{ itemHrid: '/items/intermediate_material', enhancementLevel: 0, unitsPerHour: 20, unitPrice: 150, market: true }],
+              outputs: [{ itemHrid: '/items/final_product', enhancementLevel: 0, unitsPerHour: 5, unitPrice: 1_200, market: true }],
+            },
+          ],
+        },
+      ],
+    };
+
+    const view = createStrategyView({
+      target,
+      getProfile: () => profile,
+      getSnapshots: () => snapshots,
+      loadGameData: async () => ({ shopItemDetailMap: {}, openableLootDropMap: {}, itemsByHrid: new Map() }) as never,
+      pinStore: createMemoryStrategyPinStore(),
+      calculate: () => multiStepResult,
+      itemName: (hrid) => hrid.split('/').at(-1) ?? hrid,
+      onImportProfile: vi.fn(),
+      now: () => snapshots.at(-1)!.timestamp,
+    });
+
+    await view.render();
+    const detailRow = target.querySelector<HTMLElement>('.strategy-detail-row');
+    expect(detailRow).not.toBeNull();
+    const text = detailRow?.textContent ?? '';
+    expect(text).toContain('raw_material');
+    expect(text).not.toContain('採購 intermediate_material');
+
+    view.destroy();
+  });
 });

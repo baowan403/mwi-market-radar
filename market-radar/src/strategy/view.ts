@@ -14,6 +14,7 @@ import {
 } from './decision';
 import {
   evaluateRealizableStrategy,
+  externalStrategyFlows,
   type LiquidityClassification,
   type RealizableStrategy,
 } from './realizable';
@@ -469,13 +470,11 @@ function buildScheduleCard(assessed: AssessedStrategy, options: StrategyViewOpti
     }
 
     const inputTotals = new Map<string, { units: number; price: number | null }>();
-    for (const step of assessed.candidate.steps) {
-      for (const flow of step.inputs) {
-        if (!flow.market || flow.unitPrice === null) continue;
-        const current = inputTotals.get(flow.itemHrid) ?? { units: 0, price: flow.unitPrice };
-        current.units += flow.unitsPerHour * currentHours;
-        inputTotals.set(flow.itemHrid, current);
-      }
+    for (const { side, flow } of externalStrategyFlows(assessed.candidate)) {
+      if (side !== 'input' || !flow.market || flow.unitPrice === null || flow.unitsPerHour <= 0) continue;
+      const current = inputTotals.get(flow.itemHrid) ?? { units: 0, price: flow.unitPrice };
+      current.units += flow.unitsPerHour * currentHours;
+      inputTotals.set(flow.itemHrid, current);
     }
 
     if (inputTotals.size === 0) {
