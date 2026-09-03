@@ -45,10 +45,10 @@ button {
 }
 
 .radar-shell {
-  width: min(1180px, 100%);
+  width: min(1560px, 96vw);
   min-height: 100vh;
   margin: 0 auto;
-  padding: 28px clamp(18px, 4vw, 48px) 56px;
+  padding: 24px clamp(16px, 2.5vw, 36px) 56px;
 }
 
 .topbar,
@@ -1046,16 +1046,16 @@ summary:focus-visible {
 
 /* ── 12 欄 colgroup 寬度定義 ── */
 .strategy-table col[data-strategy-column="pin"] { width: 36px; }
-.strategy-table col[data-strategy-column="step"] { width: 85px; }
-.strategy-table col[data-strategy-column="path"] { width: 220px; }
-.strategy-table col[data-strategy-column="profit"] { width: 100px; }
-.strategy-table col[data-strategy-column="sparkline"] { width: 86px; }
+.strategy-table col[data-strategy-column="step"] { width: 105px; }
+.strategy-table col[data-strategy-column="path"] { width: 240px; }
+.strategy-table col[data-strategy-column="profit"] { width: 105px; }
 .strategy-table col[data-strategy-column="trend1d"] { width: 66px; }
 .strategy-table col[data-strategy-column="trend3d"] { width: 66px; }
 .strategy-table col[data-strategy-column="trend7d"] { width: 66px; }
+.strategy-table col[data-strategy-column="sparkline"] { width: 88px; }
 .strategy-table col[data-strategy-column="marketShare"] { width: 80px; }
 .strategy-table col[data-strategy-column="capital"] { width: 80px; }
-.strategy-table col[data-strategy-column="classification"] { width: 70px; }
+.strategy-table col[data-strategy-column="classification"] { width: 68px; }
 .strategy-table col[data-strategy-column="priority"] { width: 75px; }
 
 .strategy-table th,
@@ -1093,7 +1093,7 @@ summary:focus-visible {
   background: rgb(114 167 255 / 5%);
 }
 
-/* ── Sticky 自選 + 策略路徑 ── */
+/* ── Sticky 自選欄 ── */
 .strategy-table th:first-child,
 .strategy-table td:first-child {
   position: sticky;
@@ -1102,8 +1102,7 @@ summary:focus-visible {
   background: var(--color-panel);
 }
 
-.strategy-table thead th:first-child,
-.strategy-table thead th:nth-child(2) {
+.strategy-table thead th:first-child {
   z-index: 3;
 }
 

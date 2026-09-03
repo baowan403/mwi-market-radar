@@ -39,6 +39,7 @@ export interface StrategyActionDetail {
   baseTimeCost: number;
   inputItems?: CountedItem[] | null;
   outputItems?: CountedItem[] | null;
+  dropTable?: DropItem[] | null;
   essenceDropTable?: DropItem[] | null;
   rareDropTable?: DropItem[] | null;
   upgradeItemHrid?: string | null;

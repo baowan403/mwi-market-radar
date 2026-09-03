@@ -114,4 +114,27 @@ describe('explainable strategy trend signals', () => {
     expect(signal.confidence).toBe('none');
     expect(signal.reasons.join(' ')).toContain('不足 7 天');
   });
+
+  it('downgrades priority when liquidity classification indicates risk', () => {
+    // 原本動能強勁可得 top
+    const surgingSeries = series(31, (ratio) => ({
+      cost: 100,
+      income: 200 + 100 * ratio,
+      capacity: 100 + 50 * ratio,
+      spread: 1,
+    }));
+
+    const signalLimited = strategyTrendSignal(surgingSeries, {
+      classification: 'limited',
+      backtest: { passed: true, sampleSize: 10, hitRate: 0.6 },
+    });
+    expect(signalLimited.priority).toBe('medium');
+    expect(signalLimited.reasons.join(' ')).toContain('市場深度受限');
+
+    const signalReject = strategyTrendSignal(surgingSeries, {
+      classification: 'reject',
+    });
+    expect(signalReject.priority).toBe('low');
+    expect(signalReject.reasons.join(' ')).toContain('市場深度嚴重不足');
+  });
 });

@@ -160,3 +160,75 @@ export function calculateManufactureAction(options: {
     outputs: liquidation.flows,
   };
 }
+
+const GATHERING_ACTIONS = new Set<SkillingAction>([
+  'milking',
+  'foraging',
+  'woodcutting',
+]);
+
+export function calculateGatherAction(options: {
+  actionHrid: string;
+  profile: PlayerProfile;
+  data: NormalizedStrategyGameData;
+  prices: MarketPriceBook;
+  buffs?: ActionBuffs;
+}): StrategyStepResult {
+  const { actionHrid, profile, data, prices } = options;
+  const action = actionHrid.split('/')[2] as SkillingAction | undefined;
+  if (!action || !GATHERING_ACTIONS.has(action)) throw new StrategyRecipeError();
+  const detail = data.actionsByHrid.get(actionHrid) as StrategyActionDetail | undefined;
+  if (!detail) throw new StrategyRecipeError();
+
+  const buffs = options.buffs ?? actionBuffs(profile, action, data);
+  if (buffs.Level < detail.levelRequirement.level) throw new StrategyRecipeError();
+
+  const dropItems = drops(detail.dropTable);
+  if (dropItems.length === 0) throw new StrategyRecipeError();
+
+  const products: PricedCount[] = dropItems.map((drop) => ({
+    itemHrid: drop.itemHrid,
+    count: ((drop.minCount + drop.maxCount) / 2) * drop.dropRate,
+    price: prices.bid(drop.itemHrid),
+    taxable: taxable(drop.itemHrid, data),
+  }));
+
+  const teas: PricedCount[] = (profile.actions[action]?.teas ?? []).map((itemHrid) => ({
+    itemHrid,
+    count: 1,
+    price: prices.ask(itemHrid),
+  }));
+
+  const result = calculateManufacture({
+    baseTimeCost: detail.baseTimeCost,
+    actionLevel: detail.levelRequirement.level,
+    playerLevel: buffs.Level,
+    buffs,
+    ingredients: [],
+    products,
+    essenceDrops: drops(detail.essenceDropTable).map((drop) => pricedDrop(drop, prices, data)),
+    rareDrops: drops(detail.rareDropTable).map((drop) => pricedDrop(drop, prices, data)),
+    teas,
+  });
+
+  const baseExperience = detail.experienceGain?.value ?? 0;
+  const liquidation = result.valid
+    ? liquidateOutputs(result.productUnitsPerHour, data, prices)
+    : { complete: false, flows: [] };
+  const valid = result.valid && liquidation.complete;
+
+  return {
+    id: `gather:${actionHrid}`,
+    action,
+    actionHrid,
+    outputHrid: dropItems[0]!.itemHrid,
+    valid,
+    actionsPerHour: result.actionsPerHour,
+    costPerHour: valid ? result.costPerHour : null,
+    incomePerHour: valid ? result.incomePerHour : null,
+    profitPerHour: valid ? result.profitPerHour : null,
+    experiencePerHour: baseExperience * (1 + buffs.Experience) * result.actionsPerHour,
+    inputs: priceFlow(result.ingredientUnitsPerHour, 'ask', prices, data),
+    outputs: liquidation.flows,
+  };
+}

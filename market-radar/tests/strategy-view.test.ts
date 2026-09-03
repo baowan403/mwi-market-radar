@@ -125,7 +125,7 @@ describe('strategy recommendation view', () => {
     expect([...target.querySelectorAll('col[data-strategy-column]')].map((column) => (
       column.getAttribute('data-strategy-column')
     ))).toEqual([
-      'pin', 'step', 'path', 'profit', 'sparkline', 'trend1d', 'trend3d', 'trend7d', 'marketShare', 'capital', 'classification', 'priority',
+      'pin', 'step', 'path', 'profit', 'trend1d', 'trend3d', 'trend7d', 'sparkline', 'marketShare', 'capital', 'classification', 'priority',
     ]);
     expect(target.querySelector('.strategy-step')).not.toBeNull();
     expect(target.querySelector('.strategy-path-cell')).not.toBeNull();

@@ -56,14 +56,31 @@ function metric(value: number | null, suffix = ''): string {
   return value === null || !Number.isFinite(value) ? '—' : `${quantity(value)}${suffix}`;
 }
 
-function kindLabel(kind: StrategyCandidate['kind']): string {
+const ACTION_LABELS: Record<string, string> = {
+  milking: '擠奶',
+  foraging: '採摘',
+  woodcutting: '伐木',
+  cheesesmithing: '鍛造',
+  crafting: '製作',
+  tailoring: '裁縫',
+  cooking: '烹飪',
+  brewing: '沖泡',
+  alchemy: '煉金',
+  enhancing: '強化',
+};
+
+function kindLabel(candidate: StrategyCandidate): string {
+  if (candidate.kind === 'gather') {
+    const action = candidate.steps[0]?.action;
+    return action ? (ACTION_LABELS[action] ?? '採集') : '採集';
+  }
   return {
     manufacture: '單步製造',
     workflow: '多步工作流',
     decompose: '分解',
     coinify: '點金',
     'decompose-coinify': '分解 → 點金',
-  }[kind];
+  }[candidate.kind];
 }
 
 const CLASSIFICATION_LABELS: Record<LiquidityClassification, string> = {
@@ -225,7 +242,7 @@ function strategyRow(
 
   // ── 欄 2：步驟（動作類型）──
   const stepCell = element('td', 'strategy-step');
-  stepCell.textContent = kindLabel(candidate.kind);
+  stepCell.textContent = kindLabel(candidate);
   row.append(stepCell);
 
   // ── 欄 3：路徑（材料流程）──
@@ -251,13 +268,7 @@ function strategyRow(
   }
   row.append(profitCell);
 
-  // ── 欄 5：72H 走勢（Mini Sparkline 折線圖）──
-  const sparkCell = element('td', 'strategy-sparkline-cell');
-  sparkCell.innerHTML = generateSparklineSvg(assessedSignal.series, { width: 72, height: 20 });
-  sparkCell.title = '過去 72 小時利潤走勢波形（綠漲紅跌）';
-  row.append(sparkCell);
-
-  // ── 欄 6：1D 趨勢 ──
+  // ── 欄 5：1D 趨勢 ──
   const trend1dCell = element('td', 'strategy-trend-cell');
   const delta1d = element('span');
   delta1d.className = deltaClass(signal.metrics.margin1dPct);
@@ -265,7 +276,7 @@ function strategyRow(
   trend1dCell.append(delta1d);
   row.append(trend1dCell);
 
-  // ── 欄 7：3D 趨勢 ──
+  // ── 欄 6：3D 趨勢 ──
   const trend3dCell = element('td', 'strategy-trend-cell');
   const delta3d = element('span');
   delta3d.className = deltaClass(signal.metrics.margin3dPct);
@@ -273,13 +284,19 @@ function strategyRow(
   trend3dCell.append(delta3d);
   row.append(trend3dCell);
 
-  // ── 欄 8：7D 趨勢 ──
+  // ── 欄 7：7D 趨勢 ──
   const trend7dCell = element('td', 'strategy-trend-cell');
   const delta7d = element('span');
   delta7d.className = deltaClass(signal.metrics.margin7dPct);
   delta7d.textContent = trendPct(signal.metrics.margin7dPct);
   trend7dCell.append(delta7d);
   row.append(trend7dCell);
+
+  // ── 欄 8：72H 走勢（Mini Sparkline 折線圖）──
+  const sparkCell = element('td', 'strategy-sparkline-cell');
+  sparkCell.innerHTML = generateSparklineSvg(assessedSignal.series, { width: 72, height: 20 });
+  sparkCell.title = '過去 72 小時利潤走勢波形（綠漲紅跌）';
+  row.append(sparkCell);
 
   // ── 欄 9：日產佔比（做滿24h佔市場日交易量%）──
   const shareCell = element('td', 'strategy-market-share');
@@ -301,7 +318,7 @@ function strategyRow(
   capital.textContent = money(candidate.workingCapital24h);
   row.append(capital);
 
-  // ── 欄 11：滯銷風險 ──
+  // ── 欄 11：風險 ──
   const classificationCell = element('td', 'strategy-classification-cell');
   const classification = element('span', 'strategy-classification');
   classification.dataset.classification = liquidity.classification;
@@ -366,7 +383,8 @@ function flowAssumption(
 function stepAssumptions(step: StrategyStepResult, options: StrategyViewOptions): HTMLElement {
   const wrapper = element('div', 'strategy-step-item');
   const headline = element('p', 'strategy-step-title');
-  headline.textContent = `${step.action}: ${options.itemName(step.outputHrid)}・${quantity(step.actionsPerHour)} 次/h`;
+  const actionName = ACTION_LABELS[step.action] ?? step.action;
+  headline.textContent = `${actionName}: ${options.itemName(step.outputHrid)}・${quantity(step.actionsPerHour)} 次/h`;
   const economics = element('p', 'strategy-step-metrics');
   economics.textContent = `成本 ${metric(step.costPerHour, '/h')}・收入 ${metric(step.incomePerHour, '/h')}・利潤 ${metric(step.profitPerHour, '/h')}`;
   const flows = element('ul', 'strategy-step-flows');
@@ -562,7 +580,7 @@ function renderResults(
     const table = element('table', 'strategy-table');
     const columnGroup = element('colgroup');
     for (const key of [
-      'pin', 'step', 'path', 'profit', 'sparkline', 'trend1d', 'trend3d', 'trend7d', 'marketShare', 'capital', 'classification', 'priority',
+      'pin', 'step', 'path', 'profit', 'trend1d', 'trend3d', 'trend7d', 'sparkline', 'marketShare', 'capital', 'classification', 'priority',
     ]) {
       const column = element('col');
       column.dataset.strategyColumn = key;
@@ -570,7 +588,7 @@ function renderResults(
     }
     const head = element('thead');
     const headerRow = element('tr');
-    for (const label of ['自選', '步驟', '路徑', '日利', '72H走勢', '1D', '3D', '7D', '日產佔比', '資金/D', '滯銷風險', '優先級']) {
+    for (const label of ['自選', '步驟', '路徑', '日利', '1D', '3D', '7D', '72H走勢', '日產佔比', '資金/D', '風險', '優先級']) {
       const cell = element('th');
       cell.textContent = label;
       headerRow.append(cell);
@@ -596,7 +614,10 @@ function renderResults(
           signalAt: (prefix) => strategyTrendSignal(prefix),
         });
         assessedSignal = {
-          signal: strategyTrendSignal(series, { backtest: backtest.summary }),
+          signal: strategyTrendSignal(series, {
+            backtest: backtest.summary,
+            classification: assessedCandidate.liquidity.classification,
+          }),
           backtest,
           series,
         };

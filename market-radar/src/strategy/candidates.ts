@@ -2,7 +2,7 @@ import type { PlayerProfile, SkillingAction } from '../profile/types';
 import { calculateCoinify, calculateDecompose, type CatalystRank } from './alchemy';
 import { actionBuffs, type ActionBuffs } from './buffs';
 import type { NormalizedStrategyGameData } from './game-data';
-import { calculateManufactureAction } from './manufacture-adapter';
+import { calculateManufactureAction, calculateGatherAction } from './manufacture-adapter';
 import type { MarketPriceBook } from './price-book';
 import type { StrategyStepResult } from './types';
 import { calculateWorkflow, type WorkflowResult } from './workflow';
@@ -10,11 +10,14 @@ import { calculateWorkflow, type WorkflowResult } from './workflow';
 const MANUFACTURING_ACTIONS = new Set<SkillingAction>([
   'cheesesmithing', 'crafting', 'tailoring', 'cooking', 'brewing',
 ]);
+const GATHERING_ACTIONS = new Set<SkillingAction>([
+  'milking', 'foraging', 'woodcutting',
+]);
 const CATALYST_RANKS: CatalystRank[] = [0, 1, 2];
 
 export interface StrategyCandidate {
   id: string;
-  kind: 'manufacture' | 'workflow' | 'decompose' | 'coinify' | 'decompose-coinify';
+  kind: 'manufacture' | 'workflow' | 'decompose' | 'coinify' | 'decompose-coinify' | 'gather';
   title: string;
   path: string[];
   profitPerHour: number;
@@ -39,6 +42,11 @@ function record(value: unknown): Record<string, unknown> | null {
 function manufacturingAction(hrid: string): SkillingAction | null {
   const action = hrid.split('/')[2] as SkillingAction | undefined;
   return action && MANUFACTURING_ACTIONS.has(action) ? action : null;
+}
+
+function gatheringAction(hrid: string): SkillingAction | null {
+  const action = hrid.split('/')[2] as SkillingAction | undefined;
+  return action && GATHERING_ACTIONS.has(action) ? action : null;
 }
 
 function titleFor(hrid: string, data: NormalizedStrategyGameData): string {
@@ -150,6 +158,29 @@ export function buildStrategyCandidates(options: {
   for (const actionHrid of actionHrids) {
     const step = manufactureStep(actionHrid);
     if (step) addCandidate(candidateFromStep(step, 'manufacture', data));
+  }
+
+  const gatherStep = (actionHrid: string): StrategyStepResult | null => {
+    if (stepCache.has(actionHrid)) return stepCache.get(actionHrid) ?? null;
+    const action = gatheringAction(actionHrid);
+    if (!action) return null;
+    try {
+      const step = calculateGatherAction({
+        actionHrid, profile, data, prices, buffs: buffsFor(action),
+      });
+      stepCache.set(actionHrid, step);
+      return step;
+    } catch {
+      stepCache.set(actionHrid, null);
+      diagnostics.push(actionHrid);
+      return null;
+    }
+  };
+
+  const gatheringActionHrids = [...data.actionsByHrid.keys()].filter((hrid) => gatheringAction(hrid));
+  for (const actionHrid of gatheringActionHrids) {
+    const step = gatherStep(actionHrid);
+    if (step) addCandidate(candidateFromStep(step, 'gather', data));
   }
 
   const consumers = consumersByInput(data);

@@ -2,7 +2,7 @@ import exporter from './fixtures/profile-export-v1.json';
 import strategyDataJson from '../scripts/vendor/milkonomy/strategy-data.json';
 import { describe, expect, it } from 'vitest';
 import { importPlayerProfile } from '../src/profile/import';
-import { calculateManufactureAction } from '../src/strategy/manufacture-adapter';
+import { calculateManufactureAction, calculateGatherAction } from '../src/strategy/manufacture-adapter';
 import { normalizeStrategyGameData } from '../src/strategy/game-data';
 import { createStrategyPriceBook } from '../src/strategy/price-book';
 import { evaluateRealizableStrategy } from '../src/strategy/realizable';
@@ -147,5 +147,33 @@ describe('real manufacturing recipe adapter', () => {
       data,
       prices: prices(),
     })).toThrow('策略配方無法使用');
+  });
+
+  it('calculates a real gathering action for woodcutting redwood tree', () => {
+    const customSnapshot: Snapshot = {
+      timestamp: 1,
+      quotes: {
+        '/items/redwood_log::0': { a: 100, b: 90, p: 95, v: 10_000 },
+        '/items/woodcutting_essence::0': { a: 500, b: 450, p: 475, v: 10_000 },
+        '/items/medium_meteorite_cache::0': { a: 100_000, b: 90_000, p: 95_000, v: 10 },
+        '/items/branch_of_insight::0': { a: 1_000_000, b: 900_000, p: 950_000, v: 1 },
+        '/items/cowbell::0': { a: 50, b: 40, p: 45, v: 10_000 },
+        '/items/star_fragment::0': { a: 200, b: 180, p: 190, v: 50_000 },
+      },
+    };
+    const book = createStrategyPriceBook(customSnapshot, data);
+    const result = calculateGatherAction({
+      actionHrid: '/actions/woodcutting/redwood_tree',
+      profile,
+      data,
+      prices: book,
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.action).toBe('woodcutting');
+    expect(result.outputHrid).toBe('/items/redwood_log');
+    expect(result.profitPerHour).toBeGreaterThan(0);
+    expect(result.inputs).toEqual([]); // 沒喝茶則 inputs 為空
+    expect(result.outputs.some((flow) => flow.itemHrid === '/items/redwood_log')).toBe(true);
   });
 });

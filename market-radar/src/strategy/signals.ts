@@ -1,4 +1,5 @@
 import type { StrategyMarginPoint } from './margin-series';
+import type { LiquidityClassification } from './realizable';
 
 export type StrategySignalAction = 'execute' | 'prepare' | 'wait' | 'sell' | 'stop';
 export type StrategySignalConfidence = 'none' | 'low' | 'medium' | 'high';
@@ -77,7 +78,7 @@ function formatted(value: number | null): string {
 
 export function strategyTrendSignal(
   series: readonly StrategyMarginPoint[],
-  options: { backtest?: StrategySignalBacktest } = {},
+  options: { backtest?: StrategySignalBacktest; classification?: LiquidityClassification } = {},
 ): StrategySignal {
   const ordered = [...series].sort((left, right) => left.timestamp - right.timestamp);
   const latest = ordered.at(-1);
@@ -139,14 +140,16 @@ export function strategyTrendSignal(
     latest.realizableProfitPerDay <= 0
     || (metrics.margin3dPct !== null && metrics.margin3dPct <= -30 && recentPeak > latest.realizableProfitPerDay * 1.5)
   ) {
+    const reason = latest.realizableProfitPerDay <= 0
+      ? '目前可實現利潤歸零或為負'
+      : `3D 利潤暴跌 ${formatted(metrics.margin3dPct)}，且已自波段高點大幅滑落`;
     return {
-      action: 'stop', priority: 'low', confidence,
-      reasons: [latest.realizableProfitPerDay <= 0 ? '可實現利潤已轉為零或負值' : `3D 利潤暴跌 ${formatted(metrics.margin3dPct)}`],
-      invalidation: ['利潤恢復為正，且 3D 改善至少 10% 才重新評估'], metrics,
+      action: 'stop', priority: 'low', confidence, reasons: [reason],
+      invalidation: ['利潤恢復且 3D 趨勢好轉時重新評估'], metrics,
     };
   }
 
-  // ── 黃燈：售價飆升但承接崩塌 → 出售獲利 ──
+  // ── 警示燈：售價暴漲但成交量萎縮 → 獲利了結 ──
   if (
     metrics.income3dPct !== null && metrics.income3dPct >= 10
     && metrics.capacity3dPct !== null && metrics.capacity3dPct <= -10
@@ -186,6 +189,18 @@ export function strategyTrendSignal(
     } else if (m7 !== null && m7 >= 0) {
       priority = 'high';
       trendNote = `7D 與 3D 利潤平穩向上，收益健康`;
+    }
+
+    // ── 風險懲罰（Risk-adjusted Priority）──
+    const risk = options.classification ?? latest.classification;
+    if (risk === 'limited') {
+      if (priority === 'top' || priority === 'high') {
+        priority = 'medium';
+        trendNote += '；市場深度受限（高風險），降為中等優先';
+      }
+    } else if (risk === 'reject' || risk === 'insufficient') {
+      priority = 'low';
+      trendNote += '；市場深度嚴重不足或缺資料，降為低優先';
     }
 
     return {
