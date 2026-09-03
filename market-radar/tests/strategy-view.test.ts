@@ -196,7 +196,9 @@ describe('strategy recommendation view', () => {
     });
 
     await view.render();
-    expect(target.querySelector('[data-strategy-scope="actionable"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(target.querySelector('[data-strategy-scope]')).toBeNull();
+    expect(target.querySelector('[data-strategy-mode]')).toBeNull();
+    expect(target.querySelector('[data-strategy-hours]')).toBeNull();
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow)).toEqual([
       'long',
     ]);
@@ -216,19 +218,6 @@ describe('strategy recommendation view', () => {
     expect(detail.textContent).toContain('瓶頸');
     expect(detail.textContent).toContain('回測 3D');
 
-    (target.querySelector('[data-strategy-mode="short"]') as HTMLButtonElement).click();
-    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow)).toEqual([
-      'limited', 'long',
-    ]);
-    expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('高');
-
-    (target.querySelector('[data-strategy-scope="limited"]') as HTMLButtonElement).click();
-    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow)).toEqual([
-      'insufficient', 'reject',
-    ]);
-    expect(target.querySelector('[data-strategy-row="reject"]')?.textContent).toContain('極高');
-    expect(target.querySelector('[data-strategy-row="insufficient"] .strategy-classification')?.textContent).toBe('極高');
-    expect(target.querySelector('[data-strategy-row="insufficient"] .strategy-classification')?.getAttribute('title')).toContain('缺少');
     view.destroy();
   });
 

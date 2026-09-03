@@ -25,7 +25,7 @@ test('imports a profile and persists personalized strategy recommendations witho
   await expect(page.locator('#category-nav')).toBeHidden();
   await expect(page.locator('#toolbar')).toBeHidden();
   await expect(page.locator('.strategy-warning')).toContainText('成交量');
-  await expect(page.locator('[data-strategy-scope="actionable"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-strategy-scope]')).toHaveCount(0);
   await expect(page.locator('[data-strategy-row]')).not.toHaveCount(0);
   await expect(page.locator('[data-strategy-row][data-liquidity-classification="reject"]')).toHaveCount(0);
   await expect(page.locator('[data-strategy-row][data-liquidity-classification="insufficient"]')).toHaveCount(0);
@@ -86,7 +86,7 @@ test('imports a profile and persists personalized strategy recommendations witho
   }));
   expect(priorityStyle.background).not.toBe('rgba(0, 0, 0, 0)');
   expect(priorityStyle.radius).toBeGreaterThan(0);
-  await expect(page.locator('[data-strategy-row*="redwood"]').first()).toBeVisible();
+  await expect(page.locator('[data-strategy-row*="pirate"]').first()).toBeVisible();
   const strategyText = await page.locator('#content').innerText();
   expect(strategyText).toMatch(/\d(?:\.\d+)?M/);
   expect(strategyText).not.toMatch(/\d(?:\.\d+)?B\b/);
@@ -102,12 +102,7 @@ test('imports a profile and persists personalized strategy recommendations witho
   await expect(detailRow).toContainText('瓶頸');
   await expect(detailRow).toContainText('回測 3D');
 
-  await page.locator('[data-strategy-scope="limited"]').click();
-  await expect(page.locator('[data-strategy-row]')).not.toHaveCount(0);
-  expect(await page.locator('[data-strategy-row][data-liquidity-classification="insufficient"]').count()).toBeGreaterThan(0);
-  await page.locator('[data-strategy-scope="actionable"]').click();
-
-  const firstPin = page.locator('[data-strategy-row*="redwood"] [data-strategy-pin]').first();
+  const firstPin = page.locator('[data-strategy-row*="pirate"] [data-strategy-pin]').first();
   const strategyId = await firstPin.getAttribute('data-strategy-pin');
   await firstPin.click();
   await expect(firstPin).toHaveAttribute('aria-pressed', 'true');
