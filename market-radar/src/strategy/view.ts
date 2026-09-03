@@ -591,8 +591,23 @@ function renderResults(
 
   const filterState: StrategyFilterContext = { ...initialFilter };
 
-  // ── 工具列：技能 + 物品搜尋 ──
+  // ── 工具列：模式切換 + 技能 + 物品搜尋 ──
   const toolbar = element('section', 'strategy-toolbar toolbar');
+
+  const modeGroup = element('div', 'strategy-mode-group filter-control');
+  const steadyBtn = element('button', 'toolbar-button');
+  steadyBtn.type = 'button';
+  steadyBtn.textContent = '🔥 常規日利';
+  steadyBtn.dataset.strategyTab = 'steady';
+  if (filterState.selectedSkill !== 'alpha') steadyBtn.classList.add('active');
+
+  const alphaBtn = element('button', 'toolbar-button');
+  alphaBtn.type = 'button';
+  alphaBtn.textContent = '⚡ 突發短缺 / 暴利';
+  alphaBtn.dataset.strategyTab = 'alpha';
+  if (filterState.selectedSkill === 'alpha') alphaBtn.classList.add('active');
+
+  modeGroup.append(steadyBtn, alphaBtn);
 
   const skillGroup = element('div', 'strategy-filter-group filter-control');
   const skillLabel = element('label', 'strategy-label');
@@ -619,7 +634,7 @@ function renderResults(
   searchInput.value = filterState.searchQuery;
   searchGroup.append(searchInput);
 
-  toolbar.append(skillGroup, searchGroup);
+  toolbar.append(modeGroup, skillGroup, searchGroup);
   options.target.append(toolbar);
 
   const resultsContainer = element('div', 'strategy-results-container');
@@ -686,7 +701,36 @@ function renderResults(
     }
   }
 
+  function syncModeButtons(): void {
+    if (filterState.selectedSkill === 'alpha') {
+      alphaBtn.classList.add('active');
+      steadyBtn.classList.remove('active');
+    } else {
+      steadyBtn.classList.add('active');
+      alphaBtn.classList.remove('active');
+    }
+  }
+
+  steadyBtn.addEventListener('click', () => {
+    if (filterState.selectedSkill === 'alpha') {
+      filterState.selectedSkill = 'all';
+      skillSelect.value = 'all';
+      syncModeButtons();
+      updateResults();
+    }
+  });
+
+  alphaBtn.addEventListener('click', () => {
+    if (filterState.selectedSkill !== 'alpha') {
+      filterState.selectedSkill = 'alpha';
+      skillSelect.value = 'alpha';
+      syncModeButtons();
+      updateResults();
+    }
+  });
+
   function updateResults(): void {
+    syncModeButtons();
     resultsContainer.replaceChildren();
     const isSearchActive = filterState.searchQuery.trim().length > 0;
     const assessed: AssessedStrategy[] = baseAssessed.map(({ candidate, liquidity }) => ({
@@ -702,46 +746,50 @@ function renderResults(
       }),
     }));
 
-    // 篩選：未搜尋時僅展示可執行之優質策略；搜尋時則全面檢索
-    const matched = assessed.filter((item) => {
-      const { candidate, decision } = item;
-      const assessedSignal = getAssessedSignal(item);
-      if (!matchesSkill(candidate, filterState.selectedSkill, assessedSignal.signal)) return false;
-      if (isSearchActive) {
-        return matchesSearchQuery(candidate, filterState.searchQuery, options.itemName);
-      }
-      return decision.actionable;
-    });
-
-    // 排序：
-    // 若為 alpha 專屬短缺暴利視圖，優先依 alphaScore 降序，其次依折算後日利降序
-    // 常態視圖：
-    // 1. 折算後收益（無折算則日利）高者在先
-    // 2. 收益相同時，優先級最高排前面
-    // 3. 優先級也相同時，風險最低排前面
-    // 4. 字母穩定排序
-    matched.sort((left, right) => {
-      if (filterState.selectedSkill === 'alpha') {
+    // ── 效能核心優化：未選擇 alpha 時，完全不對幾千個候選提前計算信號 ──
+    let matched: AssessedStrategy[];
+    if (filterState.selectedSkill === 'alpha') {
+      const candidatesToScan = assessed.filter((item) => (
+        isSearchActive
+          ? matchesSearchQuery(item.candidate, filterState.searchQuery, options.itemName)
+          : item.decision.actionable
+      ));
+      matched = candidatesToScan.filter((item) => {
+        const s = getAssessedSignal(item);
+        return s.signal.isAlphaOpportunity === true;
+      });
+      matched.sort((left, right) => {
         const leftScore = getAssessedSignal(left).signal.alphaScore ?? 0;
         const rightScore = getAssessedSignal(right).signal.alphaScore ?? 0;
         const scoreDiff = rightScore - leftScore;
         if (Math.abs(scoreDiff) > 1e-6) return scoreDiff;
-      }
-      const leftProfit = effectiveProfit(left);
-      const rightProfit = effectiveProfit(right);
-      const profitDiff = rightProfit - leftProfit;
-      if (Math.abs(profitDiff) > 1e-6) return profitDiff;
+        return effectiveProfit(right) - effectiveProfit(left);
+      });
+    } else {
+      matched = assessed.filter(({ candidate, decision }) => {
+        if (!matchesSkill(candidate, filterState.selectedSkill)) return false;
+        if (isSearchActive) {
+          return matchesSearchQuery(candidate, filterState.searchQuery, options.itemName);
+        }
+        return decision.actionable;
+      });
 
-      const leftSignal = getAssessedSignal(left);
-      const rightSignal = getAssessedSignal(right);
-      const priorityDiff = priorityWeight(rightSignal.signal.priority) - priorityWeight(leftSignal.signal.priority);
-      if (priorityDiff !== 0) return priorityDiff;
+      // 常態排序：優先依折算後日利排序，99.9% 的情況下無需調用昂貴的信號回測！
+      matched.sort((left, right) => {
+        const profitDiff = effectiveProfit(right) - effectiveProfit(left);
+        if (Math.abs(profitDiff) > 1e-6) return profitDiff;
 
-      const riskDiff = riskRank(left.liquidity.classification) - riskRank(right.liquidity.classification);
-      if (riskDiff !== 0) return riskDiff;
+        const leftSignal = getAssessedSignal(left);
+        const rightSignal = getAssessedSignal(right);
+        const priorityDiff = priorityWeight(rightSignal.signal.priority) - priorityWeight(leftSignal.signal.priority);
+        if (priorityDiff !== 0) return priorityDiff;
 
-      return left.candidate.id.localeCompare(right.candidate.id);
-    });
+        const riskDiff = riskRank(left.liquidity.classification) - riskRank(right.liquidity.classification);
+        if (riskDiff !== 0) return riskDiff;
+
+        return left.candidate.id.localeCompare(right.candidate.id);
+      });
+    }
 
     // 筆數限制：取前 50 筆最高折算日利
     const chosen = matched.slice(0, 50);
@@ -764,7 +812,14 @@ function renderResults(
         ? '依突發利潤爆發動能與 Alpha 評分排序，已嚴格過濾幽靈插針'
         : '依折算後日利、優先級與風險綜合排序';
 
-      summary.append(leftContainer, note);
+      const radarBadge = element('span', 'strategy-radar-badge');
+      if (filterState.selectedSkill === 'alpha') {
+        radarBadge.textContent = '⚡ 模式：突發短缺暴利雷達（已剔除幽靈插針）';
+      } else {
+        radarBadge.textContent = '⚡ 短缺雷達：全市場供需平穩（無異常暴利）';
+      }
+
+      summary.append(leftContainer, note, radarBadge);
       resultsContainer.append(summary);
     }
 

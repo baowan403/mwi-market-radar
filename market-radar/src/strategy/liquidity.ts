@@ -67,6 +67,7 @@ export function marketCapacity(key: MarketKey, snapshots: readonly Snapshot[]): 
       safeUnitsPerHour: null, sufficient: false, isGhostLiquidity: false, askAvailable: false, bidAvailable: false,
     };
   }
+
   const volumes3d = valuesInWindow(key, snapshots, latest.timestamp, 72);
   const volumes7d = valuesInWindow(key, snapshots, latest.timestamp, 168);
   const prices7d = pricesInWindow(key, snapshots, latest.timestamp, 168);
