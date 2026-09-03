@@ -4,8 +4,8 @@ import type { StrategyCandidate } from './candidates';
 import type { MarketPriceBook } from './price-book';
 import { evaluateRealizableStrategy, type LiquidityClassification } from './realizable';
 import type { StrategyFlow } from './types';
+import { marketTaxFactor } from './tax';
 
-const SELL_TAX_FACTOR = 0.95;
 const COIN_HRID = '/items/coin';
 
 export interface StrategyMarginPoint {
@@ -80,7 +80,7 @@ export function repriceFixedCandidate(
   if ([...inputValues, ...outputValues].some(({ price }) => !finitePrice(price))) return null;
   const costPerHour = inputValues.reduce((sum, { flow, price }) => sum + flow.unitsPerHour * price!, 0);
   const incomePerHour = outputValues.reduce((sum, { flow, price }) => (
-    sum + flow.unitsPerHour * price! * (flow.market ? SELL_TAX_FACTOR : 1)
+    sum + flow.unitsPerHour * price! * (flow.market ? marketTaxFactor(flow.itemHrid) : 1)
   ), 0);
   const profitPerHour = incomePerHour - costPerHour;
   const steps = candidate.steps.map((step) => ({

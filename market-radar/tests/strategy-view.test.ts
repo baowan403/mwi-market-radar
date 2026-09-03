@@ -216,7 +216,7 @@ describe('strategy recommendation view', () => {
     expect(detail.textContent).toContain('安全執行');
     expect(detail.textContent).toContain('建議本批');
     expect(detail.textContent).toContain('瓶頸');
-    expect(detail.textContent).toContain('回測 3D');
+    expect(detail.textContent).toContain('掛機排程與原料採購規劃');
 
     view.destroy();
   });

@@ -3,6 +3,7 @@ import strategyDataJson from '../scripts/vendor/milkonomy/strategy-data.json';
 import { describe, expect, it } from 'vitest';
 import { importPlayerProfile } from '../src/profile/import';
 import { calculateManufactureAction, calculateGatherAction } from '../src/strategy/manufacture-adapter';
+import { actionBuffs } from '../src/strategy/buffs';
 import { normalizeStrategyGameData } from '../src/strategy/game-data';
 import { createStrategyPriceBook } from '../src/strategy/price-book';
 import { evaluateRealizableStrategy } from '../src/strategy/realizable';
@@ -203,5 +204,26 @@ describe('real manufacturing recipe adapter', () => {
     expect(tea?.unitsPerHour).toBeGreaterThan(0);
     expect(tea?.unitPrice).toBe(1_000);
     expect(result.costPerHour).toBeGreaterThan(0);
+  });
+
+  it('scales gathering output quantity by buffs.Gathering', () => {
+    const customSnapshot: Snapshot = {
+      timestamp: 1,
+      quotes: {
+        '/items/redwood_log::0': { a: 100, b: 90, p: 95, v: 10_000 },
+        '/items/woodcutting_essence::0': { a: 500, b: 450, p: 475, v: 10_000 },
+      },
+    };
+    const book = createStrategyPriceBook(customSnapshot, data);
+    const baseBuffs = actionBuffs(profile, 'woodcutting', data);
+    const normal = calculateGatherAction({
+      actionHrid: '/actions/woodcutting/redwood_tree', profile, data, prices: book, buffs: { ...baseBuffs, Gathering: 0 },
+    });
+    const boosted = calculateGatherAction({
+      actionHrid: '/actions/woodcutting/redwood_tree', profile, data, prices: book, buffs: { ...baseBuffs, Gathering: 0.5 },
+    });
+    const normalUnits = normal.outputs.find((f) => f.itemHrid === '/items/redwood_log')?.unitsPerHour ?? 0;
+    const boostedUnits = boosted.outputs.find((f) => f.itemHrid === '/items/redwood_log')?.unitsPerHour ?? 0;
+    expect(boostedUnits).toBeCloseTo(normalUnits * 1.5, 4);
   });
 });

@@ -1,6 +1,7 @@
+import { marketTaxFactor } from './tax';
+
 const HOUR_NS = 3_600_000_000_000;
 const MIN_ACTION_TIME_NS = 3_000_000_000;
-const SELL_TAX_FACTOR = 0.95;
 const COIN_HRID = '/items/coin';
 
 export interface PricedCount {
@@ -128,7 +129,7 @@ export function calculateManufacture(input: ManufactureInput): ManufactureResult
 
   const addIncome = (item: PricedCount & { price: number }, units: number): void => {
     addUnit(productUnitsPerHour, item.itemHrid, units);
-    const taxFactor = item.itemHrid === COIN_HRID || item.taxable === false ? 1 : SELL_TAX_FACTOR;
+    const taxFactor = marketTaxFactor(item.itemHrid, item.taxable !== false);
     incomePerHour += units * item.price * taxFactor;
   };
 

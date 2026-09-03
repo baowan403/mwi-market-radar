@@ -5,10 +5,10 @@ import type { NormalizedStrategyGameData } from './game-data';
 import { expandStrategyLiquidation } from './liquidation';
 import type { MarketPriceBook } from './price-book';
 import type { StrategyFlow, StrategyStepResult } from './types';
+import { marketTaxFactor } from './tax';
 
 const HOUR_NS = 3_600_000_000_000;
 const MIN_ACTION_TIME_NS = 3_000_000_000;
-const SELL_TAX_FACTOR = 0.95;
 const MINUTE_NS = 60_000_000_000;
 const COIN_HRID = '/items/coin';
 
@@ -205,7 +205,7 @@ function calculate(kind: 'decompose' | 'coinify', options: AlchemyOptions & { en
     : null;
   const incomePerHour = valid
     ? outputList.reduce((sum, flow) => (
-      sum + flow.unitsPerHour * flow.unitPrice! * (flow.market ? SELL_TAX_FACTOR : 1)
+      sum + flow.unitsPerHour * flow.unitPrice! * (flow.market ? marketTaxFactor(flow.itemHrid) : 1)
     ), 0)
     : null;
   const baseExp = (kind === 'decompose' ? 1.4 : 1) * (10 + item.itemLevel);

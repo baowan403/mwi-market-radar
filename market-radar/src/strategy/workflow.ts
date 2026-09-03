@@ -1,6 +1,6 @@
 import type { StrategyFlow, StrategyStepResult } from './types';
+import { marketTaxFactor } from './tax';
 
-const SELL_TAX_FACTOR = 0.95;
 const MAX_WORKFLOW_STEPS = 7;
 
 export interface WorkflowStepResult extends StrategyStepResult {
@@ -135,7 +135,7 @@ export function calculateWorkflow(sourceSteps: readonly StrategyStepResult[]): W
     : null;
   const incomePerHour = valid
     ? net.outputs.reduce((sum, flow) => (
-      sum + flow.unitsPerHour * flow.unitPrice! * (flow.market ? SELL_TAX_FACTOR : 1)
+      sum + flow.unitsPerHour * flow.unitPrice! * (flow.market ? marketTaxFactor(flow.itemHrid) : 1)
     ), 0)
     : null;
 

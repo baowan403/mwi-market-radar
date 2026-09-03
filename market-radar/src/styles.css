@@ -973,13 +973,14 @@ summary:focus-visible {
 }
 
 .strategy-warning {
-  max-width: 78ch;
+  width: 100%;
+  box-sizing: border-box;
   margin: 0;
-  padding: 9px 11px;
+  padding: 9px 14px;
   border-left: 3px solid var(--color-warning);
   background: rgb(240 180 91 / 8%);
   color: var(--color-warning);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   line-height: 1.5;
 }
 
@@ -1465,18 +1466,38 @@ summary:focus-visible {
 .strategy-decision-summary {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px 14px;
-  margin: 0 20px 12px;
-  padding: 10px 12px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 14px 20px;
+  padding: 10px 16px;
   border: 1px solid rgb(52 211 153 / 24%);
   border-radius: 8px;
   background: rgb(52 211 153 / 7%);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
 }
 
-.strategy-decision-summary strong { color: #34d399; }
-.strategy-decision-summary span:last-child { color: var(--color-muted); }
+.strategy-decision-summary-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.strategy-decision-summary strong {
+  color: #34d399;
+  font-weight: 700;
+}
+
+.strategy-decision-summary-title {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.strategy-decision-summary-note {
+  color: var(--color-muted);
+  font-size: 0.76rem;
+}
 
 .strategy-profit {
   white-space: nowrap;
@@ -1993,3 +2014,85 @@ dialog::backdrop {
     width: 100%;
   }
 }
+
+/* ── 策略詳情：掛機採購與工序指南 ── */
+.strategy-schedule-card {
+  margin: 12px 0 16px;
+  padding: 14px 16px;
+  border: 1px solid rgb(114 167 255 / 24%);
+  border-radius: 8px;
+  background: rgb(114 167 255 / 5%);
+}
+
+.strategy-schedule-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.strategy-schedule-title {
+  font-weight: 700;
+  color: var(--color-accent);
+  font-size: 0.85rem;
+}
+
+.strategy-schedule-hours-nav {
+  display: flex;
+  gap: 6px;
+}
+
+.strategy-hours-pill {
+  padding: 3px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.74rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.strategy-hours-pill[aria-pressed="true"] {
+  background: rgb(114 167 255 / 20%);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.strategy-procurement-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.strategy-procurement-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.strategy-procurement-subtitle {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 2px;
+}
+
+.strategy-procurement-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.76rem;
+  color: var(--color-muted);
+}
+
+.strategy-procurement-list strong {
+  color: var(--color-text);
+}
+

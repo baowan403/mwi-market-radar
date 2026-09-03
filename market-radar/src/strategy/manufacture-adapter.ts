@@ -186,9 +186,10 @@ export function calculateGatherAction(options: {
   const dropItems = drops(detail.dropTable);
   if (dropItems.length === 0) throw new StrategyRecipeError();
 
+  const gatheringFactor = 1 + (buffs.Gathering ?? 0);
   const products: PricedCount[] = dropItems.map((drop) => ({
     itemHrid: drop.itemHrid,
-    count: ((drop.minCount + drop.maxCount) / 2) * drop.dropRate,
+    count: ((drop.minCount + drop.maxCount) / 2) * drop.dropRate * gatheringFactor,
     price: prices.bid(drop.itemHrid),
     taxable: taxable(drop.itemHrid, data),
   }));

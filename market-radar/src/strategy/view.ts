@@ -381,8 +381,8 @@ function detailRow(
       : '材料庫存數量未提供，未抵扣現金',
     `經濟投入 ${money(decision.funding.grossInputValue)}`,
     `售罄估計 ${metric(liquidity.sellThroughDays, '天')}`,
-    `回測 3D ${assessedSignal.backtest.byHorizon['3d'].samples} 筆／7D ${assessedSignal.backtest.byHorizon['7d'].samples} 筆`,
-    `訊號 ${SIGNAL_LABELS[assessedSignal.signal.action]}／信心 ${CONFIDENCE_LABELS[assessedSignal.signal.confidence]}`,
+    `訊號 ${SIGNAL_LABELS[assessedSignal.signal.action]}｜${MOMENTUM_LABELS[assessedSignal.signal.priority]}動能`,
+    assessedSignal.signal.confidence === 'none' ? '歷史不足 7 天' : '7D 數據充足',
   ];
   for (const detail of details) {
     const item = element('span');
@@ -391,8 +391,12 @@ function detailRow(
   }
   content.append(heading, decisionSummary);
   const rationale = element('p', 'strategy-detail-rationale');
-  rationale.textContent = `原因：${assessedSignal.signal.reasons.join('；')}。失效：${assessedSignal.signal.invalidation.join('；')}`;
+  rationale.textContent = `動能診斷：${assessedSignal.signal.reasons.join('；')}。失效條件：${assessedSignal.signal.invalidation.join('；')}`;
   content.append(rationale);
+
+  // 插入掛機排程與原料採購規劃卡片
+  content.append(buildScheduleCard(assessed, options));
+
   const list = element('ol');
   for (const step of candidate.steps) {
     const item = element('li');
@@ -403,6 +407,105 @@ function detailRow(
   cell.append(content);
   row.append(cell);
   return row;
+}
+
+/** 構建「掛機排程與原料採購規劃」卡片 */
+function buildScheduleCard(assessed: AssessedStrategy, options: StrategyViewOptions): HTMLElement {
+  const card = element('div', 'strategy-schedule-card');
+  const header = element('div', 'strategy-schedule-header');
+  const title = element('span', 'strategy-schedule-title');
+  title.textContent = '⏱️ 掛機排程與原料採購規劃';
+
+  const nav = element('div', 'strategy-schedule-hours-nav');
+  const hoursOptions = [8, 12, 24];
+  let currentHours = 24;
+
+  const grid = element('div', 'strategy-procurement-grid');
+  const scheduleCol = element('div', 'strategy-procurement-col');
+  const scheduleTitle = element('div', 'strategy-procurement-subtitle');
+  scheduleTitle.textContent = '工序時間分配';
+  const scheduleList = element('ul', 'strategy-procurement-list');
+  scheduleCol.append(scheduleTitle, scheduleList);
+
+  const procurementCol = element('div', 'strategy-procurement-col');
+  const procurementTitle = element('div', 'strategy-procurement-subtitle');
+  procurementTitle.textContent = '外部原料採購需求與效益';
+  const procurementList = element('ul', 'strategy-procurement-list');
+  procurementCol.append(procurementTitle, procurementList);
+
+  grid.append(scheduleCol, procurementCol);
+
+  const update = (hours: number) => {
+    currentHours = hours;
+    for (const btn of nav.querySelectorAll<HTMLButtonElement>('.strategy-hours-pill')) {
+      const h = Number(btn.dataset.hours);
+      btn.setAttribute('aria-pressed', h === currentHours ? 'true' : 'false');
+    }
+
+    // 1. 工序時間清單
+    scheduleList.innerHTML = '';
+    assessed.candidate.steps.forEach((step, idx) => {
+      const item = element('li');
+      const fraction = (step as { workFraction?: number }).workFraction ?? (1 / assessed.candidate.steps.length);
+      const stepHours = currentHours * fraction;
+      const hoursText = stepHours >= 1 ? `${stepHours.toFixed(1)} 小時` : `${Math.round(stepHours * 60)} 分鐘`;
+      const actionName = ACTION_LABELS[step.action] ?? step.action;
+      item.innerHTML = `<strong>步驟 ${idx + 1}：${actionName}（${options.itemName(step.outputHrid)}）</strong> ── 耗時約 ${hoursText}（佔比 ${(fraction * 100).toFixed(1)}%）`;
+      scheduleList.append(item);
+    });
+
+    // 2. 原料採購清單
+    procurementList.innerHTML = '';
+    const inputTotals = new Map<string, { units: number; price: number | null }>();
+    for (const step of assessed.candidate.steps) {
+      for (const flow of step.inputs) {
+        if (!flow.market || flow.unitPrice === null) continue;
+        const current = inputTotals.get(flow.itemHrid) ?? { units: 0, price: flow.unitPrice };
+        current.units += flow.unitsPerHour * currentHours;
+        inputTotals.set(flow.itemHrid, current);
+      }
+    }
+
+    if (inputTotals.size === 0) {
+      const noneItem = element('li');
+      noneItem.textContent = '此策略無需從市場採購原料（自給自足或單純採集）';
+      procurementList.append(noneItem);
+    } else {
+      for (const [hrid, { units, price }] of inputTotals) {
+        const item = element('li');
+        const costStr = price !== null ? ` ｜ 預估花費 ${money(units * price)}` : '';
+        item.innerHTML = `採購 <strong>${options.itemName(hrid)}</strong>：${quantity(units)} 件${costStr}`;
+        procurementList.append(item);
+      }
+    }
+
+    // 效益小結
+    const summaryItem = element('li');
+    summaryItem.style.marginTop = '4px';
+    summaryItem.style.paddingTop = '4px';
+    summaryItem.style.borderTop = '1px dashed var(--color-line)';
+    const estProfit = (assessed.liquidity.realizableProfitPerDay ?? assessed.candidate.profitPerDay) * (currentHours / 24);
+    summaryItem.innerHTML = `預計 <strong>${currentHours} 小時</strong> 實質獲利：<strong style="color: #34d399;">~${metric(estProfit)}</strong>`;
+    procurementList.append(summaryItem);
+  };
+
+  for (const h of hoursOptions) {
+    const btn = element('button', 'strategy-hours-pill');
+    btn.type = 'button';
+    btn.dataset.hours = String(h);
+    btn.textContent = `${h} 小時`;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      update(h);
+    });
+    nav.append(btn);
+  }
+
+  header.append(title, nav);
+  card.append(header, grid);
+
+  update(currentHours);
+  return card;
 }
 
 function flowAssumption(
@@ -618,14 +721,19 @@ function renderResults(
       const summary = element('section', 'strategy-decision-summary');
       summary.dataset.strategyDecisionSummary = 'true';
       const best = chosen[0]!;
+
+      const leftContainer = element('div', 'strategy-decision-summary-left');
       const label = element('strong');
       label.textContent = '目前推薦最佳';
-      const value = element('span');
+      const value = element('span', 'strategy-decision-summary-title');
       const bestPathName = best.candidate.path.map((h) => options.itemName(h)).join(' → ');
       value.textContent = `${bestPathName}・預估日利 ${metric(effectiveProfit(best))}`;
-      const note = element('span');
+      leftContainer.append(label, value);
+
+      const note = element('span', 'strategy-decision-summary-note');
       note.textContent = '依折算後日利、優先級與風險綜合排序';
-      summary.append(label, value, note);
+
+      summary.append(leftContainer, note);
       resultsContainer.append(summary);
     }
 

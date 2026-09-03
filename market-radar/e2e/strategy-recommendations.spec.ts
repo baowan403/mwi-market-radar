@@ -100,7 +100,7 @@ test('imports a profile and persists personalized strategy recommendations witho
   await expect(detailRow).toContainText('安全執行');
   await expect(detailRow).toContainText('建議本批');
   await expect(detailRow).toContainText('瓶頸');
-  await expect(detailRow).toContainText('回測 3D');
+  await expect(detailRow).toContainText('掛機排程與原料採購規劃');
 
   const firstPin = page.locator('[data-strategy-row*="pirate"] [data-strategy-pin]').first();
   const strategyId = await firstPin.getAttribute('data-strategy-pin');

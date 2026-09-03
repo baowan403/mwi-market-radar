@@ -1,6 +1,7 @@
 import type { MarketKey, Snapshot } from '../core/types';
 import { isDerivedOpenableLootValue, type NormalizedStrategyGameData } from './game-data';
 import { expandStrategyLiquidation, expectedStrategyDrop } from './liquidation';
+import { marketTaxFactor } from './tax';
 
 export interface MarketPriceBook {
   ask(hrid: string, level?: number): number | null;
@@ -79,7 +80,7 @@ export function createStrategyPriceBook(
         });
         const value = liquidation.complete
           ? liquidation.flows.reduce((sum, flow) => (
-            sum + flow.unitsPerHour * flow.unitPrice! * (flow.market ? 0.95 : 1)
+            sum + flow.unitsPerHour * flow.unitPrice! * (flow.market ? marketTaxFactor(flow.itemHrid) : 1)
           ), 0)
           : null;
         cache.set(cacheKey, value);
