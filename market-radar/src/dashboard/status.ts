@@ -275,4 +275,12 @@ export function renderDataSource(
   label.dataset.sourceLabel = 'true';
   label.textContent = DATA_SOURCE_LABELS[source];
   target.append(label);
+
+  const detail = document.createElement('span');
+  detail.className = 'data-source-detail';
+  detail.dataset.sourceDetail = 'true';
+  if (sourceInfo?.stale) {
+    detail.textContent = '雲端資料已超過 2.5 小時';
+  }
+  target.append(detail);
 }

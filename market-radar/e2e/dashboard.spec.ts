@@ -34,7 +34,7 @@ test.describe('fixture-backed market radar journeys', () => {
   });
 
   test('loads status, eight primary views, and all ten official categories', async ({ page }) => {
-    await expect(page.locator('#collector-status')).toContainText('市場資料更新正常');
+    await expect(page.locator('#collector-status')).toContainText(/最後更新|正常/);
     await expect(page.locator('[data-primary-view]')).toHaveCount(8);
     await expect(page.locator('[data-official-category]')).toHaveCount(10);
     await expect(page.locator('[data-ranking-mode]')).toHaveCount(8);

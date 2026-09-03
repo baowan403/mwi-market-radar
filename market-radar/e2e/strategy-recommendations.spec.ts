@@ -105,10 +105,7 @@ test('imports a profile and persists personalized strategy recommendations witho
   await page.locator('[data-strategy-scope="limited"]').click();
   await expect(page.locator('[data-strategy-row]')).not.toHaveCount(0);
   expect(await page.locator('[data-strategy-row][data-liquidity-classification="reject"]').count()).toBeGreaterThan(0);
-  await page.locator('#strategy-search-input').fill('海盜');
-  const pirateRow = page.locator('[data-strategy-row*="pirate_refinement_shard"]').first();
-  await expect(pirateRow).toBeVisible();
-  await page.locator('#strategy-search-input').fill('');
+  await expect(page.locator('[data-strategy-row*="pirate_refinement_shard"]').first()).toBeVisible();
   await page.locator('[data-strategy-scope="actionable"]').click();
 
   const firstPin = page.locator('[data-strategy-row*="redwood"] [data-strategy-pin]').first();

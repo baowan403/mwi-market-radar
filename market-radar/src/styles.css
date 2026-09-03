@@ -62,16 +62,25 @@ button {
 }
 
 .topbar {
-  display: grid;
-  grid-template-columns: minmax(130px, 0.8fr) minmax(320px, 2fr) minmax(170px, 1fr) minmax(150px, auto);
-  align-items: flex-start;
-  gap: 24px;
-  padding: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px 32px;
+  padding: 18px 24px;
   border-radius: 16px 16px 0 0;
 }
 
+.brand-lockup {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .eyebrow {
-  margin: 0 0 6px;
+  margin: 0 0 4px;
   color: var(--color-accent);
   font-size: 0.72rem;
   font-weight: 700;
@@ -92,63 +101,112 @@ h2 {
 }
 
 h1 {
-  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-size: clamp(1.4rem, 2.5vw, 1.85rem);
+  font-weight: 800;
+  white-space: nowrap;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
 }
 
 h2 {
   font-size: clamp(1.25rem, 2.4vw, 1.6rem);
 }
 
-.collector-status {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
+.topbar-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 8px;
   min-width: 0;
-  padding: 8px 12px;
-  border: 1px solid var(--color-line);
-  border-radius: 12px;
-  color: var(--color-muted);
-  font-size: 0.82rem;
-  white-space: normal;
-  overflow: hidden;
-}
-
-.data-source {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-  padding: 8px 11px;
-  border: 1px solid var(--color-line);
-  border-radius: 8px;
-  background: rgb(11 16 24 / 45%);
-}
-
-.data-source-label {
-  color: var(--color-text);
-  font-size: 0.78rem;
-  font-weight: 650;
-}
-
-.data-source-detail {
-  color: var(--color-muted);
-  font-size: 0.68rem;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
 }
 
 .profile-control {
-  display: grid;
-  justify-items: end;
-  gap: 6px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   min-width: 0;
 }
 
 .profile-summary {
-  max-width: 300px;
+  max-width: 420px;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  text-align: right;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-open-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 6px 14px;
+  border: 1px solid rgb(114 167 255 / 35%);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgb(114 167 255 / 16%), rgb(114 167 255 / 6%));
+  color: #e0edff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: all 0.15s ease-in-out;
+}
+
+.profile-open-button:hover {
+  border-color: var(--color-accent);
+  background: linear-gradient(135deg, rgb(114 167 255 / 26%), rgb(114 167 255 / 12%));
+  color: #ffffff;
+  box-shadow: 0 0 12px rgb(114 167 255 / 25%);
+}
+
+.topbar-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  font-size: 0.72rem;
+  color: var(--color-muted);
+}
+
+.collector-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 20px;
+  background: rgb(255 255 255 / 3%);
   color: var(--color-muted);
   font-size: 0.72rem;
-  text-align: right;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.data-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.68rem;
+  opacity: 0.75;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.data-source-label {
+  color: var(--color-muted);
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+
+.data-source-detail {
+  display: none;
 }
 
 .cloud-refresh-button[aria-busy='true'] {
@@ -1905,5 +1963,33 @@ dialog::backdrop {
 
   .pagination {
     justify-content: space-between;
+  }
+
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .topbar-right {
+    width: 100%;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .profile-control {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .profile-summary {
+    max-width: none;
+    text-align: left;
+  }
+
+  .topbar-meta {
+    justify-content: flex-start;
+    width: 100%;
   }
 }

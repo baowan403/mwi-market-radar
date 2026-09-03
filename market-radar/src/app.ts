@@ -90,17 +90,21 @@ const dashboardMarkup = `
         <p class="eyebrow">Milky Way Idle</p>
         <h1>Market Radar</h1>
       </div>
-      <div id="collector-status" class="collector-status" data-testid="collector-status" role="status" aria-live="polite">
-        <span class="status-dot" aria-hidden="true"></span>
-        <span class="status-summary">讀取採集狀態</span>
-      </div>
-      <div id="data-source" class="data-source" data-source="unavailable" aria-label="行情資料來源">
-        <span class="data-source-label" data-source-label="true">資料不可用</span>
-        <span class="data-source-detail" data-source-detail="true">等待可用資料來源</span>
-      </div>
-      <div class="profile-control">
-        <span id="profile-summary" class="profile-summary">尚未導入角色</span>
-        <button id="profile-open" class="toolbar-button" type="button">角色快照</button>
+      <div class="topbar-right">
+        <div class="profile-control">
+          <span id="profile-summary" class="profile-summary">尚未導入角色</span>
+          <button id="profile-open" class="toolbar-button profile-open-button" type="button">角色快照</button>
+        </div>
+        <div class="topbar-meta">
+          <div id="collector-status" class="collector-status" data-testid="collector-status" role="status" aria-live="polite">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span class="status-summary">讀取採集狀態</span>
+          </div>
+          <div id="data-source" class="data-source" data-source="unavailable" aria-label="行情資料來源">
+            <span class="data-source-label" data-source-label="true">資料不可用</span>
+            <span class="data-source-detail" data-source-detail="true">等待可用資料來源</span>
+          </div>
+        </div>
       </div>
     </header>
 
