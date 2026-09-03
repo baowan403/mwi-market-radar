@@ -12,7 +12,7 @@ describe('pinned Milkonomy reference artifacts', () => {
   it('pins the reviewed MIT source and keeps deterministic metadata', () => {
     expect(source).toMatchObject({
       repository: 'https://github.com/Polokikiki/Milkonomy.git',
-      commit: 'febe90f14f7ea1e51937cc888f6f6e1907c58fff',
+      commit: '5941a7bd097819a201ef560e8c3d461c688e283d',
       license: 'MIT',
     });
     expect(source.gameVersion).toMatch(/^v\d+\./);

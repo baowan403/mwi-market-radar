@@ -4,7 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const EXPECTED_COMMIT = 'febe90f14f7ea1e51937cc888f6f6e1907c58fff';
+const EXPECTED_COMMIT = '5941a7bd097819a201ef560e8c3d461c688e283d';
 const REPOSITORY = 'https://github.com/Polokikiki/Milkonomy.git';
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectDirectory = path.resolve(scriptDirectory, '..');
