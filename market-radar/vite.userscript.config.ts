@@ -17,15 +17,16 @@ export default defineConfig({
     monkey({
       entry: 'src/userscript/main.ts',
       userscript: {
-        name: 'MWI Market Radar Collector',
+        name: 'MWI Market Radar Collector & Snapshot Exporter',
         namespace: 'local.mwi.market-radar',
-        version: '0.1.5',
+        version: '0.1.6',
         match: [
           'https://www.milkywayidle.com/*',
           ...dashboardMatches,
         ],
         connect: ['www.milkywayidle.com'],
-        grant: ['GM_getValue', 'GM_setValue', 'GM_deleteValue', 'GM_listValues'],
+        'run-at': 'document-start',
+        grant: ['GM_getValue', 'GM_setValue', 'GM_deleteValue', 'GM_listValues', 'GM_setClipboard'],
       },
       build: {
         fileName: 'mwi-market-radar.user.js',
