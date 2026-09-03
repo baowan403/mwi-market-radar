@@ -2,15 +2,19 @@ import type { MarketKey, Snapshot } from '../core/types';
 
 const HOUR_MS = 3_600_000;
 const SAFE_SHARE = 0.05;
+export const MIN_VOLUME_FLOOR = 5;
+export const MAX_PRICE_DEVIATION_RATIO = 2.5;
 
 export interface MarketCapacity {
   key: MarketKey;
   median3d: number | null;
   median7d: number | null;
+  medianPrice7d: number | null;
   samples3d: number;
   samples7d: number;
   safeUnitsPerHour: number | null;
   sufficient: boolean;
+  isGhostLiquidity: boolean;
   askAvailable: boolean;
   bidAvailable: boolean;
 }
@@ -37,33 +41,56 @@ function valuesInWindow(
     .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0);
 }
 
+function pricesInWindow(
+  key: MarketKey,
+  snapshots: readonly Snapshot[],
+  latestTimestamp: number,
+  hours: number,
+): number[] {
+  const cutoff = latestTimestamp - (hours - 1) * HOUR_MS;
+  return snapshots
+    .filter((snapshot) => snapshot.timestamp >= cutoff && snapshot.timestamp <= latestTimestamp)
+    .map((snapshot) => {
+      const q = snapshot.quotes[key];
+      return q?.p ?? q?.b ?? q?.a;
+    })
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
+}
+
 export function marketCapacity(key: MarketKey, snapshots: readonly Snapshot[]): MarketCapacity {
   const latest = snapshots.reduce<Snapshot | null>((current, snapshot) => (
     current === null || snapshot.timestamp > current.timestamp ? snapshot : current
   ), null);
   if (!latest) {
     return {
-      key, median3d: null, median7d: null, samples3d: 0, samples7d: 0,
-      safeUnitsPerHour: null, sufficient: false, askAvailable: false, bidAvailable: false,
+      key, median3d: null, median7d: null, medianPrice7d: null, samples3d: 0, samples7d: 0,
+      safeUnitsPerHour: null, sufficient: false, isGhostLiquidity: false, askAvailable: false, bidAvailable: false,
     };
   }
   const volumes3d = valuesInWindow(key, snapshots, latest.timestamp, 72);
   const volumes7d = valuesInWindow(key, snapshots, latest.timestamp, 168);
+  const prices7d = pricesInWindow(key, snapshots, latest.timestamp, 168);
   const median3d = median(volumes3d);
   const median7d = median(volumes7d);
+  const medianPrice7d = median(prices7d);
+
+  const isGhostLiquidity = median7d !== null && median7d < MIN_VOLUME_FLOOR;
   const sufficient = volumes3d.length >= 24
     && volumes7d.length >= 72
     && median3d !== null
     && median7d !== null;
+
   const quote = latest.quotes[key];
   return {
     key,
     median3d,
     median7d,
+    medianPrice7d,
     samples3d: volumes3d.length,
     samples7d: volumes7d.length,
     safeUnitsPerHour: sufficient ? SAFE_SHARE * Math.min(median3d, median7d) : null,
     sufficient,
+    isGhostLiquidity,
     askAvailable: typeof quote?.a === 'number' && Number.isFinite(quote.a) && quote.a >= 0,
     bidAvailable: typeof quote?.b === 'number' && Number.isFinite(quote.b) && quote.b >= 0,
   };

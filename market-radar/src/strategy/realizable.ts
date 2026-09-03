@@ -77,10 +77,23 @@ export function evaluateRealizableStrategy(
 ): RealizableStrategy {
   const flows = externalStrategyFlows(candidate);
   const evaluated: EvaluatedExternalFlow[] = [];
+  let hasAnomaly = false;
   for (const external of flows) {
     const capacity = marketCapacity(key(external.flow) as MarketKey, snapshots);
     const sideAvailable = external.side === 'input' ? capacity.askAvailable : capacity.bidAvailable;
-    if (!capacity.sufficient || !sideAvailable || capacity.safeUnitsPerHour === null || capacity.median7d === null) {
+    const isPriceAnomaly = external.side === 'output'
+      && capacity.medianPrice7d !== null
+      && external.flow.unitPrice !== null
+      && capacity.median7d !== null
+      && capacity.median7d < 50
+      && external.flow.unitPrice > capacity.medianPrice7d * 2.5;
+
+    if (
+      !capacity.sufficient
+      || !sideAvailable
+      || capacity.safeUnitsPerHour === null
+      || capacity.median7d === null
+    ) {
       return {
         theoreticalProfitPerDay: candidate.profitPerDay,
         realizableProfitPerDay: null,
@@ -92,6 +105,9 @@ export function evaluateRealizableStrategy(
         bottleneckSide: external.side,
         classification: 'insufficient',
       };
+    }
+    if (capacity.isGhostLiquidity || isPriceAnomaly) {
+      hasAnomaly = true;
     }
     const share = capacity.median7d === 0
       ? external.flow.unitsPerHour > 0 ? Number.POSITIVE_INFINITY : 0
@@ -143,6 +159,6 @@ export function evaluateRealizableStrategy(
     marketSharePct: maximumShare,
     bottleneckHrid: bottleneck.flow.itemHrid,
     bottleneckSide: bottleneck.side,
-    classification: classification(maximumShare),
+    classification: (hasAnomaly || maximumShare > 25) ? 'reject' : classification(maximumShare),
   };
 }

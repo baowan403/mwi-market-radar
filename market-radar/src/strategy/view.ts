@@ -123,8 +123,11 @@ const CONFIDENCE_LABELS: Record<StrategySignalConfidence, string> = {
   high: '高',
 };
 
-export const STRATEGY_SKILL_OPTIONS: Array<{ value: 'all' | SkillingAction; label: string }> = [
+export type StrategyFilterSkill = 'all' | 'alpha' | SkillingAction;
+
+export const STRATEGY_SKILL_OPTIONS: Array<{ value: StrategyFilterSkill; label: string }> = [
   { value: 'all', label: '全部技能' },
+  { value: 'alpha', label: '⚡ 突發短缺 / 暴利' },
   { value: 'milking', label: '擠奶' },
   { value: 'foraging', label: '採摘' },
   { value: 'woodcutting', label: '伐木' },
@@ -178,8 +181,13 @@ function matchesSearchQuery(candidate: StrategyCandidate, query: string, itemNam
   return target.includes(normalizedQuery);
 }
 
-function matchesSkill(candidate: StrategyCandidate, selectedSkill: 'all' | SkillingAction): boolean {
+function matchesSkill(
+  candidate: StrategyCandidate,
+  selectedSkill: StrategyFilterSkill,
+  signal?: StrategySignal,
+): boolean {
   if (selectedSkill === 'all') return true;
+  if (selectedSkill === 'alpha') return signal?.isAlphaOpportunity === true;
   return candidate.steps.some((step) => step.action === selectedSkill);
 }
 
@@ -551,7 +559,7 @@ function stepAssumptions(step: StrategyStepResult, options: StrategyViewOptions)
 }
 
 interface StrategyFilterContext {
-  selectedSkill: 'all' | SkillingAction;
+  selectedSkill: StrategyFilterSkill;
   searchQuery: string;
 }
 
@@ -694,9 +702,11 @@ function renderResults(
       }),
     }));
 
-    // 篩選：未搜尋時僅展示可執行之優質策略（不需玩家手動切換觀察/排除分頁）；搜尋時則全面檢索
-    const matched = assessed.filter(({ candidate, decision }) => {
-      if (!matchesSkill(candidate, filterState.selectedSkill)) return false;
+    // 篩選：未搜尋時僅展示可執行之優質策略；搜尋時則全面檢索
+    const matched = assessed.filter((item) => {
+      const { candidate, decision } = item;
+      const assessedSignal = getAssessedSignal(item);
+      if (!matchesSkill(candidate, filterState.selectedSkill, assessedSignal.signal)) return false;
       if (isSearchActive) {
         return matchesSearchQuery(candidate, filterState.searchQuery, options.itemName);
       }
@@ -704,11 +714,19 @@ function renderResults(
     });
 
     // 排序：
+    // 若為 alpha 專屬短缺暴利視圖，優先依 alphaScore 降序，其次依折算後日利降序
+    // 常態視圖：
     // 1. 折算後收益（無折算則日利）高者在先
     // 2. 收益相同時，優先級最高排前面
     // 3. 優先級也相同時，風險最低排前面
     // 4. 字母穩定排序
     matched.sort((left, right) => {
+      if (filterState.selectedSkill === 'alpha') {
+        const leftScore = getAssessedSignal(left).signal.alphaScore ?? 0;
+        const rightScore = getAssessedSignal(right).signal.alphaScore ?? 0;
+        const scoreDiff = rightScore - leftScore;
+        if (Math.abs(scoreDiff) > 1e-6) return scoreDiff;
+      }
       const leftProfit = effectiveProfit(left);
       const rightProfit = effectiveProfit(right);
       const profitDiff = rightProfit - leftProfit;
@@ -735,14 +753,16 @@ function renderResults(
 
       const leftContainer = element('div', 'strategy-decision-summary-left');
       const label = element('strong');
-      label.textContent = '目前推薦最佳';
+      label.textContent = filterState.selectedSkill === 'alpha' ? '⚡ 短缺套利首選' : '目前推薦最佳';
       const value = element('span', 'strategy-decision-summary-title');
       const bestPathName = best.candidate.path.map((h) => options.itemName(h)).join(' → ');
       value.textContent = `${bestPathName}・預估日利 ${metric(effectiveProfit(best))}`;
       leftContainer.append(label, value);
 
       const note = element('span', 'strategy-decision-summary-note');
-      note.textContent = '依折算後日利、優先級與風險綜合排序';
+      note.textContent = filterState.selectedSkill === 'alpha'
+        ? '依突發利潤爆發動能與 Alpha 評分排序，已嚴格過濾幽靈插針'
+        : '依折算後日利、優先級與風險綜合排序';
 
       summary.append(leftContainer, note);
       resultsContainer.append(summary);
@@ -759,6 +779,8 @@ function renderResults(
       const empty = element('p', 'strategy-no-result');
       if (isSearchActive) {
         empty.textContent = `找不到與「${filterState.searchQuery.trim()}」相關的策略。`;
+      } else if (filterState.selectedSkill === 'alpha') {
+        empty.textContent = '目前全市場暫無突發短缺或異常利差暴利機會（各品類供需平穩健康）。';
       } else if (filterState.selectedSkill !== 'all') {
         const skillName = STRATEGY_SKILL_OPTIONS.find((s) => s.value === filterState.selectedSkill)?.label ?? '';
         empty.textContent = `在「${skillName}」技能下沒有符合條件的策略。`;
@@ -772,6 +794,8 @@ function renderResults(
     const meta = element('p', 'strategy-meta');
     if (isSearchActive) {
       meta.textContent = `搜尋「${filterState.searchQuery.trim()}」：顯示前 ${chosen.length} 條（依折算後日利排序）`;
+    } else if (filterState.selectedSkill === 'alpha') {
+      meta.textContent = `⚡ 突發短缺／暴利專區：顯示前 ${chosen.length} 條；依短期動能（AlphaScore）排序，已剔除幽靈插針`;
     } else if (filterState.selectedSkill !== 'all') {
       const skillName = STRATEGY_SKILL_OPTIONS.find((s) => s.value === filterState.selectedSkill)?.label ?? '';
       meta.textContent = `技能「${skillName}」：顯示前 ${chosen.length} 條；依折算後日利、優先級與風險排序`;

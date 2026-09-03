@@ -372,14 +372,14 @@ describe('strategy recommendation view', () => {
             {
               id: 'step1', action: 'crafting', actionHrid: '/actions/crafting/step1', outputHrid: '/items/intermediate_material',
               valid: true, actionsPerHour: 1, costPerHour: 1_000, incomePerHour: 2_000, profitPerHour: 1_000, experiencePerHour: 10,
-              inputs: [{ itemHrid: '/items/raw_material', enhancementLevel: 0, unitsPerHour: 10, unitPrice: 100, market: true }],
-              outputs: [{ itemHrid: '/items/intermediate_material', enhancementLevel: 0, unitsPerHour: 20, unitPrice: 150, market: true }],
+              inputs: [{ itemHrid: '/items/raw_material', enhancementLevel: 0, unitsPerHour: 10, unitPrice: 110, market: true }],
+              outputs: [{ itemHrid: '/items/intermediate_material', enhancementLevel: 0, unitsPerHour: 20, unitPrice: 100, market: true }],
             },
             {
               id: 'step2', action: 'crafting', actionHrid: '/actions/crafting/step2', outputHrid: '/items/final_product',
               valid: true, actionsPerHour: 1, costPerHour: 2_000, incomePerHour: 6_000, profitPerHour: 4_000, experiencePerHour: 10,
-              inputs: [{ itemHrid: '/items/intermediate_material', enhancementLevel: 0, unitsPerHour: 20, unitPrice: 150, market: true }],
-              outputs: [{ itemHrid: '/items/final_product', enhancementLevel: 0, unitsPerHour: 5, unitPrice: 1_200, market: true }],
+              inputs: [{ itemHrid: '/items/intermediate_material', enhancementLevel: 0, unitsPerHour: 20, unitPrice: 100, market: true }],
+              outputs: [{ itemHrid: '/items/final_product', enhancementLevel: 0, unitsPerHour: 5, unitPrice: 100, market: true }],
             },
           ],
         },
@@ -388,7 +388,7 @@ describe('strategy recommendation view', () => {
 
     const view = createStrategyView({
       target,
-      getProfile: () => profile,
+      getProfile: () => ({ ...profile, actions: { crafting: { playerLevel: 100 } } as any }),
       getSnapshots: () => snapshots,
       loadGameData: async () => ({ shopItemDetailMap: {}, openableLootDropMap: {}, itemsByHrid: new Map() }) as never,
       pinStore: createMemoryStrategyPinStore(),
@@ -404,6 +404,50 @@ describe('strategy recommendation view', () => {
     const text = detailRow?.textContent ?? '';
     expect(text).toContain('raw_material');
     expect(text).not.toContain('採購 intermediate_material');
+
+    view.destroy();
+  });
+
+  it('filters strategies by alpha opportunity when alpha skill option is selected', async () => {
+    const target = document.createElement('section');
+    const snapshots = history({
+      '/items/steady_cloth': 10_000,
+    });
+    const result: StrategyCandidateResult = {
+      diagnostics: [],
+      candidates: [
+        {
+          id: 'steady_cloth', kind: 'manufacture', title: '平穩布匹',
+          path: ['/items/steady_cloth', '/items/steady_cloth'],
+          profitPerHour: 3_000, profitPerDay: 72_000, costPerHour: 1_000, incomePerHour: 4_000,
+          workingCapital24h: 24_000,
+          steps: [marketStep('cloth_step', '/items/steady_cloth', '/items/steady_cloth', 10)],
+        },
+      ],
+    };
+
+    const view = createStrategyView({
+      target,
+      getProfile: () => profile,
+      getSnapshots: () => snapshots,
+      loadGameData: async () => ({ shopItemDetailMap: {}, openableLootDropMap: {}, itemsByHrid: new Map() }) as never,
+      pinStore: createMemoryStrategyPinStore(),
+      calculate: () => result,
+      itemName: (hrid) => hrid.split('/').at(-1) ?? hrid,
+      onImportProfile: vi.fn(),
+      now: () => snapshots.at(-1)!.timestamp,
+    });
+
+    await view.render();
+    const skillSelect = target.querySelector<HTMLSelectElement>('[data-strategy-skill]')!;
+    expect(skillSelect).not.toBeNull();
+
+    // 切換到 ⚡ 突發短缺 / 暴利
+    skillSelect.value = 'alpha';
+    skillSelect.dispatchEvent(new Event('change'));
+
+    // 目前平穩布匹無突發利潤爆發（m1=0），應展示平穩提示
+    expect(target.textContent).toContain('目前全市場暫無突發短缺或異常利差暴利機會');
 
     view.destroy();
   });

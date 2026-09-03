@@ -147,4 +147,20 @@ describe('liquidity-adjusted realizable strategy', () => {
     expect(result.safeHoursPerDay).toBeCloseTo(2.4);
     expect(result.sellThroughDays).toBe(0.5);
   });
+
+  it('rejects an equipment output whose price deviates abnormally (>2.5x) from 7d historical price', () => {
+    const value = candidate(1, 1);
+    value.path[value.path.length - 1] = '/items/spiked_gloves';
+    // 當前報價被掛了 500 (歷史中位數為 100，偏離 5 倍)
+    value.steps[1]!.outputs[0] = {
+      itemHrid: '/items/spiked_gloves', enhancementLevel: 0, unitsPerHour: 1, unitPrice: 500, market: true,
+    };
+    const result = evaluateRealizableStrategy(value, snapshots({
+      '/items/input': 1_000,
+      '/items/spiked_gloves': 20,
+    }));
+
+    // 冷門裝備（20件/天）且價格暴漲偏離 5 倍，被判定為插針異常拒絕
+    expect(result.classification).toBe('reject');
+  });
 });

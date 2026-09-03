@@ -17,6 +17,9 @@ export interface StrategySignal {
   confidence: StrategySignalConfidence;
   reasons: string[];
   invalidation: string[];
+  alphaScore?: number | null;
+  isAlphaOpportunity?: boolean;
+  alphaReason?: string | null;
   metrics: {
     margin1dPct: number | null;
     margin3dPct: number | null;
@@ -218,10 +221,32 @@ export function strategyTrendSignal(
       trendNote += '；市場深度嚴重不足或缺資料，降為低優先';
     }
 
+    // ── ⚡ Alpha 突發短缺 / 暴利套利判定 ──
+    const isHealthy = risk !== 'insufficient' && risk !== 'reject';
+    const isSurge1d = m1 !== null && m1 >= 10;
+    const isSurgeIncome = metrics.income3dPct !== null && metrics.income3dPct >= 15;
+    const isAlpha = isHealthy && (isSurge1d || isSurgeIncome) && (latest.realizableProfitPerDay ?? 0) > 0;
+    let alphaScore: number | null = null;
+    let alphaReason: string | null = null;
+    if (isAlpha) {
+      const profitWeight = Math.min(50, (latest.realizableProfitPerDay ?? 0) / 1_000_000);
+      const growthWeight = (m1 ?? 0) * 1.5 + (m3 ?? 0);
+      alphaScore = Math.round((growthWeight + profitWeight) * 10) / 10;
+      alphaReason = isSurge1d
+        ? `⚡ 突發短缺套利：1D 利潤爆發 +${m1!.toFixed(1)}%，終端溢價擴張中`
+        : `⚡ 突發短缺套利：3D 終端售價上漲 +${metrics.income3dPct!.toFixed(1)}%，市場承接健康`;
+      priority = 'top';
+    }
+
+    const reasons = alphaReason ? [alphaReason, trendNote] : [trendNote];
+
     return {
       action: 'execute', priority, confidence,
-      reasons: [trendNote],
+      reasons,
       invalidation: ['3D 利潤下降超過 10% 時重新評估'], metrics,
+      alphaScore,
+      isAlphaOpportunity: isAlpha,
+      alphaReason,
     };
   }
 
@@ -234,6 +259,9 @@ export function strategyTrendSignal(
       action: 'prepare', priority: 'medium', confidence,
       reasons: [riskNote],
       invalidation: ['3D 改善至 -2% 以上則升級為推薦；惡化至 -10% 以下則降級為觀望'], metrics,
+      alphaScore: null,
+      isAlphaOpportunity: false,
+      alphaReason: null,
     };
   }
 
@@ -242,5 +270,8 @@ export function strategyTrendSignal(
     action: 'wait', priority: 'low', confidence,
     reasons: [`3D 利潤下滑 ${formatted(m3)}，建議暫時觀望`],
     invalidation: ['3D 利潤止跌回升至 -3% 以上再重新評估'], metrics,
+    alphaScore: null,
+    isAlphaOpportunity: false,
+    alphaReason: null,
   };
 }
