@@ -176,4 +176,32 @@ describe('real manufacturing recipe adapter', () => {
     expect(result.inputs).toEqual([]); // 沒喝茶則 inputs 為空
     expect(result.outputs.some((flow) => flow.itemHrid === '/items/redwood_log')).toBe(true);
   });
+
+  it('keeps gathering tea in both cost and external-input liquidity flows', () => {
+    const teaProfile = structuredClone(profile);
+    teaProfile.actions.woodcutting.teas = ['/items/super_speed_tea'];
+    const customSnapshot: Snapshot = {
+      timestamp: 1,
+      quotes: {
+        '/items/redwood_log::0': { a: 100, b: 90, p: 95, v: 10_000 },
+        '/items/woodcutting_essence::0': { a: 500, b: 450, p: 475, v: 10_000 },
+        '/items/medium_meteorite_cache::0': { a: 100_000, b: 90_000, p: 95_000, v: 10 },
+        '/items/branch_of_insight::0': { a: 1_000_000, b: 900_000, p: 950_000, v: 1 },
+        '/items/cowbell::0': { a: 50, b: 40, p: 45, v: 10_000 },
+        '/items/star_fragment::0': { a: 200, b: 180, p: 190, v: 50_000 },
+        '/items/super_speed_tea::0': { a: 1_000, b: 900, p: 950, v: 10_000 },
+      },
+    };
+    const result = calculateGatherAction({
+      actionHrid: '/actions/woodcutting/redwood_tree',
+      profile: teaProfile,
+      data,
+      prices: createStrategyPriceBook(customSnapshot, data),
+    });
+
+    const tea = result.inputs.find((flow) => flow.itemHrid === '/items/super_speed_tea');
+    expect(tea?.unitsPerHour).toBeGreaterThan(0);
+    expect(tea?.unitPrice).toBe(1_000);
+    expect(result.costPerHour).toBeGreaterThan(0);
+  });
 });

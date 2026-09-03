@@ -1372,6 +1372,221 @@ summary:focus-visible {
   touch-action: manipulation;
 }
 
+/* ── 策略決策版：7 欄、客觀排名與本批資金 ── */
+.strategy-mode-group {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+}
+
+.strategy-mode-button {
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 0;
+  border-right: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.strategy-mode-button:last-child { border-right: 0; }
+
+.strategy-mode-button[aria-pressed="true"] {
+  background: rgb(114 167 255 / 14%);
+  color: var(--color-text);
+}
+
+.strategy-decision-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  margin: 0 20px 12px;
+  padding: 10px 12px;
+  border: 1px solid rgb(52 211 153 / 24%);
+  border-radius: 8px;
+  background: rgb(52 211 153 / 7%);
+  font-size: 0.78rem;
+}
+
+.strategy-decision-summary strong { color: #34d399; }
+.strategy-decision-summary span:last-child { color: var(--color-muted); }
+
+.strategy-table {
+  min-width: 1050px;
+}
+
+.strategy-table col[data-strategy-column="rank"] { width: 58px; }
+.strategy-table col[data-strategy-column="strategy"] { width: 265px; }
+.strategy-table col[data-strategy-column="classification"] { width: 64px; }
+.strategy-table col[data-strategy-column="profit"] { width: 112px; }
+.strategy-table col[data-strategy-column="trend"] { width: 195px; }
+.strategy-table col[data-strategy-column="execution"] { width: 195px; }
+.strategy-table col[data-strategy-column="capital"] { width: 150px; }
+
+.strategy-rank-cell {
+  padding: 4px !important;
+  white-space: nowrap;
+}
+
+.strategy-rank {
+  display: block;
+  color: var(--color-muted);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.strategy-rank-cell .pin-button {
+  min-width: 30px;
+  min-height: 30px;
+}
+
+.strategy-name-cell {
+  text-align: left !important;
+}
+
+.strategy-name-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 3px;
+}
+
+.strategy-name-line strong {
+  overflow: hidden;
+  color: var(--color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.strategy-step {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border: 1px solid var(--color-line);
+  border-radius: 4px;
+  color: var(--color-muted);
+  font-size: 0.66rem;
+}
+
+.strategy-path-cell {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.strategy-profit {
+  white-space: nowrap;
+}
+
+.strategy-profit-ref,
+.strategy-profit-batch,
+.strategy-secondary {
+  margin-top: 2px;
+  color: var(--color-muted);
+  font-size: 0.66rem;
+  line-height: 1.25;
+}
+
+.strategy-trend-cell {
+  white-space: normal;
+}
+
+.strategy-trend-top,
+.strategy-trend-delta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.strategy-signal,
+.strategy-momentum {
+  display: inline-flex;
+  padding: 2px 6px;
+  border: 1px solid var(--color-line);
+  border-radius: 5px;
+  font-size: 0.66rem;
+  font-weight: 750;
+}
+
+.strategy-signal[data-strategy-signal="execute"] {
+  border-color: rgb(52 211 153 / 36%);
+  background: rgb(52 211 153 / 12%);
+  color: #34d399;
+}
+
+.strategy-signal[data-strategy-signal="prepare"],
+.strategy-signal[data-strategy-signal="sell"] {
+  border-color: rgb(251 191 36 / 36%);
+  background: rgb(251 191 36 / 12%);
+  color: #fbbf24;
+}
+
+.strategy-signal[data-strategy-signal="wait"],
+.strategy-signal[data-strategy-signal="stop"] {
+  color: var(--color-muted);
+}
+
+.strategy-trend-delta {
+  margin-top: 3px;
+  font-size: 0.68rem;
+}
+
+.strategy-sparkline-cell {
+  display: inline-block;
+  margin: 2px 0 0;
+  vertical-align: middle;
+}
+
+.strategy-signal-details {
+  margin-top: 1px;
+  color: var(--color-muted);
+  font-size: 0.64rem;
+}
+
+.strategy-signal-details summary {
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.strategy-signal-details p {
+  margin: 4px 0 0;
+  color: var(--color-text);
+  line-height: 1.35;
+}
+
+.strategy-execution,
+.strategy-capital {
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.strategy-execution > div:first-child,
+.strategy-capital-main {
+  color: var(--color-text);
+  font-weight: 750;
+}
+
+.strategy-detail-row td:first-child {
+  position: static;
+}
+
+.strategy-detail-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 14px;
+  margin-bottom: 10px;
+  color: var(--color-muted);
+  font-size: 0.7rem;
+}
+
 .pagination {
   display: flex;
   align-items: center;

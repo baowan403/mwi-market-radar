@@ -42,6 +42,9 @@ export interface PlayerProfile {
   communityBuffs: Record<string, number>;
   shrines: Record<string, number>;
   achievements: Record<string, boolean>;
+  /** Milkonomy Exporter semantics: owned equipment HRID -> enhancement level, not stack quantity. */
   inventoryMap: Record<string, number>;
+  /** Material stack quantities are not present in Exporter v1; keep separate to prevent false cash offsets. */
+  materialInventoryMap: Record<string, number>;
   seals: string[];
 }

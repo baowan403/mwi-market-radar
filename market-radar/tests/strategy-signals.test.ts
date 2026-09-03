@@ -115,6 +115,19 @@ describe('explainable strategy trend signals', () => {
     expect(signal.reasons.join(' ')).toContain('不足 7 天');
   });
 
+  it('blocks executable language when the latest market snapshot is stale', () => {
+    const signal = strategyTrendSignal(series(31, (ratio) => ({
+      cost: 100,
+      income: 200 + 100 * ratio,
+      capacity: 100 + 50 * ratio,
+      spread: 1,
+    })), { latestSnapshotAgeMs: 60 * 60_000 + 1 });
+
+    expect(signal.action).toBe('wait');
+    expect(signal.confidence).toBe('none');
+    expect(signal.reasons.join(' ')).toContain('超過 60 分鐘');
+  });
+
   it('downgrades priority when liquidity classification indicates risk', () => {
     // 原本動能強勁可得 top
     const surgingSeries = series(31, (ratio) => ({

@@ -33,6 +33,36 @@ export interface StrategyCandidateResult {
   diagnostics: string[];
 }
 
+/**
+ * Keep materially different path variants when profit and capital trade off.
+ * A variant disappears only when another is no worse on both dimensions and
+ * strictly better on at least one. Exact ties are collapsed deterministically.
+ */
+export function selectParetoStrategyVariants(
+  candidates: readonly StrategyCandidate[],
+): StrategyCandidate[] {
+  const groups = new Map<string, StrategyCandidate[]>();
+  for (const candidate of candidates) {
+    const key = `${candidate.kind}:${candidate.path.join('->')}`;
+    const group = groups.get(key) ?? [];
+    group.push(candidate);
+    groups.set(key, group);
+  }
+  return [...groups.values()].flatMap((group) => {
+    const ordered = [...group].sort((left, right) => left.id.localeCompare(right.id));
+    return ordered.filter((candidate, index) => !ordered.some((other, otherIndex) => {
+      if (other === candidate) return false;
+      const same = other.profitPerHour === candidate.profitPerHour
+        && other.workingCapital24h === candidate.workingCapital24h;
+      if (same) return otherIndex < index;
+      return other.profitPerHour >= candidate.profitPerHour
+        && other.workingCapital24h <= candidate.workingCapital24h
+        && (other.profitPerHour > candidate.profitPerHour
+          || other.workingCapital24h < candidate.workingCapital24h);
+    }));
+  });
+}
+
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -252,18 +282,8 @@ export function buildStrategyCandidates(options: {
     }
   }
 
-  // ── 同一條路徑與類型只保留利潤最高的最佳變體（避免不同催化劑產生重複路徑）──
-  const uniqueByPath = new Map<string, StrategyCandidate>();
-  for (const candidate of candidateMap.values()) {
-    const pathKey = `${candidate.kind}:${candidate.path.join('->')}`;
-    const existing = uniqueByPath.get(pathKey);
-    if (!existing || candidate.profitPerHour > existing.profitPerHour) {
-      uniqueByPath.set(pathKey, candidate);
-    }
-  }
-
   return {
-    candidates: [...uniqueByPath.values()].sort((left, right) => (
+    candidates: selectParetoStrategyVariants([...candidateMap.values()]).sort((left, right) => (
       right.profitPerDay - left.profitPerDay || left.id.localeCompare(right.id)
     )),
     diagnostics,

@@ -8,6 +8,11 @@ import { buildStrategyMarginSeries, repriceFixedCandidate, type StrategyMarginPo
 import { generateSparklineSvg } from './sparkline';
 import { createStrategyPriceBook } from './price-book';
 import {
+  assessStrategyDecision,
+  type StrategyDecision,
+  type StrategyDecisionMode,
+} from './decision';
+import {
   evaluateRealizableStrategy,
   type LiquidityClassification,
   type RealizableStrategy,
@@ -36,6 +41,7 @@ export interface StrategyViewOptions {
   calculate?: typeof buildStrategyCandidates;
   itemName(hrid: string): string;
   onImportProfile(): void;
+  now?: () => number;
 }
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
@@ -86,19 +92,27 @@ const CLASSIFICATION_LABELS: Record<LiquidityClassification, string> = {
   insufficient: '缺資料',
 };
 
+const CLASSIFICATION_OBSERVE_ORDER: Record<LiquidityClassification, number> = {
+  insufficient: 0,
+  reject: 1,
+  limited: 2,
+  'small-test': 3,
+  'long-run': 4,
+};
+
 const SIGNAL_LABELS: Record<StrategySignalAction, string> = {
   execute: '立即製造',
-  prepare: '囤原料',
+  prepare: '備料觀察',
   wait: '暫停觀望',
   sell: '賣出清倉',
   stop: '逐步出場',
 };
 
-const PRIORITY_LABELS: Record<StrategyPriority, string> = {
-  top: '最高',
-  high: '高',
-  medium: '中',
-  low: '低',
+const MOMENTUM_LABELS: Record<StrategyPriority, string> = {
+  top: '強勁',
+  high: '穩定',
+  medium: '留意',
+  low: '轉弱',
 };
 
 const CONFIDENCE_LABELS: Record<StrategySignalConfidence, string> = {
@@ -173,6 +187,7 @@ type StrategyScope = 'actionable' | 'limited';
 interface AssessedStrategy {
   candidate: StrategyCandidate;
   liquidity: RealizableStrategy;
+  decision: StrategyDecision;
 }
 
 interface AssessedSignal {
@@ -208,15 +223,17 @@ function strategyRow(
   assessedSignal: AssessedSignal,
   pinned: Set<string>,
   options: StrategyViewOptions,
+  rank: number,
 ): HTMLTableRowElement {
-  const { candidate, liquidity } = assessed;
+  const { candidate, liquidity, decision } = assessed;
   const { signal, backtest } = assessedSignal;
   const row = element('tr');
   row.dataset.strategyRow = candidate.id;
   row.dataset.liquidityClassification = liquidity.classification;
 
-  // ── 欄 1：自選 ──
-  const pinCell = element('td');
+  const rankCell = element('td', 'strategy-rank-cell');
+  const rankLabel = element('span', 'strategy-rank');
+  rankLabel.textContent = `#${rank}`;
   const pin = element('button', 'pin-button');
   pin.type = 'button';
   pin.dataset.strategyPin = candidate.id;
@@ -232,104 +249,101 @@ function strategyRow(
       pin.textContent = isPinned ? '★' : '☆';
     }).finally(() => { pin.disabled = false; });
   });
-  pinCell.append(pin);
-  row.append(pinCell);
+  rankCell.append(rankLabel, pin);
+  row.append(rankCell);
 
-  // ── 欄 2：步驟（工序數）──
-  const stepCell = element('td', 'strategy-step');
-  stepCell.textContent = stepCountLabel(candidate);
-  stepCell.title = stepDetailTooltip(candidate);
-  row.append(stepCell);
+  const nameCell = element('td', 'strategy-name-cell');
+  const nameLine = element('div', 'strategy-name-line');
+  const title = element('strong');
+  title.textContent = candidate.title;
+  const step = element('span', 'strategy-step');
+  step.textContent = stepCountLabel(candidate);
+  step.title = stepDetailTooltip(candidate);
+  nameLine.append(title, step);
+  const path = element('div', 'strategy-path-cell');
+  path.textContent = candidate.path.map(options.itemName).join(' → ');
+  nameCell.append(nameLine, path);
+  row.append(nameCell);
 
-  // ── 欄 3：路徑（材料流程）──
-  const pathCell = element('td', 'strategy-path-cell');
-  pathCell.textContent = candidate.path.map(options.itemName).join(' → ');
-  row.append(pathCell);
-
-  // ── 欄 4：理論日利（主）+ 次級折算值（副）──
-  const profitCell = element('td', 'strategy-profit');
-  const mainProfit = element('div', 'strategy-profit-main');
-  mainProfit.textContent = money(candidate.profitPerDay);
-  profitCell.append(mainProfit);
-
-  if (
-    liquidity.realizableProfitPerDay !== null
-    && Number.isFinite(liquidity.realizableProfitPerDay)
-    && liquidity.realizableProfitPerDay < candidate.profitPerDay * 0.98
-  ) {
-    const subProfit = element('div', 'strategy-profit-sub');
-    subProfit.textContent = `折算 ~${money(liquidity.realizableProfitPerDay)}`;
-    subProfit.title = `市場容量限制：每日安全折算為 ${money(liquidity.realizableProfitPerDay)}`;
-    profitCell.append(subProfit);
-  }
-  row.append(profitCell);
-
-  // ── 欄 5：1D 趨勢 ──
-  const trend1dCell = element('td', 'strategy-trend-cell');
-  const delta1d = element('span');
-  delta1d.className = deltaClass(signal.metrics.margin1dPct);
-  delta1d.textContent = trendPct(signal.metrics.margin1dPct);
-  trend1dCell.append(delta1d);
-  row.append(trend1dCell);
-
-  // ── 欄 6：3D 趨勢 ──
-  const trend3dCell = element('td', 'strategy-trend-cell');
-  const delta3d = element('span');
-  delta3d.className = deltaClass(signal.metrics.margin3dPct);
-  delta3d.textContent = trendPct(signal.metrics.margin3dPct);
-  trend3dCell.append(delta3d);
-  row.append(trend3dCell);
-
-  // ── 欄 7：7D 趨勢 ──
-  const trend7dCell = element('td', 'strategy-trend-cell');
-  const delta7d = element('span');
-  delta7d.className = deltaClass(signal.metrics.margin7dPct);
-  delta7d.textContent = trendPct(signal.metrics.margin7dPct);
-  trend7dCell.append(delta7d);
-  row.append(trend7dCell);
-
-  // ── 欄 8：72H 走勢（Mini Sparkline 折線圖）──
-  const sparkCell = element('td', 'strategy-sparkline-cell');
-  sparkCell.innerHTML = generateSparklineSvg(assessedSignal.series, { width: 72, height: 20 });
-  sparkCell.title = '過去 72 小時利潤走勢波形（綠漲紅跌）';
-  row.append(sparkCell);
-
-  // ── 欄 9：日產佔比（做滿24h佔市場日交易量%）──
-  const shareCell = element('td', 'strategy-market-share');
-  if (liquidity.marketSharePct !== null && Number.isFinite(liquidity.marketSharePct)) {
-    const pct = liquidity.marketSharePct;
-    shareCell.textContent = `${pct.toFixed(1)}%`;
-    if (pct <= 5) shareCell.classList.add('share-safe');
-    else if (pct <= 10) shareCell.classList.add('share-warning');
-    else if (pct <= 25) shareCell.classList.add('share-danger');
-    else shareCell.classList.add('share-critical');
-    shareCell.title = `做滿24小時產量佔市場日成交量約 ${pct.toFixed(1)}%`;
-  } else {
-    shareCell.textContent = '—';
-  }
-  row.append(shareCell);
-
-  // ── 欄 10：資金/D ──
-  const capital = element('td', 'strategy-capital');
-  capital.textContent = money(candidate.workingCapital24h);
-  row.append(capital);
-
-  // ── 欄 11：風險 ──
   const classificationCell = element('td', 'strategy-classification-cell');
   const classification = element('span', 'strategy-classification');
   classification.dataset.classification = liquidity.classification;
   classification.textContent = CLASSIFICATION_LABELS[liquidity.classification];
+  classification.title = liquidity.bottleneckHrid
+    ? `瓶頸：${options.itemName(liquidity.bottleneckHrid)}（${liquidity.bottleneckSide === 'input' ? '買入' : '賣出'}端）`
+    : '未發現外部市場瓶頸';
   classificationCell.append(classification);
   row.append(classificationCell);
 
-  // ── 欄 12：優先級 ──
-  const priorityCell = element('td', 'strategy-priority-cell');
-  const priorityBadge = element('span', 'strategy-priority-badge');
-  priorityBadge.dataset.strategyPriority = signal.priority;
-  priorityBadge.textContent = PRIORITY_LABELS[signal.priority];
-  priorityBadge.title = signal.reasons.join('；');
-  priorityCell.append(priorityBadge);
-  row.append(priorityCell);
+  const profitCell = element('td', 'strategy-profit');
+  const mainProfit = element('div', 'strategy-profit-main');
+  mainProfit.textContent = liquidity.realizableProfitPerDay === null
+    ? '—'
+    : money(liquidity.realizableProfitPerDay);
+  mainProfit.title = '依 3D／7D 成交量中位數及 5% 安全市占折算';
+  const profitRef = element('div', 'strategy-profit-ref');
+  profitRef.textContent = `理論 ${money(candidate.profitPerDay)}`;
+  const batchProfit = element('div', 'strategy-profit-batch');
+  batchProfit.textContent = decision.batchProfit === null
+    ? '本批 —'
+    : `${quantity(decision.executionHours)}h ${money(decision.batchProfit)}`;
+  profitCell.append(mainProfit, profitRef, batchProfit);
+  row.append(profitCell);
+
+  const trendCell = element('td', 'strategy-trend-cell');
+  const trendTop = element('div', 'strategy-trend-top');
+  const signalBadge = element('span', 'strategy-signal');
+  signalBadge.dataset.strategySignal = signal.action;
+  signalBadge.textContent = SIGNAL_LABELS[signal.action];
+  const momentum = element('span', 'strategy-momentum');
+  momentum.textContent = MOMENTUM_LABELS[signal.priority];
+  trendTop.append(signalBadge, momentum);
+  const delta = element('div', 'strategy-trend-delta');
+  const delta3d = element('span');
+  delta3d.className = deltaClass(signal.metrics.margin3dPct);
+  delta3d.textContent = `3D ${trendPct(signal.metrics.margin3dPct)}`;
+  const delta7d = element('span');
+  delta7d.className = deltaClass(signal.metrics.margin7dPct);
+  delta7d.textContent = `7D ${trendPct(signal.metrics.margin7dPct)}`;
+  delta.append(delta3d, delta7d);
+  const chart = element('div', 'strategy-sparkline-cell');
+  chart.innerHTML = generateSparklineSvg(assessedSignal.series, { width: 72, height: 18 });
+  const signalDetails = element('details', 'strategy-signal-details');
+  const signalSummary = element('summary');
+  signalSummary.textContent = `信心 ${CONFIDENCE_LABELS[signal.confidence]}・回測 3D ${backtest.byHorizon['3d'].samples}`;
+  const reasons = element('p');
+  reasons.textContent = `原因：${signal.reasons.join('；')}`;
+  const invalidation = element('p');
+  invalidation.textContent = `失效：${signal.invalidation.join('；')}`;
+  signalDetails.append(signalSummary, reasons, invalidation);
+  trendCell.append(trendTop, delta, chart, signalDetails);
+  row.append(trendCell);
+
+  const executionCell = element('td', 'strategy-execution');
+  const safeHours = element('div');
+  safeHours.textContent = `安全 ${metric(liquidity.safeHoursPerDay, 'h')}`;
+  const batch = element('div');
+  batch.textContent = `本批 ${metric(decision.recommendedBatchUnits)}`;
+  const share = element('div', 'strategy-market-share');
+  share.textContent = `市占 ${liquidity.marketSharePct === null ? '—' : `${liquidity.marketSharePct.toFixed(1)}%`}`;
+  const bottleneck = element('div', 'strategy-secondary');
+  bottleneck.textContent = liquidity.bottleneckHrid
+    ? `${liquidity.bottleneckSide === 'input' ? '買入' : '賣出'}瓶頸：${options.itemName(liquidity.bottleneckHrid)}`
+    : '無外部瓶頸';
+  executionCell.append(safeHours, batch, share, bottleneck);
+  row.append(executionCell);
+
+  const capital = element('td', 'strategy-capital');
+  const cash = element('div', 'strategy-capital-main');
+  cash.textContent = money(decision.funding.cashRequired);
+  const inventory = element('div', 'strategy-secondary');
+  inventory.textContent = decision.funding.inventoryReplacementValue > 0
+    ? `庫存抵現金 ${money(decision.funding.inventoryReplacementValue)}`
+    : '材料庫存未提供';
+  const economic = element('div', 'strategy-secondary');
+  economic.textContent = `經濟投入 ${money(decision.funding.grossInputValue)}`;
+  capital.append(cash, inventory, economic);
+  row.append(capital);
 
   return row;
 }
@@ -344,17 +358,36 @@ function deltaClass(value: number | null): string {
 
 /** 生成列展開詳情子列（步驟假設） */
 function detailRow(
-  candidate: StrategyCandidate,
+  assessed: AssessedStrategy,
+  assessedSignal: AssessedSignal,
   options: StrategyViewOptions,
 ): HTMLTableRowElement {
+  const { candidate, liquidity, decision } = assessed;
   const row = element('tr', 'strategy-detail-row');
   row.dataset.strategyDetailFor = candidate.id;
   const cell = element('td');
-  cell.colSpan = 12;
+  cell.colSpan = 7;
   const content = element('div', 'strategy-detail-content');
   const heading = element('strong');
   heading.textContent = `${candidate.steps.length} 步驟明細`;
-  content.append(heading);
+  const decisionSummary = element('div', 'strategy-detail-summary');
+  const details = [
+    `理論日利 ${money(candidate.profitPerDay)}`,
+    `容量折算日利 ${metric(liquidity.realizableProfitPerDay)}`,
+    `${quantity(decision.executionHours)}h 本批利潤 ${metric(decision.batchProfit)}`,
+    `本批現金 ${money(decision.funding.cashRequired)}`,
+    decision.funding.inventoryReplacementValue > 0
+      ? `材料庫存按買入替代價抵現金 ${money(decision.funding.inventoryReplacementValue)}`
+      : '材料庫存數量未提供，未抵扣現金',
+    `售罄估計 ${metric(liquidity.sellThroughDays, '天')}`,
+    `回測 3D ${assessedSignal.backtest.byHorizon['3d'].samples} 筆／7D ${assessedSignal.backtest.byHorizon['7d'].samples} 筆`,
+  ];
+  for (const detail of details) {
+    const item = element('span');
+    item.textContent = detail;
+    decisionSummary.append(item);
+  }
+  content.append(heading, decisionSummary);
   const list = element('ol');
   for (const step of candidate.steps) {
     const item = element('li');
@@ -402,6 +435,8 @@ interface StrategyFilterContext {
   selectedSkill: 'all' | SkillingAction;
   searchQuery: string;
   scope: StrategyScope;
+  mode: StrategyDecisionMode;
+  plannedHours: number;
 }
 
 function renderResults(
@@ -410,7 +445,11 @@ function renderResults(
   options: StrategyViewOptions,
   snapshots: readonly Snapshot[],
   data: NormalizedStrategyGameData,
-  initialFilter: StrategyFilterContext = { selectedSkill: 'all', searchQuery: '', scope: 'actionable' },
+  profile: PlayerProfile,
+  latestSnapshotAgeMs: number,
+  initialFilter: StrategyFilterContext = {
+    selectedSkill: 'all', searchQuery: '', scope: 'actionable', mode: 'steady', plannedHours: 8,
+  },
   signalCache = new Map<string, AssessedSignal>(),
   priceBookCache = new Map<number, ReturnType<typeof createStrategyPriceBook>>(),
 ): void {
@@ -420,14 +459,42 @@ function renderResults(
   const heading = element('h2');
   heading.textContent = '策略推薦';
   const warning = element('p', 'strategy-warning');
-  warning.textContent = '日利依全額產能估算，日產佔比依市場成交量計算，下方附註流動性折算參考。出售扣 5% 稅，點金免稅。';
+  warning.textContent = latestSnapshotAgeMs > 60 * 60_000
+    ? '市場快照已超過 60 分鐘：停止產生可執行建議，等待新資料。'
+    : '主排名採 3D／7D 成交量容量折算收益；買料用賣一、出售用買一並扣 5% 稅，點金免稅。Exporter v1 不含材料數量，因此目前不以裝備 inventoryMap 抵扣原料成本。';
   header.append(heading, warning);
   options.target.append(header);
 
   const filterState: StrategyFilterContext = { ...initialFilter };
 
-  // ── 工具列：技能下拉選單 + 物品關鍵字搜尋框 ──
+  // ── 工具列：決策模式 + 執行時段 + 技能 + 物品搜尋 ──
   const toolbar = element('section', 'strategy-toolbar toolbar');
+
+  const modeGroup = element('div', 'strategy-mode-group');
+  for (const [value, label] of [['steady', '穩健'], ['short', '短線']] as const) {
+    const button = element('button', 'strategy-mode-button');
+    button.type = 'button';
+    button.dataset.strategyMode = value;
+    button.setAttribute('aria-pressed', String(filterState.mode === value));
+    button.textContent = label;
+    modeGroup.append(button);
+  }
+
+  const hoursGroup = element('div', 'strategy-filter-group filter-control');
+  const hoursLabel = element('label', 'strategy-label');
+  hoursLabel.htmlFor = 'strategy-hours-select';
+  hoursLabel.textContent = '預計執行：';
+  const hoursSelect = element('select', 'strategy-select');
+  hoursSelect.id = 'strategy-hours-select';
+  hoursSelect.dataset.strategyHours = 'true';
+  for (const hours of [1, 4, 8, 24]) {
+    const opt = element('option');
+    opt.value = String(hours);
+    opt.textContent = `${hours} 小時`;
+    opt.selected = hours === filterState.plannedHours;
+    hoursSelect.append(opt);
+  }
+  hoursGroup.append(hoursLabel, hoursSelect);
 
   const skillGroup = element('div', 'strategy-filter-group filter-control');
   const skillLabel = element('label', 'strategy-label');
@@ -454,35 +521,41 @@ function renderResults(
   searchInput.value = filterState.searchQuery;
   searchGroup.append(searchInput);
 
-  toolbar.append(skillGroup, searchGroup);
+  toolbar.append(modeGroup, hoursGroup, skillGroup, searchGroup);
   options.target.append(toolbar);
 
   const resultsContainer = element('div', 'strategy-results-container');
   options.target.append(resultsContainer);
 
-  const assessed = result.candidates
+  const baseAssessed = result.candidates
     .filter((candidate) => candidate.profitPerDay > 0)
     .map((candidate) => ({ candidate, liquidity: evaluateRealizableStrategy(candidate, snapshots) }));
 
   function updateResults(): void {
     resultsContainer.replaceChildren();
     const isSearchActive = filterState.searchQuery.trim().length > 0;
+    const assessed: AssessedStrategy[] = baseAssessed.map(({ candidate, liquidity }) => ({
+      candidate,
+      liquidity,
+      decision: assessStrategyDecision({
+        candidate,
+        liquidity,
+        profile,
+        plannedHours: filterState.plannedHours,
+        mode: filterState.mode,
+        latestSnapshotAgeMs,
+      }),
+    }));
 
     // 計算各 scope 總數以維持 scopeNav 徽章正確
     const skillFilteredAssessed = assessed.filter(({ candidate }) => (
       matchesSkill(candidate, filterState.selectedSkill)
     ));
-    const actionableCount = skillFilteredAssessed.filter(({ liquidity }) => (
-      liquidity.classification !== 'reject'
-      && liquidity.classification !== 'insufficient'
-      && (liquidity.realizableProfitPerDay ?? 0) > 0
-    )).length;
-    const limitedCount = skillFilteredAssessed.filter(({ liquidity }) => (
-      liquidity.classification === 'reject' || liquidity.classification === 'insufficient'
-    )).length;
+    const actionableCount = skillFilteredAssessed.filter(({ decision }) => decision.actionable).length;
+    const limitedCount = skillFilteredAssessed.length - actionableCount;
 
     // 篩選
-    const matched = assessed.filter(({ candidate, liquidity }) => {
+    const matched = assessed.filter(({ candidate, decision }) => {
       if (!matchesSkill(candidate, filterState.selectedSkill)) return false;
 
       if (isSearchActive) {
@@ -492,27 +565,40 @@ function renderResults(
 
       // 未搜尋物品時（一般瀏覽或技能分類）：
       if (filterState.scope === 'actionable') {
-        return liquidity.classification !== 'reject'
-          && liquidity.classification !== 'insufficient'
-          && (liquidity.realizableProfitPerDay ?? 0) > 0;
+        return decision.actionable;
       }
-      return liquidity.classification === 'reject' || liquidity.classification === 'insufficient';
+      return !decision.actionable;
     });
 
-    // 排序：釘選優先，接著依理論日利降序
+    // 釘選只代表監控，不改變客觀名次。
     matched.sort((left, right) => {
-      const byPinned = Number(pinned.has(right.candidate.id)) - Number(pinned.has(left.candidate.id));
-      if (byPinned) return byPinned;
       if (!isSearchActive && filterState.scope === 'limited' && left.liquidity.classification !== right.liquidity.classification) {
-        return left.liquidity.classification === 'insufficient' ? -1 : 1;
+        return CLASSIFICATION_OBSERVE_ORDER[left.liquidity.classification]
+          - CLASSIFICATION_OBSERVE_ORDER[right.liquidity.classification];
       }
-      const leftProfit = left.candidate.profitPerDay;
-      const rightProfit = right.candidate.profitPerDay;
+      const leftProfit = left.decision.rankValue ?? left.liquidity.realizableProfitPerDay ?? Number.NEGATIVE_INFINITY;
+      const rightProfit = right.decision.rankValue ?? right.liquidity.realizableProfitPerDay ?? Number.NEGATIVE_INFINITY;
       return rightProfit - leftProfit || left.candidate.id.localeCompare(right.candidate.id);
     });
 
     // 筆數限制：一般模式取前 50 筆最高日利
     const chosen = matched.slice(0, 50);
+
+    if (!isSearchActive && filterState.scope === 'actionable' && chosen.length > 0) {
+      const summary = element('section', 'strategy-decision-summary');
+      summary.dataset.strategyDecisionSummary = 'true';
+      const best = chosen[0]!;
+      const label = element('strong');
+      label.textContent = filterState.mode === 'steady' ? '目前穩健最佳' : '目前短線最佳';
+      const value = element('span');
+      value.textContent = `${best.candidate.title}・${quantity(best.decision.executionHours)}h 預估 ${metric(best.decision.batchProfit)}`;
+      const note = element('span');
+      note.textContent = filterState.mode === 'steady'
+        ? `僅排名可覆蓋 ${filterState.plannedHours} 小時者`
+        : `依 ${filterState.plannedHours} 小時內安全批次總利潤排名`;
+      summary.append(label, value, note);
+      resultsContainer.append(summary);
+    }
 
     // 未搜尋時渲染 scope 分類切換鈕
     if (!isSearchActive) {
@@ -536,7 +622,7 @@ function renderResults(
       resultsContainer.append(scopeNav);
     }
 
-    if (assessed.length === 0) {
+    if (baseAssessed.length === 0) {
       const empty = element('p', 'strategy-no-result');
       empty.textContent = '目前價格下沒有資料完整且理論收益為正的策略。';
       resultsContainer.append(empty);
@@ -564,10 +650,10 @@ function renderResults(
       meta.textContent = `搜尋「${filterState.searchQuery.trim()}」：顯示前 ${chosen.length} 條（依日利排序，含特例查詢項目）`;
     } else if (filterState.selectedSkill !== 'all') {
       const skillName = STRATEGY_SKILL_OPTIONS.find((s) => s.value === filterState.selectedSkill)?.label ?? '';
-      meta.textContent = `技能「${skillName}」：顯示前 ${chosen.length} 條；排除資料不足，依理論日利排序`;
+      meta.textContent = `技能「${skillName}」：顯示前 ${chosen.length} 條；依本次可實現總利潤排序`;
     } else {
       meta.textContent = filterState.scope === 'actionable'
-        ? `顯示前 ${chosen.length} 條最高日利排名；排除資料不足，依理論日利排序`
+        ? `顯示前 ${chosen.length} 條；依 ${filterState.plannedHours} 小時內可實現總利潤排序，★ 不影響名次`
         : `顯示前 ${chosen.length} / ${matched.length} 條觀察與資料不足項目`;
     }
     resultsContainer.append(meta);
@@ -576,7 +662,7 @@ function renderResults(
     const table = element('table', 'strategy-table');
     const columnGroup = element('colgroup');
     for (const key of [
-      'pin', 'step', 'path', 'profit', 'trend1d', 'trend3d', 'trend7d', 'sparkline', 'marketShare', 'capital', 'classification', 'priority',
+      'rank', 'strategy', 'classification', 'profit', 'trend', 'execution', 'capital',
     ]) {
       const column = element('col');
       column.dataset.strategyColumn = key;
@@ -584,7 +670,7 @@ function renderResults(
     }
     const head = element('thead');
     const headerRow = element('tr');
-    for (const label of ['自選', '步驟', '路徑', '日利', '1D', '3D', '7D', '72H走勢', '日產佔比', '資金/D', '風險', '優先級']) {
+    for (const label of ['排名', '策略路徑', '風險', '日利', '趨勢', '執行量與承接', '本批現金']) {
       const cell = element('th');
       cell.textContent = label;
       headerRow.append(cell);
@@ -613,14 +699,15 @@ function renderResults(
           signal: strategyTrendSignal(series, {
             backtest: backtest.summary,
             classification: assessedCandidate.liquidity.classification,
+            latestSnapshotAgeMs,
           }),
           backtest,
           series,
         };
         signalCache.set(assessedCandidate.candidate.id, assessedSignal);
       }
-      const mainRow = strategyRow(assessedCandidate, assessedSignal, pinned, options);
-      const detail = detailRow(assessedCandidate.candidate, options);
+      const mainRow = strategyRow(assessedCandidate, assessedSignal, pinned, options, matched.indexOf(assessedCandidate) + 1);
+      const detail = detailRow(assessedCandidate, assessedSignal, options);
       detail.hidden = true;
       mainRow.addEventListener('click', (event) => {
         const target = event.target as HTMLElement;
@@ -638,6 +725,23 @@ function renderResults(
 
   skillSelect.addEventListener('change', () => {
     filterState.selectedSkill = skillSelect.value as 'all' | SkillingAction;
+    updateResults();
+  });
+
+  for (const button of modeGroup.querySelectorAll<HTMLButtonElement>('[data-strategy-mode]')) {
+    button.addEventListener('click', () => {
+      filterState.mode = button.dataset.strategyMode as StrategyDecisionMode;
+      filterState.scope = 'actionable';
+      for (const peer of modeGroup.querySelectorAll<HTMLButtonElement>('[data-strategy-mode]')) {
+        peer.setAttribute('aria-pressed', String(peer === button));
+      }
+      updateResults();
+    });
+  }
+
+  hoursSelect.addEventListener('change', () => {
+    filterState.plannedHours = Number(hoursSelect.value);
+    filterState.scope = 'actionable';
     updateResults();
   });
 
@@ -675,7 +779,8 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
         const [data, pins] = await Promise.all([options.loadGameData(), options.pinStore.list()]);
         if (destroyed || current !== generation) return;
         const result = calculate({ profile, data, prices: createStrategyPriceBook(snapshot, data) });
-        renderResults(result, new Set(pins), options, snapshots, data);
+        const now = options.now?.() ?? Date.now();
+        renderResults(result, new Set(pins), options, snapshots, data, profile, Math.max(0, now - snapshot.timestamp));
       } catch {
         if (!destroyed && current === generation) options.target.textContent = '策略資料無法使用，請稍後再試。';
       }

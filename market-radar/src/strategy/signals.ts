@@ -78,7 +78,11 @@ function formatted(value: number | null): string {
 
 export function strategyTrendSignal(
   series: readonly StrategyMarginPoint[],
-  options: { backtest?: StrategySignalBacktest; classification?: LiquidityClassification } = {},
+  options: {
+    backtest?: StrategySignalBacktest;
+    classification?: LiquidityClassification;
+    latestSnapshotAgeMs?: number;
+  } = {},
 ): StrategySignal {
   const ordered = [...series].sort((left, right) => left.timestamp - right.timestamp);
   const latest = ordered.at(-1);
@@ -100,7 +104,7 @@ export function strategyTrendSignal(
     };
   }
   const spanDays = (latest.timestamp - earliest.timestamp) / DAY_MS;
-  const confidence = confidenceFor(spanDays, options.backtest);
+  let confidence = confidenceFor(spanDays, options.backtest);
   if (spanDays < 7) {
     return {
       action: 'wait', priority: 'low', confidence, reasons: ['有效歷史不足 7 天，不宣稱趨勢'],
@@ -129,6 +133,17 @@ export function strategyTrendSignal(
       action: 'wait', priority: 'low', confidence, reasons: ['最新市場承接資料仍不完整'],
       invalidation: ['補齊 3D／7D 成交量樣本後重新判斷'], metrics,
     };
+  }
+
+  if (options.latestSnapshotAgeMs !== undefined && options.latestSnapshotAgeMs > 60 * 60_000) {
+    return {
+      action: 'wait', priority: 'low', confidence: 'none',
+      reasons: ['市場快照已超過 60 分鐘，暫停產生可執行建議'],
+      invalidation: ['取得 60 分鐘內的新市場快照後重新判斷'], metrics,
+    };
+  }
+  if (options.latestSnapshotAgeMs !== undefined && options.latestSnapshotAgeMs > 15 * 60_000) {
+    confidence = confidence === 'none' ? 'none' : 'low';
   }
 
   const recentPeak = ordered

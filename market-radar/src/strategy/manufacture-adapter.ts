@@ -56,7 +56,7 @@ function taxable(itemHrid: string, data: NormalizedStrategyGameData): boolean {
 function pricedDrop(drop: DropItem, prices: MarketPriceBook, data: NormalizedStrategyGameData): PricedCount {
   return {
     itemHrid: drop.itemHrid,
-    count: drop.maxCount,
+    count: (drop.minCount + drop.maxCount) / 2,
     rate: drop.dropRate,
     price: prices.bid(drop.itemHrid),
     taxable: taxable(drop.itemHrid, data),
@@ -228,7 +228,7 @@ export function calculateGatherAction(options: {
     incomePerHour: valid ? result.incomePerHour : null,
     profitPerHour: valid ? result.profitPerHour : null,
     experiencePerHour: baseExperience * (1 + buffs.Experience) * result.actionsPerHour,
-    inputs: [],
+    inputs: priceFlow(result.ingredientUnitsPerHour, 'ask', prices, data),
     outputs: liquidation.flows,
   };
 }

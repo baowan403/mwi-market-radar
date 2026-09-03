@@ -105,4 +105,14 @@ describe('one-step manufacture parity', () => {
     expect(result.incomePerHour).toBe(100);
     expect(result.profitPerHour).toBe(100);
   });
+
+  it('uses expected drop units before applying the five-percent sale tax', () => {
+    const result = calculateManufacture({
+      ...coinOutputInput,
+      products: [],
+      rareDrops: [{ itemHrid: '/items/rare', count: 3, rate: 0.25, price: 100, taxable: true }],
+    });
+
+    expect(result.incomePerHour).toBeCloseTo(71.25);
+  });
 });

@@ -115,7 +115,8 @@ function numericRecord(value: unknown, stripPrefix = false): Record<string, numb
   }));
 }
 
-function inventoryRecord(value: unknown): Record<string, number> {
+/** Exporter v1 calls this inventoryMap, but each value is the owned equipment's enhancement level. */
+function equipmentInventoryRecord(value: unknown): Record<string, number> {
   const source = record(value) ?? {};
   return Object.fromEntries(Object.entries(source).filter(([key, item]) => (
     key.startsWith('/items/')
@@ -189,7 +190,7 @@ function importExporter(data: Record<string, unknown>, importedAt: number): Play
   }
 
   const achievements = achievementRecord(data.achievements);
-  const inventoryMap = inventoryRecord(data.inventoryMap);
+  const inventoryMap = equipmentInventoryRecord(data.inventoryMap);
   const specialEquipment = Object.fromEntries(
     Object.entries(slots).filter(([slot]) => !ACTION_EQUIPMENT_SLOTS.has(slot)),
   );
@@ -214,6 +215,7 @@ function importExporter(data: Record<string, unknown>, importedAt: number): Play
     shrines: numericRecord(data.shrines, true),
     achievements: achievements.completed,
     inventoryMap,
+    materialInventoryMap: {},
     seals: sealList(data.seals),
   };
 }
@@ -275,6 +277,7 @@ function importPreset(data: Record<string, unknown>, importedAt: number): Player
     shrines,
     achievements,
     inventoryMap: {},
+    materialInventoryMap: {},
     seals: sealList(data.seals),
   };
 }

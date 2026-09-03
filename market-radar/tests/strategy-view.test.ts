@@ -112,6 +112,7 @@ describe('strategy recommendation view', () => {
         '/items/coin': '金幣',
       }[hrid] ?? hrid),
       onImportProfile: vi.fn(),
+      now: () => snapshot.timestamp,
     });
 
     await view.render();
@@ -119,20 +120,19 @@ describe('strategy recommendation view', () => {
     expect(target.textContent).toContain('日利');
     expect(target.textContent).toContain('48M');
     expect(target.textContent).toContain('紅杉原木 → 紅杉木板 → 紅杉弓');
-    expect(target.textContent).toContain('72M');
     expect(target.textContent).not.toContain('48,000,000');
     expect(target.textContent).not.toMatch(/\d(?:\.\d+)?B\b/);
     expect([...target.querySelectorAll('col[data-strategy-column]')].map((column) => (
       column.getAttribute('data-strategy-column')
     ))).toEqual([
-      'pin', 'step', 'path', 'profit', 'trend1d', 'trend3d', 'trend7d', 'sparkline', 'marketShare', 'capital', 'classification', 'priority',
+      'rank', 'strategy', 'classification', 'profit', 'trend', 'execution', 'capital',
     ]);
     expect(target.querySelector('.strategy-step')).not.toBeNull();
     expect(target.querySelector('.strategy-path-cell')).not.toBeNull();
     expect(target.querySelector('.strategy-profit')).not.toBeNull();
     expect(target.querySelector('.strategy-trend-cell')).not.toBeNull();
     expect(target.querySelector('.strategy-market-share')).not.toBeNull();
-    expect(target.querySelector('.strategy-priority-cell')).not.toBeNull();
+    expect(target.querySelector('.strategy-execution')).not.toBeNull();
     const pin = target.querySelector<HTMLButtonElement>('[data-strategy-pin="workflow:redwood"]')!;
     pin.click();
     await vi.waitFor(async () => expect(await pinStore.list()).toEqual(['workflow:redwood']));
@@ -184,19 +184,25 @@ describe('strategy recommendation view', () => {
       calculate: () => result,
       itemName: (hrid) => hrid.split('/').at(-1) ?? hrid,
       onImportProfile: vi.fn(),
+      now: () => snapshots.at(-1)!.timestamp,
     });
 
     await view.render();
     expect(target.querySelector('[data-strategy-scope="actionable"]')?.getAttribute('aria-pressed')).toBe('true');
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow)).toEqual([
-      'limited', 'long',
+      'long',
     ]);
     expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('低');
-    expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('高');
-    expect(target.querySelector('[data-strategy-row="long"] [data-strategy-priority]')).not.toBeNull();
+    expect(target.querySelector('[data-strategy-row="long"] [data-strategy-signal]')).not.toBeNull();
     expect(target.querySelector('[data-strategy-row="long"] .strategy-sparkline')).not.toBeNull();
     expect(target.querySelector('[data-strategy-row="long"] .strategy-trend-cell')).not.toBeNull();
     expect(target.querySelector('[data-strategy-row="long"] .strategy-market-share')).not.toBeNull();
+
+    (target.querySelector('[data-strategy-mode="short"]') as HTMLButtonElement).click();
+    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow)).toEqual([
+      'limited', 'long',
+    ]);
+    expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('高');
 
     (target.querySelector('[data-strategy-scope="limited"]') as HTMLButtonElement).click();
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow)).toEqual([
@@ -248,6 +254,7 @@ describe('strategy recommendation view', () => {
       calculate: () => result,
       itemName: (hrid) => hrid.split('/').at(-1) ?? hrid,
       onImportProfile: vi.fn(),
+      now: () => snapshots.at(-1)!.timestamp,
     });
 
     await view.render();
@@ -315,6 +322,7 @@ describe('strategy recommendation view', () => {
       calculate: () => result,
       itemName: (hrid) => (hrid.includes('goblin_fire_staff') ? '哥布林火棍' : hrid.split('/').at(-1) ?? hrid),
       onImportProfile: vi.fn(),
+      now: () => snapshots.at(-1)!.timestamp,
     });
 
     await view.render();

@@ -48,7 +48,7 @@ function aggregate(flows: readonly StrategyFlow[]): Map<string, StrategyFlow> {
   return result;
 }
 
-function externalFlows(candidate: StrategyCandidate): ExternalFlow[] {
+export function externalStrategyFlows(candidate: StrategyCandidate): ExternalFlow[] {
   const inputs = aggregate(candidate.steps.flatMap((step) => step.inputs));
   const outputs = aggregate(candidate.steps.flatMap((step) => step.outputs));
   for (const [id, input] of inputs) {
@@ -75,7 +75,7 @@ export function evaluateRealizableStrategy(
   candidate: StrategyCandidate,
   snapshots: readonly Snapshot[],
 ): RealizableStrategy {
-  const flows = externalFlows(candidate);
+  const flows = externalStrategyFlows(candidate);
   const evaluated: EvaluatedExternalFlow[] = [];
   for (const external of flows) {
     const capacity = marketCapacity(key(external.flow) as MarketKey, snapshots);
