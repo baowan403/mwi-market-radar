@@ -182,7 +182,7 @@ export function buildStrategyCandidates(options: {
     if (!action) return null;
     try {
       const step = calculateManufactureAction({
-        actionHrid, profile, data, prices, buffs: buffsFor(action),
+        actionHrid, profile, data, prices,
       });
       stepCache.set(actionHrid, step);
       return step;

@@ -561,6 +561,7 @@ function stepAssumptions(step: StrategyStepResult, options: StrategyViewOptions)
 interface StrategyFilterContext {
   selectedSkill: StrategyFilterSkill;
   searchQuery: string;
+  sortMode?: 'safe' | 'theoretical';
 }
 
 function renderResults(
@@ -572,7 +573,7 @@ function renderResults(
   profile: PlayerProfile,
   latestSnapshotAgeMs: number,
   initialFilter: StrategyFilterContext = {
-    selectedSkill: 'all', searchQuery: '',
+    selectedSkill: 'all', searchQuery: '', sortMode: 'safe',
   },
   signalCache = new Map<string, AssessedSignal>(),
   priceBookCache = new Map<number, ReturnType<typeof createStrategyPriceBook>>(),
@@ -609,6 +610,39 @@ function renderResults(
 
   modeGroup.append(steadyBtn, alphaBtn);
 
+  const sortGroup = element('div', 'strategy-sort-group filter-control');
+  const sortSafeBtn = element('button', 'toolbar-button');
+  sortSafeBtn.type = 'button';
+  sortSafeBtn.textContent = '🛡️ 安全日利';
+  sortSafeBtn.title = '依市場容量折算後之安全日利排序（防止過量滯銷）';
+  if ((filterState.sortMode ?? 'safe') === 'safe') sortSafeBtn.classList.add('active');
+
+  const sortTheoBtn = element('button', 'toolbar-button');
+  sortTheoBtn.type = 'button';
+  sortTheoBtn.textContent = '⚡ 理論極值';
+  sortTheoBtn.title = '依未折算理論最高日利排序（對標 Milkonomy，假定無限買盤）';
+  if (filterState.sortMode === 'theoretical') sortTheoBtn.classList.add('active');
+
+  sortSafeBtn.addEventListener('click', () => {
+    if (filterState.sortMode !== 'safe') {
+      filterState.sortMode = 'safe';
+      sortSafeBtn.classList.add('active');
+      sortTheoBtn.classList.remove('active');
+      updateResults();
+    }
+  });
+
+  sortTheoBtn.addEventListener('click', () => {
+    if (filterState.sortMode !== 'theoretical') {
+      filterState.sortMode = 'theoretical';
+      sortTheoBtn.classList.add('active');
+      sortSafeBtn.classList.remove('active');
+      updateResults();
+    }
+  });
+
+  sortGroup.append(sortSafeBtn, sortTheoBtn);
+
   const skillGroup = element('div', 'strategy-filter-group filter-control');
   const skillLabel = element('label', 'strategy-label');
   skillLabel.htmlFor = 'strategy-skill-select';
@@ -634,7 +668,7 @@ function renderResults(
   searchInput.value = filterState.searchQuery;
   searchGroup.append(searchInput);
 
-  toolbar.append(modeGroup, skillGroup, searchGroup);
+  toolbar.append(modeGroup, sortGroup, skillGroup, searchGroup);
   options.target.append(toolbar);
 
   const resultsContainer = element('div', 'strategy-results-container');
@@ -677,6 +711,9 @@ function renderResults(
   }
 
   function effectiveProfit(item: AssessedStrategy): number {
+    if (filterState.sortMode === 'theoretical') {
+      return item.candidate.profitPerDay;
+    }
     return item.liquidity.realizableProfitPerDay ?? item.candidate.profitPerDay;
   }
 
@@ -801,7 +838,9 @@ function renderResults(
 
       const leftContainer = element('div', 'strategy-decision-summary-left');
       const label = element('strong');
-      label.textContent = filterState.selectedSkill === 'alpha' ? '⚡ 短缺套利首選' : '目前推薦最佳';
+      label.textContent = filterState.selectedSkill === 'alpha'
+        ? '⚡ 短缺套利首選'
+        : (filterState.sortMode === 'theoretical' ? '⚡ 目前理論極值最佳' : '🛡️ 目前安全推薦最佳');
       const value = element('span', 'strategy-decision-summary-title');
       const bestPathName = best.candidate.path.map((h) => options.itemName(h)).join(' → ');
       value.textContent = `${bestPathName}・預估日利 ${metric(effectiveProfit(best))}`;
@@ -810,7 +849,9 @@ function renderResults(
       const note = element('span', 'strategy-decision-summary-note');
       note.textContent = filterState.selectedSkill === 'alpha'
         ? '依突發利潤爆發動能與 Alpha 評分排序，已嚴格過濾幽靈插針'
-        : '依折算後日利、優先級與風險綜合排序';
+        : (filterState.sortMode === 'theoretical'
+          ? '依理論最大日利（無窮大市場消化量）極值排序，對標 Milkonomy'
+          : '依市場容量折算後安全日利、優先級與風險綜合排序');
 
       const radarBadge = element('span', 'strategy-radar-badge');
       if (filterState.selectedSkill === 'alpha') {

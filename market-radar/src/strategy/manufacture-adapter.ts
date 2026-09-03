@@ -105,12 +105,12 @@ export function calculateManufactureAction(options: {
     || (activeTeas.length === defaultTeas.length && activeTeas.every((t, i) => t === defaultTeas[i]));
 
   let buffs: ActionBuffs;
-  if (options.buffs) {
-    buffs = options.buffs;
-  } else if (isAutoOptimal) {
+  if (isAutoOptimal) {
     const optimal = findOptimalTeasForManufacture({ action, detail, profile, data, prices });
     activeTeas = optimal.teas;
     buffs = optimal.buffs;
+  } else if (options.buffs) {
+    buffs = options.buffs;
   } else {
     buffs = actionBuffs(profile, action, data);
   }
