@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: "13 * * * *"
+    - cron: "13,43 * * * *"
   workflow_dispatch:
     inputs:
       backfill_stockmarket_7d:
@@ -82,8 +82,7 @@ jobs:
             exit 1
           fi
 
-      - name: Collect the official snapshot on scheduled or manual runs
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+      - name: Collect the official snapshot on scheduled, push, or manual runs
         working-directory: market-radar
         env:
           DATA_WT: ${{ steps.data-worktree.outputs.path }}
