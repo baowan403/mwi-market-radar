@@ -88,21 +88,43 @@ describe('profile panel', () => {
     expect(assumptions?.textContent).toContain('目前計算配置');
     expect(document.querySelectorAll('[data-profile-action]')).toHaveLength(10);
     expect(alchemy?.textContent).toContain('煉金 103');
-    expect(alchemy?.textContent).toContain('神聖蒸餾器 +10');
-    expect(alchemy?.textContent).toContain('煉金師上衣 +7');
-    expect(alchemy?.textContent).toContain('煉金師下衣 +5');
-    expect(alchemy?.textContent).toContain('暴飲之囊 +5');
-    expect(alchemy?.textContent).toContain('究極煉金茶、效率茶、催化茶');
-    expect(alchemy?.textContent).toContain('實驗室 Lv4');
+
+    // 檢查工具、上衣、下衣與房屋的控制項
+    const toolSelect = alchemy?.querySelector<HTMLSelectElement>('select[aria-label="煉金工具"]');
+    const toolLevel = alchemy?.querySelector<HTMLInputElement>('input[aria-label="煉金工具強化等級"]');
+    expect(toolSelect?.value).toBe('/items/holy_alembic');
+    expect(toolLevel?.value).toBe('10');
+
+    const topSelect = alchemy?.querySelector<HTMLSelectElement>('select[aria-label="煉金上衣"]');
+    const topLevel = alchemy?.querySelector<HTMLInputElement>('input[aria-label="煉金上衣強化等級"]');
+    expect(topSelect?.value).toBe('/items/alchemist_robe_top');
+    expect(topLevel?.value).toBe('7');
+
+    const bottomSelect = alchemy?.querySelector<HTMLSelectElement>('select[aria-label="煉金下衣"]');
+    const bottomLevel = alchemy?.querySelector<HTMLInputElement>('input[aria-label="煉金下衣強化等級"]');
+    expect(bottomSelect?.value).toBe('/items/alchemist_robe_bottoms');
+    expect(bottomLevel?.value).toBe('5');
+
+    const houseLevel = alchemy?.querySelector<HTMLInputElement>('input[aria-label="實驗室等級"]');
+    expect(houseLevel?.value).toBe('4');
+
+    // 檢查通用配件 (暴飲袋)
+    const pouchCheck = document.querySelector<HTMLInputElement>('#special--items-guzzling_pouch');
+    expect(pouchCheck?.checked).toBe(true);
+
+    // 檢查生活神龕
+    const powerShrine = document.querySelector<HTMLInputElement>('input[data-shrine-key="power"]');
+    expect(powerShrine?.value).toBe('1');
+    const rhythmShrine = document.querySelector<HTMLInputElement>('input[data-shrine-key="rhythm"]');
+    expect(rhythmShrine?.value).toBe('3');
+
     expect(assumptions?.textContent).toContain('生產效率 Lv10');
-    expect(assumptions?.textContent).toContain('力量神龕 Lv1');
-    expect(assumptions?.textContent).toContain('節奏神龕 Lv3');
     expect(assumptions?.textContent).toContain('初心者');
     panel.destroy();
     store.close();
   });
 
-  it('labels absent setup honestly and never auto-selects warehouse inventory', async () => {
+  it('labels absent setup honestly and provides interactive selects', async () => {
     const store = createMemoryProfileStore();
     const sparse = {
       ...structuredClone(exporter),
@@ -125,9 +147,43 @@ describe('profile panel', () => {
     await panel.open();
 
     const alchemy = document.querySelector<HTMLElement>('[data-profile-action="alchemy"]');
-    expect(alchemy?.textContent).toContain('工具未設定');
-    expect(alchemy?.textContent).toContain('茶飲未設定');
+    const toolSelect = alchemy?.querySelector<HTMLSelectElement>('select[aria-label="煉金工具"]');
+    expect(toolSelect?.value).toBe('');
     expect(document.querySelector('[data-profile-assumptions]')?.textContent).not.toContain('warehouse_only_item');
+    panel.destroy();
+    store.close();
+  });
+
+  it('allows user to customize gear, specials, and shrines with immediate persistence', async () => {
+    const store = createMemoryProfileStore();
+    let notifiedProfile: any = null;
+    const panel = createProfilePanel({
+      openButton: document.querySelector<HTMLButtonElement>('#open')!,
+      summary: document.querySelector<HTMLElement>('#summary')!,
+      dialog: document.querySelector<HTMLDialogElement>('#dialog')!,
+      store,
+      onActiveProfileChange: (p) => { notifiedProfile = p; },
+    });
+
+    await panel.importText(JSON.stringify(preset));
+    await panel.open();
+
+    const alchemy = document.querySelector<HTMLElement>('[data-profile-action="alchemy"]');
+    const toolLevelInput = alchemy?.querySelector<HTMLInputElement>('input[aria-label="煉金工具強化等級"]')!;
+    toolLevelInput.value = '15';
+    toolLevelInput.dispatchEvent(new Event('change'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(notifiedProfile?.actions.alchemy.tool?.enhancementLevel).toBe(15);
+
+    // 修改神龕
+    const powerShrineInput = document.querySelector<HTMLInputElement>('input[data-shrine-key="power"]')!;
+    powerShrineInput.value = '8';
+    powerShrineInput.dispatchEvent(new Event('change'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(notifiedProfile?.shrines.power).toBe(8);
+
     panel.destroy();
     store.close();
   });

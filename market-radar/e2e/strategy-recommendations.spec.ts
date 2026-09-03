@@ -110,6 +110,9 @@ test('imports a profile and persists personalized strategy recommendations witho
   await page.locator('[data-product-surface="strategy"]').click();
   await expect(page.locator(`[data-strategy-pin="${strategyId}"]`)).toHaveAttribute('aria-pressed', 'true');
 
+  await page.getByRole('button', { name: '角色快照' }).click();
+  await expect(page.locator('.profile-assumptions')).toBeVisible();
+
   const outbound = requestBodies.join('\n');
   expect(outbound).not.toContain('測試牛一號');
   expect(outbound).not.toContain('character:700001');

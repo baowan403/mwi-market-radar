@@ -1800,6 +1800,100 @@ dialog#profile-dialog {
   font-weight: 600;
 }
 
+.profile-control-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.profile-select {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.76rem;
+  outline: none;
+}
+
+.profile-num-input {
+  width: 52px;
+  padding: 4px 6px;
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-align: center;
+  outline: none;
+}
+
+.profile-num-input:focus,
+.profile-select:focus {
+  border-color: var(--color-brand);
+}
+
+.profile-input-unit {
+  color: var(--color-muted);
+  font-size: 0.74rem;
+}
+
+.profile-assumption-specials,
+.profile-assumption-shrines {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-bg);
+}
+
+.profile-assumption-specials summary,
+.profile-assumption-shrines summary {
+  cursor: pointer;
+  color: var(--color-text);
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.profile-specials-grid,
+.profile-shrines-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+  margin-top: 10px;
+}
+
+@media (max-width: 560px) {
+  .profile-specials-grid,
+  .profile-shrines-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.profile-special-row,
+.profile-shrine-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.76rem;
+}
+
+.profile-special-row label {
+  flex: 1;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.profile-shrine-label {
+  color: var(--color-text);
+  font-size: 0.76rem;
+}
+
 .profile-error {
   margin: 0;
   color: var(--color-up);
