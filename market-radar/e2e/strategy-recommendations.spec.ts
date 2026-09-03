@@ -30,27 +30,25 @@ test('imports a profile and persists personalized strategy recommendations witho
   await expect(page.locator('[data-strategy-row][data-liquidity-classification="reject"]')).toHaveCount(0);
   await expect(page.locator('[data-strategy-row][data-liquidity-classification="insufficient"]')).toHaveCount(0);
   expect(await page.locator('[data-strategy-row][data-liquidity-classification="long-run"]').count()).toBeGreaterThan(0);
-  // 新 7 欄佈局：日利（合併理論+可實現）、趨勢、執行量與承接、24h 資金
-  await expect(page.getByRole('columnheader', { name: '日利' })).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: '趨勢' })).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: '執行量與承接' })).toBeVisible();
-  // 可實現日利為主數字，理論為注腳
-  await expect(page.locator('[data-strategy-row]').first().locator('.strategy-profit-main')).toBeVisible();
-  await expect(page.locator('[data-strategy-row]').first().locator('.strategy-profit-ref')).toContainText('理論');
-  // 趨勢欄含 3D/7D 利潤變化百分比
-  await expect(page.locator('[data-strategy-row]').first().locator('.strategy-trend-delta')).toBeVisible();
-  // 合併的執行量與承接欄
-  await expect(page.locator('[data-strategy-row]').first()).toContainText('市占');
-  await expect(page.locator('[data-strategy-row]').first().locator('[data-strategy-signal]')).toBeVisible();
-  await expect(page.locator('[data-strategy-row]').first()).toContainText('回測 3D');
+  const expectedHeaders = [
+    '自選', '步驟', '路徑', '日利', '1D', '3D', '7D', '72H走勢',
+    '日產佔比', '資金/D', '風險', '優先級',
+  ];
+  await expect(page.locator('.strategy-table thead th')).toHaveText(expectedHeaders);
   const firstRow = page.locator('[data-strategy-row]').first();
+  await expect(firstRow.locator('.strategy-profit-main')).toBeVisible();
+  await expect(firstRow.locator('.strategy-trend-cell')).toHaveCount(3);
+  await expect(firstRow.locator('.strategy-sparkline-cell .strategy-sparkline')).toBeVisible();
+  await expect(firstRow.locator('.strategy-market-share')).toHaveText(/^\d+(?:\.\d+)?%$/);
+  await expect(firstRow.locator('[data-strategy-priority]')).toBeVisible();
   const closedGeometry = await firstRow.evaluate((row) => {
     const cells = [...row.querySelectorAll('td')];
     const table = row.closest('table') as HTMLTableElement;
     const scroll = table.parentElement as HTMLElement;
-    const path = row.querySelector('.strategy-name-cell') as HTMLElement;
-    const classification = cells[2] as HTMLElement;
+    const path = row.querySelector('.strategy-path-cell') as HTMLElement;
+    const classification = cells[10] as HTMLElement;
     const profit = row.querySelector('.strategy-profit') as HTMLElement;
+    const sparkline = row.querySelector('.strategy-sparkline-cell') as HTMLElement;
     return {
       displays: cells.map((cell) => getComputedStyle(cell).display),
       cellCount: cells.length,
@@ -58,6 +56,7 @@ test('imports a profile and persists personalized strategy recommendations witho
       pathWidth: path.getBoundingClientRect().width,
       classificationWidth: classification.getBoundingClientRect().width,
       profitWhiteSpace: getComputedStyle(profit).whiteSpace,
+      sparklineText: sparkline.textContent,
       tableWidth: table.getBoundingClientRect().width,
       scrollWidth: scroll.getBoundingClientRect().width,
       bodyScrollWidth: document.body.scrollWidth,
@@ -65,37 +64,28 @@ test('imports a profile and persists personalized strategy recommendations witho
     };
   });
   expect(closedGeometry.displays.every((display) => display === 'table-cell')).toBe(true);
-  expect(closedGeometry.cellCount).toBe(7);
+  expect(closedGeometry.cellCount).toBe(12);
   expect(closedGeometry.pathWidth).toBeGreaterThan(closedGeometry.classificationWidth);
-  expect(closedGeometry.rowHeight).toBeLessThanOrEqual(110);
+  expect(closedGeometry.rowHeight).toBeLessThanOrEqual(90);
   expect(closedGeometry.profitWhiteSpace).toBe('nowrap');
+  expect(closedGeometry.sparklineText).toBe('');
   expect(closedGeometry.bodyScrollWidth).toBeLessThanOrEqual(closedGeometry.bodyClientWidth + 1);
   if ((page.viewportSize()?.width ?? 1280) < 800) {
     expect(closedGeometry.tableWidth).toBeGreaterThan(closedGeometry.scrollWidth);
   }
 
-  // 趨勢折疊展開：理由與失效條件
-  const pathWidthBeforeDisclosure = closedGeometry.pathWidth;
-  await firstRow.locator('.strategy-signal-details > summary').click();
-  await expect(page.locator('[data-strategy-row]').first()).toContainText('失效：');
-  const openGeometry = await firstRow.evaluate((row) => ({
-    rowHeight: row.getBoundingClientRect().height,
-    pathWidth: (row.querySelector('.strategy-name-cell') as HTMLElement).getBoundingClientRect().width,
-  }));
-  expect(openGeometry.rowHeight).toBeGreaterThan(closedGeometry.rowHeight);
-  expect(Math.abs(openGeometry.pathWidth - pathWidthBeforeDisclosure)).toBeLessThan(1);
   const classificationStyle = await page.locator('.strategy-classification').first().evaluate((element) => ({
     background: getComputedStyle(element).backgroundColor,
     radius: Number.parseFloat(getComputedStyle(element).borderTopLeftRadius),
   }));
   expect(classificationStyle.background).not.toBe('rgba(0, 0, 0, 0)');
   expect(classificationStyle.radius).toBeGreaterThan(0);
-  const signalStyle = await page.locator('.strategy-signal').first().evaluate((element) => ({
+  const priorityStyle = await page.locator('.strategy-priority-badge').first().evaluate((element) => ({
     background: getComputedStyle(element).backgroundColor,
     radius: Number.parseFloat(getComputedStyle(element).borderTopLeftRadius),
   }));
-  expect(signalStyle.background).not.toBe('rgba(0, 0, 0, 0)');
-  expect(signalStyle.radius).toBeGreaterThan(0);
+  expect(priorityStyle.background).not.toBe('rgba(0, 0, 0, 0)');
+  expect(priorityStyle.radius).toBeGreaterThan(0);
   await expect(page.locator('[data-strategy-row*="redwood"]').first()).toBeVisible();
   const strategyText = await page.locator('#content').innerText();
   expect(strategyText).toMatch(/\d(?:\.\d+)?M/);
@@ -106,7 +96,11 @@ test('imports a profile and persists personalized strategy recommendations witho
   await firstRow.click();
   const detailRow = page.locator('[data-strategy-detail-for]').first();
   await expect(detailRow).toBeVisible();
-  await expect(detailRow).toContainText('步驟明細');
+  await expect(detailRow.locator('td')).toHaveAttribute('colspan', '12');
+  await expect(detailRow).toContainText('安全執行');
+  await expect(detailRow).toContainText('建議本批');
+  await expect(detailRow).toContainText('瓶頸');
+  await expect(detailRow).toContainText('回測 3D');
 
   await page.locator('[data-strategy-scope="limited"]').click();
   await expect(page.locator('[data-strategy-row]')).not.toHaveCount(0);

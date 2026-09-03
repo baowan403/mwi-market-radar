@@ -125,14 +125,22 @@ describe('strategy recommendation view', () => {
     expect([...target.querySelectorAll('col[data-strategy-column]')].map((column) => (
       column.getAttribute('data-strategy-column')
     ))).toEqual([
-      'rank', 'strategy', 'classification', 'profit', 'trend', 'execution', 'capital',
+      'pin', 'step', 'path', 'profit', 'trend1d', 'trend3d', 'trend7d',
+      'sparkline', 'marketShare', 'capital', 'classification', 'priority',
+    ]);
+    expect([...target.querySelectorAll('thead th')].map((cell) => cell.textContent)).toEqual([
+      '自選', '步驟', '路徑', '日利', '1D', '3D', '7D', '72H走勢',
+      '日產佔比', '資金/D', '風險', '優先級',
     ]);
     expect(target.querySelector('.strategy-step')).not.toBeNull();
     expect(target.querySelector('.strategy-path-cell')).not.toBeNull();
     expect(target.querySelector('.strategy-profit')).not.toBeNull();
-    expect(target.querySelector('.strategy-trend-cell')).not.toBeNull();
+    expect(target.querySelectorAll('[data-strategy-row] .strategy-trend-cell')).toHaveLength(6);
     expect(target.querySelector('.strategy-market-share')).not.toBeNull();
-    expect(target.querySelector('.strategy-execution')).not.toBeNull();
+    expect(target.querySelector('.strategy-priority-cell')).not.toBeNull();
+    const firstRow = target.querySelector('[data-strategy-row]')!;
+    expect(firstRow.querySelectorAll(':scope > td')).toHaveLength(12);
+    expect(firstRow.querySelector('.strategy-sparkline-cell')?.textContent).toBe('');
     const pin = target.querySelector<HTMLButtonElement>('[data-strategy-pin="workflow:redwood"]')!;
     pin.click();
     await vi.waitFor(async () => expect(await pinStore.list()).toEqual(['workflow:redwood']));
@@ -193,10 +201,20 @@ describe('strategy recommendation view', () => {
       'long',
     ]);
     expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('低');
-    expect(target.querySelector('[data-strategy-row="long"] [data-strategy-signal]')).not.toBeNull();
+    expect(target.querySelector('[data-strategy-row="long"] [data-strategy-priority]')).not.toBeNull();
     expect(target.querySelector('[data-strategy-row="long"] .strategy-sparkline')).not.toBeNull();
-    expect(target.querySelector('[data-strategy-row="long"] .strategy-trend-cell')).not.toBeNull();
+    expect(target.querySelectorAll('[data-strategy-row="long"] .strategy-trend-cell')).toHaveLength(3);
     expect(target.querySelector('[data-strategy-row="long"] .strategy-market-share')).not.toBeNull();
+
+    const longRow = target.querySelector<HTMLElement>('[data-strategy-row="long"]')!;
+    longRow.click();
+    const detail = target.querySelector<HTMLTableRowElement>('[data-strategy-detail-for="long"]')!;
+    expect(detail.hidden).toBe(false);
+    expect(detail.querySelector('td')?.colSpan).toBe(12);
+    expect(detail.textContent).toContain('安全執行');
+    expect(detail.textContent).toContain('建議本批');
+    expect(detail.textContent).toContain('瓶頸');
+    expect(detail.textContent).toContain('回測 3D');
 
     (target.querySelector('[data-strategy-mode="short"]') as HTMLButtonElement).click();
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow)).toEqual([
@@ -209,7 +227,8 @@ describe('strategy recommendation view', () => {
       'insufficient', 'reject',
     ]);
     expect(target.querySelector('[data-strategy-row="reject"]')?.textContent).toContain('極高');
-    expect(target.querySelector('[data-strategy-row="insufficient"]')?.textContent).toContain('缺資料');
+    expect(target.querySelector('[data-strategy-row="insufficient"] .strategy-classification')?.textContent).toBe('極高');
+    expect(target.querySelector('[data-strategy-row="insufficient"] .strategy-classification')?.getAttribute('title')).toContain('缺少');
     view.destroy();
   });
 
@@ -340,7 +359,7 @@ describe('strategy recommendation view', () => {
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
       'goblin_staff',
     ]);
-    expect(target.querySelector('[data-strategy-row="goblin_staff"]')?.textContent).toContain('缺資料');
+    expect(target.querySelector('[data-strategy-row="goblin_staff"] .strategy-classification')?.textContent).toBe('極高');
 
     view.destroy();
   });
