@@ -415,12 +415,35 @@ export function createCloudClient(
     entry: CloudSnapshotEntry,
     signal: AbortSignal | undefined,
   ): Promise<DownloadedSnapshot> {
-    const text = await requestText(
-      resolveSnapshotUrl(base, entry),
-      signal,
-      'snapshot',
-      CLOUD_MAX_SNAPSHOT_BYTES,
-    );
+    const url = resolveSnapshotUrl(base, entry);
+    const cacheUrl = url.toString();
+    let text: string | null = null;
+
+    let cacheStorage: Cache | null = null;
+    if (typeof globalThis.caches !== 'undefined') {
+      try {
+        cacheStorage = await globalThis.caches.open('mwi-radar-snapshot-cache-v1');
+        const match = await cacheStorage.match(cacheUrl);
+        if (match) {
+          text = await match.text();
+        }
+      } catch {
+        cacheStorage = null;
+      }
+    }
+
+    if (text === null) {
+      text = await requestText(
+        url,
+        signal,
+        'snapshot',
+        CLOUD_MAX_SNAPSHOT_BYTES,
+      );
+      if (cacheStorage !== null && text) {
+        void cacheStorage.put(cacheUrl, new Response(text)).catch(() => undefined);
+      }
+    }
+
     let decoded: Snapshot[];
     try {
       decoded = await decodeDayChunkLimited(text, CLOUD_MAX_DECODED_SNAPSHOT_BYTES, signal);

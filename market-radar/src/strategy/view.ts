@@ -69,18 +69,13 @@ const ACTION_LABELS: Record<string, string> = {
   enhancing: '強化',
 };
 
-function kindLabel(candidate: StrategyCandidate): string {
-  if (candidate.kind === 'gather') {
-    const action = candidate.steps[0]?.action;
-    return action ? (ACTION_LABELS[action] ?? '採集') : '採集';
-  }
-  return {
-    manufacture: '單步製造',
-    workflow: '多步工作流',
-    decompose: '分解',
-    coinify: '點金',
-    'decompose-coinify': '分解 → 點金',
-  }[candidate.kind];
+function stepCountLabel(candidate: StrategyCandidate): string {
+  return `${candidate.steps.length}步`;
+}
+
+function stepDetailTooltip(candidate: StrategyCandidate): string {
+  const actions = candidate.steps.map((s) => ACTION_LABELS[s.action] ?? s.action);
+  return `${candidate.steps.length} 步流程：${actions.join(' → ')}`;
 }
 
 const CLASSIFICATION_LABELS: Record<LiquidityClassification, string> = {
@@ -240,9 +235,10 @@ function strategyRow(
   pinCell.append(pin);
   row.append(pinCell);
 
-  // ── 欄 2：步驟（動作類型）──
+  // ── 欄 2：步驟（工序數）──
   const stepCell = element('td', 'strategy-step');
-  stepCell.textContent = kindLabel(candidate);
+  stepCell.textContent = stepCountLabel(candidate);
+  stepCell.title = stepDetailTooltip(candidate);
   row.append(stepCell);
 
   // ── 欄 3：路徑（材料流程）──

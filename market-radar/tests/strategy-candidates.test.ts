@@ -40,6 +40,10 @@ const snapshot: Snapshot = {
     '/items/jade::0': { a: 50, b: 50, p: 50, v: 1_000 },
     '/items/amethyst::0': { a: 60, b: 60, p: 60, v: 1_000 },
     '/items/moonstone::0': { a: 70, b: 70, p: 70, v: 1_000 },
+    '/items/woodcutting_essence::0': { a: 500, b: 450, p: 475, v: 10_000 },
+    '/items/medium_meteorite_cache::0': { a: 100_000, b: 90_000, p: 95_000, v: 10 },
+    '/items/cowbell::0': { a: 50, b: 40, p: 45, v: 10_000 },
+    '/items/star_fragment::0': { a: 200, b: 180, p: 190, v: 50_000 },
   },
 };
 
@@ -61,6 +65,11 @@ describe('personalized strategy candidate enumeration', () => {
       && item.steps[0]?.inputs.some((flow) => flow.itemHrid === '/items/emp_tea_leaf'));
     expect(voidTea?.path).toEqual(['/items/emp_tea_leaf', '/items/brewing_essence']);
     expect(new Set(result.candidates.map((item) => item.id)).size).toBe(result.candidates.length);
+    const gatheringCandidates = result.candidates.filter((item) => item.kind === 'gather');
+    expect(gatheringCandidates.length).toBeGreaterThan(0);
+    for (const gatherItem of gatheringCandidates) {
+      expect(gatherItem.path.some((hrid) => hrid.includes('_tea') || hrid.includes('_coffee'))).toBe(false);
+    }
     expect(result.candidates.map((item) => item.profitPerDay)).toEqual(
       [...result.candidates.map((item) => item.profitPerDay)].sort((left, right) => right - left),
     );

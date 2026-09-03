@@ -1108,9 +1108,6 @@ summary:focus-visible {
 
 /* ── 步驟欄 ── */
 .strategy-step {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   font-size: 0.74rem;
   font-weight: 650;
   color: var(--color-text);

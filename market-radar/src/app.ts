@@ -681,7 +681,9 @@ function renderDashboard(
         state.snapshots = nextSnapshots;
         state.pageIndex = 0;
         invalidateDerived();
-        renderResultsOnly();
+        if (!isStrategyActive?.() || refreshDaily) {
+          renderResultsOnly();
+        }
       }
       renderStatus();
     })();
@@ -1177,7 +1179,7 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       lifecycleController?.signal,
       options.chartFactory,
       options.now,
-      options.pollMs,
+      options.pollMs ?? 900_000,
       options.setInterval,
       options.clearInterval,
       () => strategySurfaceActive,

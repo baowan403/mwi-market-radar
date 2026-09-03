@@ -53,8 +53,14 @@ function titleFor(hrid: string, data: NormalizedStrategyGameData): string {
   return data.itemsByHrid.get(hrid)?.name ?? hrid;
 }
 
-function stepPath(step: StrategyStepResult): string[] {
-  const input = step.inputs.find((flow) => flow.market && !flow.itemHrid.endsWith('_tea'))?.itemHrid;
+function isDrink(itemHrid: string, data: NormalizedStrategyGameData): boolean {
+  return data.itemsByHrid.get(itemHrid)?.categoryHrid === '/item_categories/drink'
+    || itemHrid.endsWith('_tea')
+    || itemHrid.endsWith('_coffee');
+}
+
+function stepPath(step: StrategyStepResult, data: NormalizedStrategyGameData): string[] {
+  const input = step.inputs.find((flow) => flow.market && !isDrink(flow.itemHrid, data))?.itemHrid;
   return [...(input ? [input] : []), step.outputHrid];
 }
 
@@ -68,7 +74,7 @@ function candidateFromStep(
     id: step.id,
     kind,
     title: titleFor(step.outputHrid, data),
-    path: stepPath(step),
+    path: stepPath(step, data),
     profitPerHour: step.profitPerHour,
     profitPerDay: step.profitPerHour * 24,
     costPerHour: step.costPerHour,
@@ -85,7 +91,13 @@ function candidateFromWorkflow(
 ): StrategyCandidate | null {
   if (!workflow.valid || workflow.profitPerHour === null || workflow.costPerHour === null || workflow.incomePerHour === null) return null;
   const last = workflow.steps.at(-1)!;
-  const firstInput = workflow.inputs.find((flow) => flow.market)?.itemHrid;
+  const firstStep = workflow.steps[0];
+  const isFirstGather = firstStep && (
+    firstStep.action === 'milking' || firstStep.action === 'woodcutting' || firstStep.action === 'foraging'
+  );
+  const firstInput = isFirstGather
+    ? undefined
+    : workflow.inputs.find((flow) => flow.market && !isDrink(flow.itemHrid, data))?.itemHrid;
   return {
     id: workflow.id,
     kind,

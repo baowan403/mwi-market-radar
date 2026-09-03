@@ -228,7 +228,7 @@ export function calculateGatherAction(options: {
     incomePerHour: valid ? result.incomePerHour : null,
     profitPerHour: valid ? result.profitPerHour : null,
     experiencePerHour: baseExperience * (1 + buffs.Experience) * result.actionsPerHour,
-    inputs: priceFlow(result.ingredientUnitsPerHour, 'ask', prices, data),
+    inputs: [],
     outputs: liquidation.flows,
   };
 }
