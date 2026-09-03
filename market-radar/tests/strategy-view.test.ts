@@ -18,11 +18,12 @@ function marketStep(
   inputHrid: string,
   outputHrid: string,
   unitsPerHour: number,
+  action: import('../src/profile/types').SkillingAction = 'crafting',
 ): StrategyStepResult {
   return {
     id,
-    action: 'crafting',
-    actionHrid: `/actions/crafting/${id}`,
+    action,
+    actionHrid: `/actions/${action}/${id}`,
     outputHrid,
     valid: true,
     actionsPerHour: 1,
@@ -202,6 +203,136 @@ describe('strategy recommendation view', () => {
     ]);
     expect(target.querySelector('[data-strategy-row="reject"]')?.textContent).toContain('不建議');
     expect(target.querySelector('[data-strategy-row="insufficient"]')?.textContent).toContain('資料不足');
+    view.destroy();
+  });
+
+  it('filters strategies by skill dropdown and matches multi-step strategies correctly', async () => {
+    const target = document.createElement('section');
+    const snapshots = history({
+      '/items/milk': 1_000,
+      '/items/essence': 1_000,
+      '/items/coin': 1_000,
+      '/items/bar': 1_000,
+    });
+    const result: StrategyCandidateResult = {
+      diagnostics: [],
+      candidates: [
+        {
+          id: 'multistep:milk_decompose', kind: 'workflow', title: '先擠奶再分解',
+          path: ['/items/milk', '/items/essence', '/items/coin'],
+          profitPerHour: 5_000, profitPerDay: 120_000, costPerHour: 1_000, incomePerHour: 6_000,
+          workingCapital24h: 24_000,
+          steps: [
+            marketStep('step1', '/items/milk', '/items/essence', 10, 'milking'),
+            marketStep('step2', '/items/essence', '/items/coin', 10, 'alchemy'),
+          ],
+        },
+        {
+          id: 'single:smithing', kind: 'manufacture', title: '鍛造金條',
+          path: ['/items/coin', '/items/bar'],
+          profitPerHour: 3_000, profitPerDay: 72_000, costPerHour: 1_000, incomePerHour: 4_000,
+          workingCapital24h: 24_000,
+          steps: [
+            marketStep('step_smith', '/items/coin', '/items/bar', 10, 'cheesesmithing'),
+          ],
+        },
+      ],
+    };
+    const view = createStrategyView({
+      target,
+      getProfile: () => profile,
+      getSnapshots: () => snapshots,
+      loadGameData: async () => ({ shopItemDetailMap: {}, openableLootDropMap: {}, itemsByHrid: new Map() }) as never,
+      pinStore: createMemoryStrategyPinStore(),
+      calculate: () => result,
+      itemName: (hrid) => hrid.split('/').at(-1) ?? hrid,
+      onImportProfile: vi.fn(),
+    });
+
+    await view.render();
+    const skillSelect = target.querySelector<HTMLSelectElement>('[data-strategy-skill]')!;
+    expect(skillSelect).not.toBeNull();
+
+    // 預設全部技能：兩個都出現
+    expect(target.querySelectorAll('[data-strategy-row]')).toHaveLength(2);
+
+    // 選擇「擠奶」：多步驟策略涵蓋擠奶，應命中
+    skillSelect.value = 'milking';
+    skillSelect.dispatchEvent(new Event('change'));
+    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
+      'multistep:milk_decompose',
+    ]);
+
+    // 選擇「煉金」：多步驟策略亦涵蓋煉金，應命中
+    skillSelect.value = 'alchemy';
+    skillSelect.dispatchEvent(new Event('change'));
+    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
+      'multistep:milk_decompose',
+    ]);
+
+    // 選擇「鍛造」：只有單步鍛造策略命中
+    skillSelect.value = 'cheesesmithing';
+    skillSelect.dispatchEvent(new Event('change'));
+    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
+      'single:smithing',
+    ]);
+
+    view.destroy();
+  });
+
+  it('searches strategies by item query and includes insufficient items when query is specified', async () => {
+    const target = document.createElement('section');
+    const snapshots = history({
+      '/items/goblin_fire_staff': 1_000,
+      '/items/normal_cloth': 1_000,
+    });
+    const result: StrategyCandidateResult = {
+      diagnostics: [],
+      candidates: [
+        {
+          id: 'goblin_staff', kind: 'manufacture', title: '哥布林火棍',
+          path: ['/items/missing', '/items/goblin_fire_staff'],
+          profitPerHour: 2_000, profitPerDay: 48_000, costPerHour: 1_000, incomePerHour: 3_000,
+          workingCapital24h: 24_000,
+          steps: [marketStep('step_staff', '/items/missing', '/items/goblin_fire_staff', 1)], // insufficient units
+        },
+        {
+          id: 'cloth', kind: 'manufacture', title: '普通布匹',
+          path: ['/items/normal_cloth', '/items/normal_cloth'],
+          profitPerHour: 3_000, profitPerDay: 72_000, costPerHour: 1_000, incomePerHour: 4_000,
+          workingCapital24h: 24_000,
+          steps: [marketStep('step_cloth', '/items/normal_cloth', '/items/normal_cloth', 10)],
+        },
+      ],
+    };
+    const view = createStrategyView({
+      target,
+      getProfile: () => profile,
+      getSnapshots: () => snapshots,
+      loadGameData: async () => ({ shopItemDetailMap: {}, openableLootDropMap: {}, itemsByHrid: new Map() }) as never,
+      pinStore: createMemoryStrategyPinStore(),
+      calculate: () => result,
+      itemName: (hrid) => (hrid.includes('goblin_fire_staff') ? '哥布林火棍' : hrid.split('/').at(-1) ?? hrid),
+      onImportProfile: vi.fn(),
+    });
+
+    await view.render();
+    const searchInput = target.querySelector<HTMLInputElement>('[data-strategy-search]')!;
+    expect(searchInput).not.toBeNull();
+
+    // 預設無搜尋：排除不足項目，只出現普通布匹
+    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
+      'cloth',
+    ]);
+
+    // 主動搜尋「哥布林」：破例列出被判定資料不足的哥布林火棍
+    searchInput.value = '哥布林';
+    searchInput.dispatchEvent(new Event('input'));
+    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
+      'goblin_staff',
+    ]);
+    expect(target.querySelector('[data-strategy-row="goblin_staff"]')?.textContent).toContain('資料不足');
+
     view.destroy();
   });
 });

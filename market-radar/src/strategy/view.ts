@@ -1,6 +1,6 @@
 import type { Snapshot } from '../core/types';
 import { formatCompactNumber } from '../core/format-number';
-import type { PlayerProfile } from '../profile/types';
+import type { PlayerProfile, SkillingAction } from '../profile/types';
 import { backtestStrategySignals, type StrategyBacktestResult } from './backtest';
 import { buildStrategyCandidates, type StrategyCandidate, type StrategyCandidateResult } from './candidates';
 import type { NormalizedStrategyGameData } from './game-data';
@@ -94,6 +94,66 @@ const CONFIDENCE_LABELS: Record<StrategySignalConfidence, string> = {
   medium: '中',
   high: '高',
 };
+
+export const STRATEGY_SKILL_OPTIONS: Array<{ value: 'all' | SkillingAction; label: string }> = [
+  { value: 'all', label: '全部技能' },
+  { value: 'milking', label: '擠奶' },
+  { value: 'foraging', label: '採摘' },
+  { value: 'woodcutting', label: '伐木' },
+  { value: 'cheesesmithing', label: '鍛造' },
+  { value: 'crafting', label: '製作' },
+  { value: 'tailoring', label: '裁縫' },
+  { value: 'cooking', label: '烹飪' },
+  { value: 'brewing', label: '沖泡' },
+  { value: 'alchemy', label: '煉金' },
+  { value: 'enhancing', label: '強化' },
+];
+
+/** 常見簡繁字符映射，確保輸入簡體亦可精準搜尋繁體資料庫 */
+const SIMPLIFIED_TO_TRADITIONAL_MAP: Record<string, string> = {
+  '盗': '盜', '炼': '煉', '制': '製', '奶': '奶', '药': '藥', '铁': '鐵',
+  '铜': '銅', '银': '銀', '金': '金', '木': '木', '棍': '棍', '剑': '劍',
+  '枪': '槍', '弓': '弓', '甲': '甲', '丝': '絲', '线': '線', '布': '布',
+  '矿': '礦', '石': '石', '宝': '寶', '晶': '晶', '碎': '碎', '片': '片',
+};
+
+function normalizeSearchText(text: string): string {
+  let normalized = text.toLowerCase().trim();
+  for (const [s, t] of Object.entries(SIMPLIFIED_TO_TRADITIONAL_MAP)) {
+    normalized = normalized.replaceAll(s, t);
+  }
+  return normalized;
+}
+
+function candidateSearchText(candidate: StrategyCandidate, itemName: (hrid: string) => string): string {
+  const parts = new Set<string>();
+  parts.add(candidate.title);
+  parts.add(candidate.id);
+  for (const hrid of candidate.path) {
+    parts.add(hrid);
+    parts.add(itemName(hrid));
+  }
+  for (const step of candidate.steps) {
+    parts.add(step.actionHrid);
+    for (const flow of [...step.inputs, ...step.outputs]) {
+      parts.add(flow.itemHrid);
+      parts.add(itemName(flow.itemHrid));
+    }
+  }
+  return normalizeSearchText([...parts].join(' '));
+}
+
+function matchesSearchQuery(candidate: StrategyCandidate, query: string, itemName: (hrid: string) => string): boolean {
+  const normalizedQuery = normalizeSearchText(query);
+  if (!normalizedQuery) return true;
+  const target = candidateSearchText(candidate, itemName);
+  return target.includes(normalizedQuery);
+}
+
+function matchesSkill(candidate: StrategyCandidate, selectedSkill: 'all' | SkillingAction): boolean {
+  if (selectedSkill === 'all') return true;
+  return candidate.steps.some((step) => step.action === selectedSkill);
+}
 
 type StrategyScope = 'actionable' | 'limited';
 
@@ -301,17 +361,24 @@ function stepAssumptions(step: StrategyStepResult, options: StrategyViewOptions)
   return wrapper;
 }
 
+interface StrategyFilterContext {
+  selectedSkill: 'all' | SkillingAction;
+  searchQuery: string;
+  scope: StrategyScope;
+}
+
 function renderResults(
   result: StrategyCandidateResult,
   pinned: Set<string>,
   options: StrategyViewOptions,
   snapshots: readonly Snapshot[],
   data: NormalizedStrategyGameData,
-  scope: StrategyScope = 'actionable',
+  initialFilter: StrategyFilterContext = { selectedSkill: 'all', searchQuery: '', scope: 'actionable' },
   signalCache = new Map<string, AssessedSignal>(),
   priceBookCache = new Map<number, ReturnType<typeof createStrategyPriceBook>>(),
 ): void {
   options.target.replaceChildren();
+
   const header = element('header', 'strategy-header');
   const heading = element('h2');
   heading.textContent = '策略推薦';
@@ -320,126 +387,225 @@ function renderResults(
   header.append(heading, warning);
   options.target.append(header);
 
+  const filterState: StrategyFilterContext = { ...initialFilter };
+
+  // ── 工具列：技能下拉選單 + 物品關鍵字搜尋框 ──
+  const toolbar = element('section', 'strategy-toolbar toolbar');
+
+  const skillGroup = element('div', 'strategy-filter-group filter-control');
+  const skillLabel = element('label', 'strategy-label');
+  skillLabel.htmlFor = 'strategy-skill-select';
+  skillLabel.textContent = '技能：';
+  const skillSelect = element('select', 'strategy-select');
+  skillSelect.id = 'strategy-skill-select';
+  skillSelect.dataset.strategySkill = 'true';
+  for (const { value, label } of STRATEGY_SKILL_OPTIONS) {
+    const opt = element('option');
+    opt.value = value;
+    opt.textContent = label;
+    if (value === filterState.selectedSkill) opt.selected = true;
+    skillSelect.append(opt);
+  }
+  skillGroup.append(skillLabel, skillSelect);
+
+  const searchGroup = element('div', 'strategy-search-group search-field');
+  const searchInput = element('input', 'strategy-search-input');
+  searchInput.type = 'search';
+  searchInput.id = 'strategy-search-input';
+  searchInput.dataset.strategySearch = 'true';
+  searchInput.placeholder = '搜尋物品（如：海盜精煉碎片、哥布林火棍）…';
+  searchInput.value = filterState.searchQuery;
+  searchGroup.append(searchInput);
+
+  toolbar.append(skillGroup, searchGroup);
+  options.target.append(toolbar);
+
+  const resultsContainer = element('div', 'strategy-results-container');
+  options.target.append(resultsContainer);
+
   const assessed = result.candidates
     .filter((candidate) => candidate.profitPerDay > 0)
     .map((candidate) => ({ candidate, liquidity: evaluateRealizableStrategy(candidate, snapshots) }));
-  const actionable = assessed.filter(({ liquidity }) => (
-    liquidity.classification !== 'reject'
-    && liquidity.classification !== 'insufficient'
-    && (liquidity.realizableProfitPerDay ?? 0) > 0
-  ));
-  const limited = assessed.filter(({ liquidity }) => (
-    liquidity.classification === 'reject' || liquidity.classification === 'insufficient'
-  ));
-  const chosen = scope === 'actionable' ? actionable : limited;
-  chosen.sort((left, right) => {
-    const byPinned = Number(pinned.has(right.candidate.id)) - Number(pinned.has(left.candidate.id));
-    if (byPinned) return byPinned;
-    if (scope === 'limited' && left.liquidity.classification !== right.liquidity.classification) {
-      return left.liquidity.classification === 'insufficient' ? -1 : 1;
+
+  function updateResults(): void {
+    resultsContainer.replaceChildren();
+    const isSearchActive = filterState.searchQuery.trim().length > 0;
+
+    // 計算各 scope 總數以維持 scopeNav 徽章正確
+    const skillFilteredAssessed = assessed.filter(({ candidate }) => (
+      matchesSkill(candidate, filterState.selectedSkill)
+    ));
+    const actionableCount = skillFilteredAssessed.filter(({ liquidity }) => (
+      liquidity.classification !== 'reject'
+      && liquidity.classification !== 'insufficient'
+      && (liquidity.realizableProfitPerDay ?? 0) > 0
+    )).length;
+    const limitedCount = skillFilteredAssessed.filter(({ liquidity }) => (
+      liquidity.classification === 'reject' || liquidity.classification === 'insufficient'
+    )).length;
+
+    // 篩選
+    const matched = assessed.filter(({ candidate, liquidity }) => {
+      if (!matchesSkill(candidate, filterState.selectedSkill)) return false;
+
+      if (isSearchActive) {
+        // 主動搜尋物品時：破例包含資料不足或不建議項目
+        return matchesSearchQuery(candidate, filterState.searchQuery, options.itemName);
+      }
+
+      // 未搜尋物品時（一般瀏覽或技能分類）：
+      if (filterState.scope === 'actionable') {
+        return liquidity.classification !== 'reject'
+          && liquidity.classification !== 'insufficient'
+          && (liquidity.realizableProfitPerDay ?? 0) > 0;
+      }
+      return liquidity.classification === 'reject' || liquidity.classification === 'insufficient';
+    });
+
+    // 排序：釘選優先，接著依日利降序
+    matched.sort((left, right) => {
+      const byPinned = Number(pinned.has(right.candidate.id)) - Number(pinned.has(left.candidate.id));
+      if (byPinned) return byPinned;
+      if (!isSearchActive && filterState.scope === 'limited' && left.liquidity.classification !== right.liquidity.classification) {
+        return left.liquidity.classification === 'insufficient' ? -1 : 1;
+      }
+      const leftProfit = left.liquidity.realizableProfitPerDay ?? left.liquidity.theoreticalProfitPerDay;
+      const rightProfit = right.liquidity.realizableProfitPerDay ?? right.liquidity.theoreticalProfitPerDay;
+      return rightProfit - leftProfit || left.candidate.id.localeCompare(right.candidate.id);
+    });
+
+    // 筆數限制：一般模式取前 50 筆日利最高排名
+    const chosen = matched.slice(0, 50);
+
+    // 未搜尋時渲染 scope 分類切換鈕
+    if (!isSearchActive) {
+      const scopeNav = element('nav', 'strategy-scopes');
+      scopeNav.setAttribute('aria-label', '策略承接分類');
+      for (const [key, label, count] of [
+        ['actionable', '可執行', actionableCount],
+        ['limited', '觀察／排除', limitedCount],
+      ] as const) {
+        const button = element('button', 'strategy-scope-button');
+        button.type = 'button';
+        button.dataset.strategyScope = key;
+        button.setAttribute('aria-pressed', String(filterState.scope === key));
+        button.textContent = `${label} ${count}`;
+        button.addEventListener('click', () => {
+          filterState.scope = key;
+          updateResults();
+        });
+        scopeNav.append(button);
+      }
+      resultsContainer.append(scopeNav);
     }
-    const leftProfit = left.liquidity.realizableProfitPerDay ?? left.liquidity.theoreticalProfitPerDay;
-    const rightProfit = right.liquidity.realizableProfitPerDay ?? right.liquidity.theoreticalProfitPerDay;
-    return rightProfit - leftProfit || left.candidate.id.localeCompare(right.candidate.id);
+
+    if (assessed.length === 0) {
+      const empty = element('p', 'strategy-no-result');
+      empty.textContent = '目前價格下沒有資料完整且理論收益為正的策略。';
+      resultsContainer.append(empty);
+      return;
+    }
+
+    if (chosen.length === 0) {
+      const empty = element('p', 'strategy-no-result');
+      if (isSearchActive) {
+        empty.textContent = `找不到與「${filterState.searchQuery.trim()}」相關的策略。`;
+      } else if (filterState.selectedSkill !== 'all') {
+        const skillName = STRATEGY_SKILL_OPTIONS.find((s) => s.value === filterState.selectedSkill)?.label ?? '';
+        empty.textContent = `在「${skillName}」技能下沒有符合條件的策略。`;
+      } else {
+        empty.textContent = filterState.scope === 'actionable'
+          ? '目前沒有通過成交量承接門檻的正收益策略；請查看「觀察／排除」了解資料不足或不建議的原因。'
+          : '目前沒有資料不足或超過安全市占的策略。';
+      }
+      resultsContainer.append(empty);
+      return;
+    }
+
+    const meta = element('p', 'strategy-meta');
+    if (isSearchActive) {
+      meta.textContent = `搜尋「${filterState.searchQuery.trim()}」：顯示前 ${chosen.length} 條（依日利排序，含特例查詢項目）`;
+    } else if (filterState.selectedSkill !== 'all') {
+      const skillName = STRATEGY_SKILL_OPTIONS.find((s) => s.value === filterState.selectedSkill)?.label ?? '';
+      meta.textContent = `技能「${skillName}」：顯示前 ${chosen.length} 條；排除資料不足，依可實現日利排序`;
+    } else {
+      meta.textContent = filterState.scope === 'actionable'
+        ? `顯示前 ${chosen.length} 條最高日利排名；排除資料不足，依可實現日利排序`
+        : `顯示前 ${chosen.length} / ${matched.length} 條觀察與資料不足項目`;
+    }
+    resultsContainer.append(meta);
+
+    const scroll = element('div', 'strategy-table-scroll');
+    const table = element('table', 'strategy-table');
+    const columnGroup = element('colgroup');
+    for (const key of [
+      'pin', 'step', 'path', 'profit', 'trend1d', 'trend3d', 'trend7d', 'marketShare', 'capital', 'classification', 'priority',
+    ]) {
+      const column = element('col');
+      column.dataset.strategyColumn = key;
+      columnGroup.append(column);
+    }
+    const head = element('thead');
+    const headerRow = element('tr');
+    for (const label of ['自選', '步驟', '路徑', '日利', '1D', '3D', '7D', '日產佔比', '資金/D', '判定', '優先級']) {
+      const cell = element('th');
+      cell.textContent = label;
+      headerRow.append(cell);
+    }
+    head.append(headerRow);
+    const body = element('tbody');
+    for (const assessedCandidate of chosen) {
+      let assessedSignal = signalCache.get(assessedCandidate.candidate.id);
+      if (!assessedSignal) {
+        const series = buildStrategyMarginSeries({
+          strategyId: assessedCandidate.candidate.id,
+          snapshots,
+          candidateAtSnapshot: (snapshot) => {
+            let prices = priceBookCache.get(snapshot.timestamp);
+            if (!prices) {
+              prices = createStrategyPriceBook(snapshot, data);
+              priceBookCache.set(snapshot.timestamp, prices);
+            }
+            return repriceFixedCandidate(assessedCandidate.candidate, prices);
+          },
+        });
+        const backtest = backtestStrategySignals(series, {
+          signalAt: (prefix) => strategyTrendSignal(prefix),
+        });
+        assessedSignal = {
+          signal: strategyTrendSignal(series, { backtest: backtest.summary }),
+          backtest,
+        };
+        signalCache.set(assessedCandidate.candidate.id, assessedSignal);
+      }
+      const mainRow = strategyRow(assessedCandidate, assessedSignal, pinned, options);
+      const detail = detailRow(assessedCandidate.candidate, options);
+      detail.hidden = true;
+      mainRow.addEventListener('click', (event) => {
+        const target = event.target as HTMLElement;
+        if (target.closest('button, a, summary')) return;
+        detail.hidden = !detail.hidden;
+        mainRow.classList.toggle('strategy-row-expanded', !detail.hidden);
+      });
+      mainRow.style.cursor = 'pointer';
+      body.append(mainRow, detail);
+    }
+    table.append(columnGroup, head, body);
+    scroll.append(table);
+    resultsContainer.append(scroll);
+  }
+
+  skillSelect.addEventListener('change', () => {
+    filterState.selectedSkill = skillSelect.value as 'all' | SkillingAction;
+    updateResults();
   });
 
-  const scopeNav = element('nav', 'strategy-scopes');
-  scopeNav.setAttribute('aria-label', '策略承接分類');
-  for (const [key, label, count] of [
-    ['actionable', '可執行', actionable.length],
-    ['limited', '觀察／排除', limited.length],
-  ] as const) {
-    const button = element('button', 'strategy-scope-button');
-    button.type = 'button';
-    button.dataset.strategyScope = key;
-    button.setAttribute('aria-pressed', String(scope === key));
-    button.textContent = `${label} ${count}`;
-    button.addEventListener('click', () => renderResults(
-      result, pinned, options, snapshots, data, key, signalCache, priceBookCache,
-    ));
-    scopeNav.append(button);
-  }
-  options.target.append(scopeNav);
+  searchInput.addEventListener('input', () => {
+    filterState.searchQuery = searchInput.value;
+    updateResults();
+  });
 
-  if (assessed.length === 0) {
-    const empty = element('p', 'strategy-no-result');
-    empty.textContent = '目前價格下沒有資料完整且理論收益為正的策略。';
-    options.target.append(empty);
-    return;
-  }
-
-  if (chosen.length === 0) {
-    const empty = element('p', 'strategy-no-result');
-    empty.textContent = scope === 'actionable'
-      ? '目前沒有通過成交量承接門檻的正收益策略；請查看「觀察／排除」了解資料不足或不建議的原因。'
-      : '目前沒有資料不足或超過安全市占的策略。';
-    options.target.append(empty);
-    return;
-  }
-
-  const meta = element('p', 'strategy-meta');
-  meta.textContent = `顯示前 ${Math.min(100, chosen.length)} / ${chosen.length} 條；依可實現日利排序`;
-  options.target.append(meta);
-  const scroll = element('div', 'strategy-table-scroll');
-  const table = element('table', 'strategy-table');
-  const columnGroup = element('colgroup');
-  for (const key of [
-    'pin', 'step', 'path', 'profit', 'trend1d', 'trend3d', 'trend7d', 'marketShare', 'capital', 'classification', 'priority',
-  ]) {
-    const column = element('col');
-    column.dataset.strategyColumn = key;
-    columnGroup.append(column);
-  }
-  const head = element('thead');
-  const headerRow = element('tr');
-  for (const label of ['自選', '步驟', '路徑', '日利', '1D', '3D', '7D', '日產佔比', '資金/D', '判定', '優先級']) {
-    const cell = element('th');
-    cell.textContent = label;
-    headerRow.append(cell);
-  }
-  head.append(headerRow);
-  const body = element('tbody');
-  for (const assessedCandidate of chosen.slice(0, 100)) {
-    let assessedSignal = signalCache.get(assessedCandidate.candidate.id);
-    if (!assessedSignal) {
-      const series = buildStrategyMarginSeries({
-        strategyId: assessedCandidate.candidate.id,
-        snapshots,
-        candidateAtSnapshot: (snapshot) => {
-          let prices = priceBookCache.get(snapshot.timestamp);
-          if (!prices) {
-            prices = createStrategyPriceBook(snapshot, data);
-            priceBookCache.set(snapshot.timestamp, prices);
-          }
-          return repriceFixedCandidate(assessedCandidate.candidate, prices);
-        },
-      });
-      const backtest = backtestStrategySignals(series, {
-        signalAt: (prefix) => strategyTrendSignal(prefix),
-      });
-      assessedSignal = {
-        signal: strategyTrendSignal(series, { backtest: backtest.summary }),
-        backtest,
-      };
-      signalCache.set(assessedCandidate.candidate.id, assessedSignal);
-    }
-    const mainRow = strategyRow(assessedCandidate, assessedSignal, pinned, options);
-    const detail = detailRow(assessedCandidate.candidate, options);
-    detail.hidden = true;
-    // 點擊列展開/收合步驟面板
-    mainRow.addEventListener('click', (event) => {
-      // 不攔截按鈕、連結、details/summary 的點擊
-      const target = event.target as HTMLElement;
-      if (target.closest('button, a, summary')) return;
-      detail.hidden = !detail.hidden;
-      mainRow.classList.toggle('strategy-row-expanded', !detail.hidden);
-    });
-    mainRow.style.cursor = 'pointer';
-    body.append(mainRow, detail);
-  }
-  table.append(columnGroup, head, body);
-  scroll.append(table);
-  options.target.append(scroll);
+  updateResults();
 }
 
 export function createStrategyView(options: StrategyViewOptions): StrategyView {
