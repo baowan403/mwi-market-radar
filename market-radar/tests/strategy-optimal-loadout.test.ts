@@ -21,6 +21,12 @@ describe('optimal loadout engine', () => {
     const foragingTeas = optimalTeasForAction('foraging');
     expect(foragingTeas).toHaveLength(3);
     expect(foragingTeas).toContain('/items/gathering_tea');
+
+    const cookingTeas = optimalTeasForAction('cooking');
+    expect(cookingTeas).toEqual(['/items/gourmet_tea', '/items/artisan_tea', '/items/efficiency_tea']);
+
+    const brewingTeas = optimalTeasForAction('brewing');
+    expect(brewingTeas).toEqual(['/items/gourmet_tea', '/items/artisan_tea', '/items/efficiency_tea']);
   });
 
   it('strictly excludes combat-only equipment and selects true skilling equipment', () => {

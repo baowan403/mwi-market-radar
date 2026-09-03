@@ -1,4 +1,4 @@
-﻿import type { PlayerProfile, ProfileEquipment, SkillingAction } from '../profile/types';
+import type { PlayerProfile, ProfileEquipment, SkillingAction } from '../profile/types';
 import type { NormalizedStrategyGameData } from './game-data';
 
 const OPTIMAL_TEAS_BY_ACTION: Record<SkillingAction, string[]> = {
@@ -9,8 +9,8 @@ const OPTIMAL_TEAS_BY_ACTION: Record<SkillingAction, string[]> = {
   cheesesmithing: ['/items/ultra_cheesesmithing_tea', '/items/artisan_tea', '/items/efficiency_tea'],
   crafting: ['/items/ultra_crafting_tea', '/items/artisan_tea', '/items/efficiency_tea'],
   tailoring: ['/items/ultra_tailoring_tea', '/items/artisan_tea', '/items/efficiency_tea'],
-  cooking: ['/items/ultra_cooking_tea', '/items/gourmet_tea', '/items/efficiency_tea'],
-  brewing: ['/items/ultra_brewing_tea', '/items/artisan_tea', '/items/efficiency_tea'],
+  cooking: ['/items/gourmet_tea', '/items/artisan_tea', '/items/efficiency_tea'],
+  brewing: ['/items/gourmet_tea', '/items/artisan_tea', '/items/efficiency_tea'],
   enhancing: ['/items/ultra_enhancing_tea', '/items/efficiency_tea', '/items/blessed_tea'],
 };
 
