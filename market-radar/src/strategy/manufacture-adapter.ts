@@ -122,11 +122,13 @@ export function calculateManufactureAction(options: {
     price: prices.bid(item.itemHrid),
     taxable: taxable(item.itemHrid, data),
   }));
-  const teas: PricedCount[] = profile.actions[action].teas.map((itemHrid) => ({
-    itemHrid,
-    count: 1,
-    price: prices.ask(itemHrid),
-  }));
+  const teas: PricedCount[] = profile.actions[action].teas
+    .filter((itemHrid) => prices.ask(itemHrid) !== null)
+    .map((itemHrid) => ({
+      itemHrid,
+      count: 1,
+      price: prices.ask(itemHrid),
+    }));
 
   const result = calculateManufacture({
     baseTimeCost: detail.baseTimeCost,
@@ -194,11 +196,13 @@ export function calculateGatherAction(options: {
     taxable: taxable(drop.itemHrid, data),
   }));
 
-  const teas: PricedCount[] = (profile.actions[action]?.teas ?? []).map((itemHrid) => ({
-    itemHrid,
-    count: 1,
-    price: prices.ask(itemHrid),
-  }));
+  const teas: PricedCount[] = (profile.actions[action]?.teas ?? [])
+    .filter((itemHrid) => prices.ask(itemHrid) !== null)
+    .map((itemHrid) => ({
+      itemHrid,
+      count: 1,
+      price: prices.ask(itemHrid),
+    }));
 
   const result = calculateManufacture({
     baseTimeCost: detail.baseTimeCost,

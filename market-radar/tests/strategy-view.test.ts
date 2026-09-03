@@ -214,7 +214,7 @@ describe('strategy recommendation view', () => {
     expect(detail.hidden).toBe(false);
     expect(detail.querySelector('td')?.colSpan).toBe(12);
     expect(detail.textContent).toContain('安全執行');
-    expect(detail.textContent).toContain('建議本批');
+    expect(detail.textContent).toContain('所需啟動現金');
     expect(detail.textContent).toContain('瓶頸');
     expect(detail.textContent).toContain('掛機排程與原料採購規劃');
 

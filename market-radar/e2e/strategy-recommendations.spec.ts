@@ -98,7 +98,7 @@ test('imports a profile and persists personalized strategy recommendations witho
   await expect(detailRow).toBeVisible();
   await expect(detailRow.locator('td')).toHaveAttribute('colspan', '12');
   await expect(detailRow).toContainText('安全執行');
-  await expect(detailRow).toContainText('建議本批');
+  await expect(detailRow).toContainText('所需啟動現金');
   await expect(detailRow).toContainText('瓶頸');
   await expect(detailRow).toContainText('掛機排程與原料採購規劃');
 

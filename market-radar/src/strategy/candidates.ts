@@ -6,6 +6,7 @@ import { calculateManufactureAction, calculateGatherAction } from './manufacture
 import type { MarketPriceBook } from './price-book';
 import type { StrategyStepResult } from './types';
 import { calculateWorkflow, type WorkflowResult } from './workflow';
+import { enrichProfileWithBestLoadout } from './optimal-loadout';
 
 const MANUFACTURING_ACTIONS = new Set<SkillingAction>([
   'cheesesmithing', 'crafting', 'tailoring', 'cooking', 'brewing',
@@ -162,7 +163,8 @@ export function buildStrategyCandidates(options: {
   data: NormalizedStrategyGameData;
   prices: MarketPriceBook;
 }): StrategyCandidateResult {
-  const { profile, data, prices } = options;
+  const { data, prices } = options;
+  const profile = enrichProfileWithBestLoadout(options.profile, data);
   const candidateMap = new Map<string, StrategyCandidate>();
   const diagnostics: string[] = [];
   const buffCache = new Map<SkillingAction, ActionBuffs>();

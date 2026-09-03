@@ -368,22 +368,17 @@ function detailRow(
     ? `${liquidity.bottleneckSide === 'input' ? '買入' : '賣出'}瓶頸 ${options.itemName(liquidity.bottleneckHrid)}`
     : '無外部市場瓶頸';
   const details = [
-    `理論日利 ${money(candidate.profitPerDay)}`,
-    `容量折算日利 ${metric(liquidity.realizableProfitPerDay)}`,
     `安全執行 ${metric(liquidity.safeHoursPerDay, '小時')}`,
-    `建議本批 ${metric(decision.recommendedBatchUnits, '件')}`,
     bottleneck,
-    `${quantity(decision.executionHours)}h 本批利潤 ${metric(decision.batchProfit)}`,
-    `本批現金 ${money(decision.funding.cashRequired)}`,
-    `24h 流動資金 ${money(candidate.workingCapital24h)}`,
-    decision.funding.inventoryReplacementValue > 0
-      ? `材料庫存按買入替代價抵現金 ${money(decision.funding.inventoryReplacementValue)}`
-      : '材料庫存數量未提供，未抵扣現金',
-    `經濟投入 ${money(decision.funding.grossInputValue)}`,
-    `售罄估計 ${metric(liquidity.sellThroughDays, '天')}`,
+    `所需啟動現金 ${money(decision.funding.cashRequired)}`,
     `訊號 ${SIGNAL_LABELS[assessedSignal.signal.action]}｜${MOMENTUM_LABELS[assessedSignal.signal.priority]}動能`,
-    assessedSignal.signal.confidence === 'none' ? '歷史不足 7 天' : '7D 數據充足',
   ];
+  if (
+    liquidity.realizableProfitPerDay !== null
+    && Math.abs(liquidity.realizableProfitPerDay - candidate.profitPerDay) > 1000
+  ) {
+    details.unshift(`⚠️ 容量折算（原 ${money(candidate.profitPerDay)} ➔ 折算 ${metric(liquidity.realizableProfitPerDay)}）`);
+  }
   for (const detail of details) {
     const item = element('span');
     item.textContent = detail;
@@ -397,13 +392,20 @@ function detailRow(
   // 插入掛機排程與原料採購規劃卡片
   content.append(buildScheduleCard(assessed, options));
 
+  // 底層物理工序明細抽屜（預設完全折疊收合，點擊才展開）
+  const physicsDetails = element('details', 'strategy-raw-physics-details');
+  const physicsSummary = element('summary', 'strategy-physics-toggle');
+  physicsSummary.textContent = '▶ 點擊展開工序物理明細（單小時流量與掉落分佈）';
+  physicsDetails.append(physicsSummary);
+
   const list = element('ol');
   for (const step of candidate.steps) {
     const item = element('li');
     item.append(stepAssumptions(step, options));
     list.append(item);
   }
-  content.append(list);
+  physicsDetails.append(list);
+  content.append(physicsDetails);
   cell.append(content);
   row.append(cell);
   return row;
@@ -456,6 +458,16 @@ function buildScheduleCard(assessed: AssessedStrategy, options: StrategyViewOpti
 
     // 2. 原料採購清單
     procurementList.innerHTML = '';
+    const teaHrids = [...new Set(assessed.candidate.steps.flatMap((s) => s.inputs.filter((f) => f.itemHrid.includes('tea')).map((f) => f.itemHrid)))];
+    if (teaHrids.length > 0) {
+      const teaItem = element('li');
+      teaItem.style.marginBottom = '6px';
+      teaItem.style.paddingBottom = '6px';
+      teaItem.style.borderBottom = '1px dashed var(--color-line)';
+      teaItem.innerHTML = `🍵 <strong>建議飲用茶飲</strong>：${teaHrids.map((h) => options.itemName(h)).join('、')}`;
+      procurementList.append(teaItem);
+    }
+
     const inputTotals = new Map<string, { units: number; price: number | null }>();
     for (const step of assessed.candidate.steps) {
       for (const flow of step.inputs) {
