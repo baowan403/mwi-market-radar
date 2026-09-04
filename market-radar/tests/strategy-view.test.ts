@@ -463,4 +463,59 @@ describe('strategy recommendation view', () => {
 
     view.destroy();
   });
+
+  it('shows all positive profit strategies when switching to theoretical mode without 24h liquidity gating', async () => {
+    const target = document.createElement('section');
+    const snapshots = history({
+      '/items/long_input': 1_000,
+      '/items/long_output': 1_000,
+      '/items/limited_input': 10,
+      '/items/limited_output': 10,
+    });
+    const result: StrategyCandidateResult = {
+      diagnostics: [],
+      candidates: [
+        {
+          id: 'long', kind: 'manufacture', title: 'long', path: ['/items/long_input', '/items/long_output'],
+          profitPerHour: 1_000, profitPerDay: 24_000, costPerHour: 1_000, incomePerHour: 2_000,
+          workingCapital24h: 24_000, steps: [marketStep('long', '/items/long_input', '/items/long_output', 10)],
+          verificationStatus: 'unverified',
+        },
+        {
+          id: 'limited', kind: 'manufacture', title: 'limited', path: ['/items/limited_input', '/items/limited_output'],
+          profitPerHour: 5_000, profitPerDay: 120_000, costPerHour: 1_000, incomePerHour: 6_000,
+          workingCapital24h: 24_000, steps: [marketStep('limited', '/items/limited_input', '/items/limited_output', 500)],
+          verificationStatus: 'unverified',
+        },
+      ],
+    };
+
+    const view = createStrategyView({
+      target,
+      getProfile: () => profile,
+      getSnapshots: () => snapshots,
+      loadGameData: async () => ({ shopItemDetailMap: {}, openableLootDropMap: {}, itemsByHrid: new Map() }) as never,
+      pinStore: createMemoryStrategyPinStore(),
+      calculate: () => result,
+      itemName: (hrid) => hrid.split('/').at(-1) ?? hrid,
+      onImportProfile: vi.fn(),
+      now: () => snapshots.at(-1)!.timestamp,
+    });
+
+    await view.render();
+    // 預設安全日利模式下，只顯示 long（limited 因 24h 容量不足被過濾）
+    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual(['long']);
+
+    // 點擊「⚡ 理論極值」
+    const sortButtons = target.querySelectorAll<HTMLButtonElement>('.strategy-sort-group button');
+    const theoBtn = Array.from(sortButtons).find((b) => b.textContent?.includes('理論極值'))!;
+    expect(theoBtn).not.toBeNull();
+    theoBtn.click();
+
+    // 在理論極值模式下，limited (120k/d) 不應被過濾，且依理論日利排在第一！
+    const rowsAfter = [...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow);
+    expect(rowsAfter).toEqual(['limited', 'long']);
+
+    view.destroy();
+  });
 });

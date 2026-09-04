@@ -838,6 +838,9 @@ function renderResults(
         if (isSearchActive) {
           return matchesSearchQuery(candidate, filterState.searchQuery, options.itemName);
         }
+        if (filterState.sortMode === 'theoretical') {
+          return candidate.profitPerDay > 0;
+        }
         return decision.actionable;
       });
 
