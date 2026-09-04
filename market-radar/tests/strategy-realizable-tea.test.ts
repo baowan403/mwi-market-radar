@@ -16,6 +16,7 @@ function candidate(): StrategyCandidate {
     costPerHour: 3_000,
     incomePerHour: 5_000,
     workingCapital24h: 72_000,
+    verificationStatus: 'unverified',
     steps: [{
       id: 'decompose:test',
       action: 'alchemy',
