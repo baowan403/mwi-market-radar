@@ -36,6 +36,7 @@ function candidateAt(snapshot: Snapshot): StrategyCandidate {
       inputs: [{ itemHrid: INPUT, enhancementLevel: 0, unitsPerHour: 1, unitPrice: input, market: true }],
       outputs: [{ itemHrid: OUTPUT, enhancementLevel: 0, unitsPerHour: 1, unitPrice: output, market: true }],
     }],
+    verificationStatus: 'unverified',
   };
 }
 
@@ -133,6 +134,7 @@ describe('historical strategy margin series', () => {
           outputs: [{ itemHrid: '/items/final', enhancementLevel: 0, unitsPerHour: 1, unitPrice: 2, market: true }],
         },
       ],
+      verificationStatus: 'unverified',
     };
 
     const repriced = repriceFixedCandidate(fixed, createMarketPriceBook(snapshot));

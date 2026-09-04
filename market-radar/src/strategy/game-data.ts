@@ -114,21 +114,12 @@ export interface VerifiedDecomposeOverride {
 
 /**
  * 經由真實 MWI Client Runtime 驗證之分解產出覆蓋（Verified Decompose Overrides）。
- * 嚴格實施最小化覆寫與 Freshness Guard（防過期保護）：
- * - expectedStaleCount: 舊版資料值（若符合則升級為 verifiedCount）
- * - verifiedCount: 真實 runtime 驗證值（若已是此值則 no-op）
- * - 若出現非預期的第三方數值，拋出 GameDataFreshnessError 阻止未經人工驗收的覆蓋。
+ * 嚴格遵循 Level 1 MWI Runtime OBSERVED 優先原則。
+ * 註：Emp Tea Leaf 經使用者於 2026-09-04 在 MWI Client 實機確認，
+ * 每成功一次產出 exactly 20 Brewing Essence。原始 GameData 中 count=10、bulkMultiplier=2，
+ * 10 * 2 = 20 完全同構於實機，不得任意覆蓋為 20 導致 double-count 膨脹成 40。
  */
-export const VERIFIED_DECOMPOSE_OVERRIDES: Record<string, VerifiedDecomposeOverride> = {
-  '/items/emp_tea_leaf': {
-    verifiedAt: '2026-09-04',
-    itemHrid: '/items/emp_tea_leaf',
-    outputHrid: '/items/brewing_essence',
-    expectedStaleCount: 10,
-    verifiedCount: 20,
-    notes: 'Verified via MWI Client runtime jotaro99: 40 brewing essence / success at bulkMultiplier=2',
-  },
-};
+export const VERIFIED_DECOMPOSE_OVERRIDES: Record<string, VerifiedDecomposeOverride> = {};
 
 export const VERIFIED_GAME_DATA_OVERRIDES: {
   items?: Record<string, Partial<StrategyItemDetail>>;

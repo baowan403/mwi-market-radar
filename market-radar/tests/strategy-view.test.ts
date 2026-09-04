@@ -56,6 +56,7 @@ const calculated: StrategyCandidateResult = {
       profitPerHour: 2_000_000, profitPerDay: 48_000_000,
       costPerHour: 3_000_000, incomePerHour: 5_000_000, workingCapital24h: 72_000_000,
       steps: [],
+      verificationStatus: 'unverified',
     },
     {
       id: 'decompose-coinify:pirate', kind: 'decompose-coinify', title: 'Coin',
@@ -63,6 +64,7 @@ const calculated: StrategyCandidateResult = {
       profitPerHour: 1_500_000, profitPerDay: 36_000_000,
       costPerHour: 4_000_000, incomePerHour: 5_500_000, workingCapital24h: 96_000_000,
       steps: [],
+      verificationStatus: 'unverified',
     },
   ],
 };
@@ -165,21 +167,25 @@ describe('strategy recommendation view', () => {
           id: 'long', kind: 'manufacture', title: 'long', path: ['/items/long_input', '/items/long_output'],
           profitPerHour: 1_000, profitPerDay: 24_000, costPerHour: 1_000, incomePerHour: 2_000,
           workingCapital24h: 24_000, steps: [marketStep('long', '/items/long_input', '/items/long_output', 10)],
+          verificationStatus: 'unverified',
         },
         {
           id: 'limited', kind: 'manufacture', title: 'limited', path: ['/items/limited_input', '/items/limited_output'],
           profitPerHour: 2_000, profitPerDay: 48_000, costPerHour: 1_000, incomePerHour: 3_000,
           workingCapital24h: 24_000, steps: [marketStep('limited', '/items/limited_input', '/items/limited_output', 200)],
+          verificationStatus: 'unverified',
         },
         {
           id: 'reject', kind: 'manufacture', title: 'reject', path: ['/items/reject_input', '/items/reject_output'],
           profitPerHour: 3_000, profitPerDay: 72_000, costPerHour: 1_000, incomePerHour: 4_000,
           workingCapital24h: 24_000, steps: [marketStep('reject', '/items/reject_input', '/items/reject_output', 500)],
+          verificationStatus: 'unverified',
         },
         {
           id: 'insufficient', kind: 'manufacture', title: 'insufficient', path: ['/items/missing_input', '/items/missing_output'],
           profitPerHour: 4_000, profitPerDay: 96_000, costPerHour: 1_000, incomePerHour: 5_000,
           workingCapital24h: 24_000, steps: [marketStep('insufficient', '/items/missing_input', '/items/missing_output', 1)],
+          verificationStatus: 'unverified',
         },
       ],
     };
@@ -241,6 +247,7 @@ describe('strategy recommendation view', () => {
             marketStep('step1', '/items/milk', '/items/essence', 10, 'milking'),
             marketStep('step2', '/items/essence', '/items/coin', 10, 'alchemy'),
           ],
+          verificationStatus: 'unverified',
         },
         {
           id: 'single:smithing', kind: 'manufacture', title: '鍛造金條',
@@ -250,6 +257,7 @@ describe('strategy recommendation view', () => {
           steps: [
             marketStep('step_smith', '/items/coin', '/items/bar', 10, 'cheesesmithing'),
           ],
+          verificationStatus: 'unverified',
         },
       ],
     };
@@ -311,6 +319,7 @@ describe('strategy recommendation view', () => {
           profitPerHour: 2_000, profitPerDay: 48_000, costPerHour: 1_000, incomePerHour: 3_000,
           workingCapital24h: 24_000,
           steps: [marketStep('step_staff', '/items/missing', '/items/goblin_fire_staff', 1)], // insufficient units
+          verificationStatus: 'unverified',
         },
         {
           id: 'cloth', kind: 'manufacture', title: '普通布匹',
@@ -318,6 +327,7 @@ describe('strategy recommendation view', () => {
           profitPerHour: 3_000, profitPerDay: 72_000, costPerHour: 1_000, incomePerHour: 4_000,
           workingCapital24h: 24_000,
           steps: [marketStep('step_cloth', '/items/normal_cloth', '/items/normal_cloth', 10)],
+          verificationStatus: 'unverified',
         },
       ],
     };
@@ -382,6 +392,7 @@ describe('strategy recommendation view', () => {
               outputs: [{ itemHrid: '/items/final_product', enhancementLevel: 0, unitsPerHour: 5, unitPrice: 100, market: true }],
             },
           ],
+          verificationStatus: 'unverified',
         },
       ],
     };
@@ -422,6 +433,7 @@ describe('strategy recommendation view', () => {
           profitPerHour: 3_000, profitPerDay: 72_000, costPerHour: 1_000, incomePerHour: 4_000,
           workingCapital24h: 24_000,
           steps: [marketStep('cloth_step', '/items/steady_cloth', '/items/steady_cloth', 10)],
+          verificationStatus: 'unverified',
         },
       ],
     };

@@ -17,6 +17,16 @@ const GATHERING_ACTIONS = new Set<SkillingAction>([
 ]);
 const CATALYST_RANKS: CatalystRank[] = [0, 1, 2];
 
+/**
+ * 驗證狀態 — 用於 MK Parity Audit 硬分層治理。
+ *
+ * - `'verified'`：具備 MWI Runtime 直接證據且公式吻合。
+ * - `'mk-parity'`：與 MK 在合理 tolerance（離散量一致，日利差 ≤ 1%）內一致。
+ * - `'disputed'`：Radar 與 MK 存在重大分歧尚未解釋。
+ * - `'unverified'`：尚未有 MK 或 Runtime 基準。
+ */
+export type VerificationStatus = 'verified' | 'mk-parity' | 'disputed' | 'unverified';
+
 export interface StrategyCandidate {
   id: string;
   kind: 'manufacture' | 'workflow' | 'decompose' | 'coinify' | 'decompose-coinify' | 'gather';
@@ -28,6 +38,13 @@ export interface StrategyCandidate {
   incomePerHour: number;
   workingCapital24h: number;
   steps: StrategyStepResult[];
+
+  /**
+   * MK Parity Audit 驗證狀態。
+   * Top 推薦預設僅允許 'verified' 或 'mk-parity'。
+   * 預設值為 'unverified'，待審計腳本批量標記。
+   */
+  verificationStatus: VerificationStatus;
 }
 
 export interface StrategyCandidateResult {
@@ -113,6 +130,7 @@ function candidateFromStep(
     incomePerHour: step.incomePerHour,
     workingCapital24h: step.costPerHour * 24,
     steps: [step],
+    verificationStatus: 'unverified',
   };
 }
 
@@ -141,6 +159,7 @@ function candidateFromWorkflow(
     incomePerHour: workflow.incomePerHour,
     workingCapital24h: workflow.costPerHour * 24,
     steps: workflow.steps,
+    verificationStatus: 'unverified',
   };
 }
 

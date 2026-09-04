@@ -1,0 +1,56 @@
+{
+  "auditDate": "2026-09-04",
+  "branch": "governance/mk-parity-audit-20260904",
+  "groundTruthPriority": {
+    "L1": "MWI Runtime OBSERVED",
+    "L2": "MK Reference (Default Oracle)",
+    "L3": "Milkonomy / Wiki / GameData",
+    "L4": "Radar / AI Assumption (最低)"
+  },
+  "parityTolerance": {
+    "PASS": "≤ 1%",
+    "REVIEW": "1%～3%",
+    "FAIL": "> 3%",
+    "CRITICAL": "> 10%"
+  },
+  "fixedBugs": [
+    {
+      "id": "EMP_TEA_LEAF_DOUBLE_COUNT",
+      "severity": "CRITICAL",
+      "description": "Emp Tea Leaf 分解產出因 VERIFIED_DECOMPOSE_OVERRIDES 錯誤覆寫導致 double-count (10→20→40)",
+      "resolution": "清空 VERIFIED_DECOMPOSE_OVERRIDES，還原 raw count=10 * bulkMultiplier=2 = 20",
+      "groundTruth": "L1-OBSERVED (2026-09-04 MWI Client)",
+      "impactPct": "~100% daily profit inflation"
+    }
+  ],
+  "formulaInventory": {
+    "totalConstants": 40,
+    "verified": 5,
+    "pendingMKComparison": 28,
+    "pendingGameDataVerification": 7
+  },
+  "verificationStatus": {
+    "typeAdded": true,
+    "values": ["verified", "mk-parity", "disputed", "unverified"],
+    "defaultForNewCandidates": "unverified"
+  },
+  "overrides": {
+    "VERIFIED_DECOMPOSE_OVERRIDES": "empty ({})",
+    "VERIFIED_GAME_DATA_OVERRIDES": "empty ({})"
+  },
+  "testResults": {
+    "tscNoEmit": "PASS (0 errors)",
+    "vitestRun": "pending rerun after game-data test fix"
+  },
+  "empTeaLeafAudit": {
+    "radarOutputPerSuccess": 20,
+    "mkExpectedOutputPerSuccess": 20,
+    "observedOutputPerSuccess": 20,
+    "rawGameDataCount": 10,
+    "bulkMultiplier": 2,
+    "formula": "count * bulkMultiplier = 10 * 2 = 20",
+    "mkDailyProfit": "52.7M (user-reported)",
+    "radarDailyProfit": "pending recalculation",
+    "parity": "pending"
+  }
+}
