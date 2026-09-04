@@ -21,7 +21,7 @@ export interface RealizableStrategy {
   bottleneckHrid: string | null;
   bottleneckSide: 'input' | 'output' | null;
   classification: LiquidityClassification;
-  warnings: LiquidityWarning[];
+  warnings?: LiquidityWarning[];
 }
 
 interface ExternalFlow {
