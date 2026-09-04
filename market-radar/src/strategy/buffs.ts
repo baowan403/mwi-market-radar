@@ -221,10 +221,20 @@ export function actionBuffs(
     }
   }
 
-  const house = action === 'enhancing' ? ENHANCING_HOUSE : DEFAULT_HOUSE;
-  for (const [key, perLevel] of Object.entries(house)) {
-    const target = key === 'Experience' || key === 'RareFind' ? 'skilling' : action;
-    add(values, `${target}${key}`, perLevel * actionProfile.houseLevel);
+  // MK runtime semantics: Experience and RareFind from every skilling house stack globally.
+  // Action-specific house stats (Efficiency, or Enhancing Speed/Success) only apply to the selected action.
+  for (const houseAction of SKILLING_ACTIONS) {
+    const houseLevel = profile.actions?.[houseAction]?.houseLevel ?? 0;
+    if (houseLevel <= 0) continue;
+    const house = houseAction === 'enhancing' ? ENHANCING_HOUSE : DEFAULT_HOUSE;
+    add(values, 'skillingExperience', house.Experience * houseLevel);
+    add(values, 'skillingRareFind', house.RareFind * houseLevel);
+  }
+
+  const currentHouse = action === 'enhancing' ? ENHANCING_HOUSE : DEFAULT_HOUSE;
+  for (const [key, perLevel] of Object.entries(currentHouse)) {
+    if (key === 'Experience' || key === 'RareFind') continue;
+    add(values, `${action}${key}`, perLevel * actionProfile.houseLevel);
   }
 
   applyTeaBuffs(values, profile, action, data);
