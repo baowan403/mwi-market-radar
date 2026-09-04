@@ -197,13 +197,14 @@ describe('profile panel', () => {
       onActiveProfileChange: (p) => { notifiedProfile = p; },
     });
 
-    // 匯入 Preset (初始 mechanicsCompleteness 為 estimated，inventoryMap 為 unknown)
+    // 匯入 Preset (初始 mechanicsCompleteness 為 estimated，inventoryMap 與部分 houses 為 unknown)
     await panel.importText(JSON.stringify(preset));
     expect(panel.getActiveProfile()?.mechanicsCompleteness).toBe('estimated');
+    expect(panel.getActiveProfile()?.provenanceMap?.houses).toBe('unknown');
 
     await panel.open();
 
-    // 1. 玩家在 UI 上勾選生活配件（確認 inventoryMap / equipment）
+    // 1. 玩家在 UI 上修改生活裝備（確認 inventoryMap / equipment）
     const alchemy = document.querySelector<HTMLElement>('[data-profile-action="alchemy"]');
     const toolLevelInput = alchemy?.querySelector<HTMLInputElement>('input[aria-label="煉金工具強化等級"]')!;
     toolLevelInput.value = '10';
@@ -211,7 +212,7 @@ describe('profile panel', () => {
     await new Promise((r) => setTimeout(r, 10));
 
     expect(notifiedProfile?.provenanceMap.inventoryMap).toBe('user-confirmed');
-    // 有了裝備但生活神龕尚未齊備，完整度維持 estimated
+    // 有了裝備但生活神龕與房屋尚未齊備，完整度維持 estimated
     expect(notifiedProfile?.mechanicsCompleteness).toBe('estimated');
 
     // 2. 玩家在 UI 上僅手動修改 power 神龕（單一神龕確認）
@@ -233,14 +234,84 @@ describe('profile panel', () => {
       await new Promise((r) => setTimeout(r, 10));
     }
 
-    // 4. 斷言：五項神龕均確認後，shrines 升為 user-confirmed，且完整度正式升級為 complete
+    // 五項神龕均確認後，shrines 升為 user-confirmed；但因 houses 尚未全部確認，完整度仍為 estimated
     expect(notifiedProfile?.provenanceMap.shrines).toBe('user-confirmed');
+    expect(notifiedProfile?.provenanceMap.houses).toBe('unknown');
+    expect(notifiedProfile?.mechanicsCompleteness).toBe('estimated');
+
+    // 4. 玩家將 10 大生活房屋逐一確認
+    const houseLabels: Record<string, string> = {
+      milking: '乳牛棚',
+      foraging: '花園',
+      woodcutting: '原木棚',
+      cheesesmithing: '鍛造坊',
+      crafting: '工作坊',
+      tailoring: '裁縫室',
+      cooking: '廚房',
+      brewing: '沖泡室',
+      alchemy: '實驗室',
+      enhancing: '觀測站',
+    };
+    for (const [act, label] of Object.entries(houseLabels)) {
+      const actEl = document.querySelector<HTMLElement>(`[data-profile-action="${act}"]`);
+      const hInput = actEl?.querySelector<HTMLInputElement>(`input[aria-label="${label}等級"]`)!;
+      if (hInput) {
+        hInput.value = '2';
+        hInput.dispatchEvent(new Event('change'));
+        await new Promise((r) => setTimeout(r, 10));
+      }
+    }
+
+    // 5. 斷言：10 個生活房屋均確認後，houses 升為 user-confirmed，且四項機制齊備正式升級為 complete
+    expect(notifiedProfile?.provenanceMap.houses).toBe('user-confirmed');
     expect(notifiedProfile?.mechanicsCompleteness).toBe('complete');
 
-    // 5. 斷言持久化：自 store 重新載入，確認 complete 狀態成功持久化
+    // 6. 斷言持久化：自 store 重新載入，確認 complete 狀態成功持久化
     const reloaded = await store.get(notifiedProfile.id);
     expect(reloaded?.mechanicsCompleteness).toBe('complete');
     expect(reloaded?.provenanceMap?.shrines).toBe('user-confirmed');
+    expect(reloaded?.provenanceMap?.houses).toBe('user-confirmed');
+
+    panel.destroy();
+    store.close();
+  });
+
+  it('strictly enforces per-house provenance gate: updating only alchemy house keeps global houses unknown and completeness estimated', async () => {
+    const store = createMemoryProfileStore();
+    let notifiedProfile: any = null;
+    const panel = createProfilePanel({
+      openButton: document.querySelector<HTMLButtonElement>('#open')!,
+      summary: document.querySelector<HTMLElement>('#summary')!,
+      dialog: document.querySelector<HTMLDialogElement>('#dialog')!,
+      store,
+      onActiveProfileChange: (p) => { notifiedProfile = p; },
+    });
+
+    // 匯入 Preset (初始 houses 為 unknown，因為僅有 brewing 與 alchemy，其餘 8 個房屋未知)
+    await panel.importText(JSON.stringify(preset));
+    expect(panel.getActiveProfile()?.provenanceMap?.houses).toBe('unknown');
+
+    await panel.open();
+
+    // 1. 先確認裝備持有，使機制完整度由 incomplete 轉為 estimated
+    const alchemy = document.querySelector<HTMLElement>('[data-profile-action="alchemy"]');
+    const toolLevelInput = alchemy?.querySelector<HTMLInputElement>('input[aria-label="煉金工具強化等級"]')!;
+    toolLevelInput.value = '10';
+    toolLevelInput.dispatchEvent(new Event('change'));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(notifiedProfile?.mechanicsCompleteness).toBe('estimated');
+
+    // 2. 玩家僅在 UI 上手動修改煉金房屋 (實驗室等級)
+    const houseInput = alchemy?.querySelector<HTMLInputElement>('input[aria-label="實驗室等級"]')!;
+    houseInput.value = '6';
+    houseInput.dispatchEvent(new Event('change'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    // 3. 斷言：單改 alchemy house 時，僅 house:alchemy 標記為 user-confirmed，
+    // 全域 profile.provenanceMap.houses 絕不得被誤標為 user-confirmed，必須保持 unknown！
+    expect(notifiedProfile?.provenanceMap['house:alchemy']).toBe('user-confirmed');
+    expect(notifiedProfile?.provenanceMap.houses).toBe('unknown');
+    expect(notifiedProfile?.mechanicsCompleteness).toBe('estimated');
 
     panel.destroy();
     store.close();

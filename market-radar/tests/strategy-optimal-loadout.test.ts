@@ -98,7 +98,7 @@ describe('optimal loadout engine', () => {
     expect(enriched.actions.alchemy.body).toBeNull();
   });
 
-  it('automatically equips special skilling equipment (gloves, necklaces, off-hand) from inventory', () => {
+  it('automatically equips universal special skilling equipment (necklaces, pouch) and leaves action-specific gear to manual', () => {
     const rawProfile: PlayerProfile = {
       id: 'test:special',
       characterId: 99999,
@@ -136,17 +136,14 @@ describe('optimal loadout engine', () => {
 
     const enriched = enrichProfileWithBestLoadout(rawProfile, data);
 
-    expect(enriched.specialEquipment.hands).toEqual({
-      itemHrid: '/items/enchanted_gloves',
-      enhancementLevel: 10,
-    });
+    // action-specific 特殊配件（如附魔手套、眼表）不進入全域 auto selection，保留給手動 Manual
+    expect(enriched.specialEquipment.hands).toBeUndefined();
+    expect(enriched.specialEquipment.off_hand).toBeUndefined();
+
+    // 真正 universal / skilling 屬性（如全技能速度項鍊、暴飲之囊）自動穿戴
     expect(enriched.specialEquipment.neck).toEqual({
       itemHrid: '/items/necklace_of_speed',
       enhancementLevel: 3,
-    });
-    expect(enriched.specialEquipment.off_hand).toEqual({
-      itemHrid: '/items/eye_watch',
-      enhancementLevel: 0,
     });
     expect(enriched.specialEquipment.pouch).toEqual({
       itemHrid: '/items/guzzling_pouch',
@@ -154,7 +151,7 @@ describe('optimal loadout engine', () => {
     });
   });
 
-  it('equips skilling tools and specialized head/feet gear across all 10 life skills', () => {
+  it('equips skilling tools across all 10 life skills and restricts auto special equipment to universal buffs', () => {
     const rawProfile: PlayerProfile = {
       id: 'test:all_10_skills',
       characterId: 77777,
@@ -217,11 +214,13 @@ describe('optimal loadout engine', () => {
     expect(enriched.actions.alchemy.tool).toEqual({ itemHrid: '/items/holy_alembic', enhancementLevel: 10 });
     expect(enriched.actions.enhancing.tool).toEqual({ itemHrid: '/items/rainbow_enhancer', enhancementLevel: 4 });
 
-    // 驗證特殊生活槽位均自動穿上
-    expect(enriched.specialEquipment.head).toEqual({ itemHrid: '/items/red_culinary_hat', enhancementLevel: 0 });
-    expect(enriched.specialEquipment.feet).toEqual({ itemHrid: '/items/collectors_boots', enhancementLevel: 0 });
-    expect(enriched.specialEquipment.hands).toEqual({ itemHrid: '/items/enchanted_gloves', enhancementLevel: 10 });
-    expect(enriched.specialEquipment.off_hand).toEqual({ itemHrid: '/items/eye_watch', enhancementLevel: 0 });
+    // 驗證 action-specific 特殊生活槽位不被全域自動穿上（保留 Manual）
+    expect(enriched.specialEquipment.head).toBeUndefined();
+    expect(enriched.specialEquipment.feet).toBeUndefined();
+    expect(enriched.specialEquipment.hands).toBeUndefined();
+    expect(enriched.specialEquipment.off_hand).toBeUndefined();
+
+    // 驗證 universal 特殊槽位自動穿上
     expect(enriched.specialEquipment.neck).toEqual({ itemHrid: '/items/necklace_of_speed', enhancementLevel: 3 });
     expect(enriched.specialEquipment.pouch).toEqual({ itemHrid: '/items/guzzling_pouch', enhancementLevel: 5 });
   });

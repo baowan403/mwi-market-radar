@@ -546,7 +546,7 @@ function renderProfileAssumptions(
       houseLevelInput.value = String(lvl);
       config.houseLevel = lvl;
       profile.provenanceMap = profile.provenanceMap ?? {};
-      profile.provenanceMap.houses = 'user-confirmed';
+      profile.provenanceMap[`house:${action}`] = 'user-confirmed';
       recomputeProfileCompleteness(profile);
       void onUpdate?.();
     };

@@ -216,6 +216,9 @@ function importExporter(data: Record<string, unknown>, importedAt: number): Play
   for (const key of SHRINE_KEYS) {
     provenanceMap[`shrine:${key}`] = hasShrines ? 'imported' : 'unknown';
   }
+  for (const action of SKILLING_ACTIONS) {
+    provenanceMap[`house:${action}`] = hasHouses ? 'imported' : 'unknown';
+  }
 
   const equipmentOwnership: Record<string, 'unknown' | 'owned' | 'not-owned'> = {};
   for (const hrid of Object.keys(inventoryMap)) {
@@ -297,20 +300,29 @@ function importPreset(data: Record<string, unknown>, importedAt: number): Player
   );
 
   const hasAllShrines = SHRINE_KEYS.every((k) => k in shrines);
+  const hasAllHouses = SKILLING_ACTIONS.every((a) => {
+    const raw = record(rawActions[a]);
+    return raw && typeof raw.houseLevel === 'number';
+  });
   const provenanceMap: Record<string, 'unknown' | 'imported' | 'user-confirmed'> = {
     skills: 'imported',
     equipment: 'imported',
     inventoryMap: 'unknown',
     shrines: hasAllShrines ? 'imported' : 'unknown',
     communityBuffs: Object.keys(communityBuffs).length > 0 ? 'imported' : 'unknown',
-    houses: 'imported',
+    houses: hasAllHouses ? 'imported' : 'unknown',
   };
   for (const key of SHRINE_KEYS) {
     provenanceMap[`shrine:${key}`] = (key in shrines) ? 'imported' : 'unknown';
   }
+  for (const action of SKILLING_ACTIONS) {
+    const raw = record(rawActions[action]);
+    provenanceMap[`house:${action}`] = (raw && typeof raw.houseLevel === 'number') ? 'imported' : 'unknown';
+  }
 
   const missingFields = ['characterId', 'inventoryMap'];
   if (!hasAllShrines) missingFields.push('shrines');
+  if (!hasAllHouses) missingFields.push('houses');
 
   return {
     id: `milkonomy-preset:${name}`,
@@ -424,8 +436,18 @@ export function recomputeProfileCompleteness(profile: PlayerProfile): void {
     || prov.communityBuffs === 'imported'
     || (profile.communityBuffs && Object.keys(profile.communityBuffs).length > 0);
 
-  const hasHouses = prov.houses === 'user-confirmed'
-    || prov.houses === 'imported';
+  // 10 項生活技能房屋必須全部確認（per-house provenance 門禁）
+  const allHousesConfirmed = SKILLING_ACTIONS.every((a) => {
+    const aProv = prov[`house:${a}`];
+    return aProv === 'user-confirmed' || (aProv === 'imported' && typeof profile.actions?.[a]?.houseLevel === 'number');
+  });
+
+  if (allHousesConfirmed) {
+    prov.houses = prov.houses === 'imported' ? 'imported' : 'user-confirmed';
+  } else {
+    prov.houses = 'unknown';
+  }
+  const hasHouses = allHousesConfirmed;
 
   // 2. 判定機制完整度（四項核心機制均齊備才算 complete）
   if (hasInventory && hasShrines && hasCommunityBuffs && hasHouses) {

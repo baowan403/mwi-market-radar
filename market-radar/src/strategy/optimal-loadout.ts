@@ -100,18 +100,6 @@ export function bestEquipmentForActionSlot(
   let bestCandidate: ProfileEquipment | null = null;
   let bestScore = -1;
 
-  // 判斷當前技能是否已達 3 秒時間下限（3,000,000,000 ns Floor）
-  let baseTimeCost = 12_000_000_000;
-  for (const [hrid, act] of data.actionsByHrid) {
-    if (hrid.startsWith(`/actions/${action}/`) && typeof act.baseTimeCost === 'number' && act.baseTimeCost > 0) {
-      baseTimeCost = act.baseTimeCost;
-      break;
-    }
-  }
-  const buffs = actionBuffs(profile, action, data);
-  const currentSpeed = 1 + buffs.Speed;
-  const isSpeedCapped = (baseTimeCost / currentSpeed) <= 3_000_000_000;
-
   // 納入目前已穿戴的裝備作為候選比較基準
   if (currentEquipped) {
     const score = evaluateEquipmentUpliftForAction(
@@ -119,7 +107,6 @@ export function bestEquipmentForActionSlot(
       currentEquipped.enhancementLevel,
       action,
       data,
-      { isSpeedCapped },
     );
     if (score > 0) {
       bestCandidate = currentEquipped;
@@ -134,7 +121,7 @@ export function bestEquipmentForActionSlot(
     const item = data.itemDetailMap[hrid];
     if (!item || !item.equipmentDetail || item.equipmentDetail.type !== slotType) continue;
 
-    const upliftScore = evaluateEquipmentUpliftForAction(hrid, enhanceLevel, action, data, { isSpeedCapped });
+    const upliftScore = evaluateEquipmentUpliftForAction(hrid, enhanceLevel, action, data);
     if (upliftScore <= 0) continue;
 
     if (upliftScore > bestScore || (Math.abs(upliftScore - bestScore) < 1e-6 && enhanceLevel > (bestCandidate?.enhancementLevel ?? -1))) {
@@ -159,9 +146,34 @@ export function bestEquipmentFromInventoryForAction(
   const dummyProfile: PlayerProfile = {
     inventoryMap,
     equipmentOwnership: ownershipMap,
-    specialEquipment: {},
+    id: 'dummy',
+    name: 'dummy',
+    source: 'milkonomy-v1',
+    importedAt: Date.now(),
+    completeness: 'full',
+    missingFields: [],
     actions: {
-      [action]: { playerLevel: 100, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+      alchemy: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+      milking: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+      foraging: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+      woodcutting: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+      cheesesmithing: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+      crafting: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+      tailoring: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+      cooking: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+      brewing: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+      enhancing: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+    },
+    specialEquipment: {
+      head: null,
+      hands: null,
+      feet: null,
+      neck: null,
+      ring: null,
+      earrings: null,
+      trinket: null,
+      pouch: null,
+      off_hand: null,
     },
     communityBuffs: {},
     shrines: {},
@@ -204,6 +216,13 @@ export function bestSpecialEquipmentFromInventory(
         bestHrid = hrid;
       }
     } else {
+      // 全域 auto 特殊配件：嚴格只允許真正 universal / skilling 屬性 (skilling* 或 drinkConcentration)
+      // action-specific 特殊配件（如廚師帽、採集鞋、附魔手套、眼表）不進入全域 auto selection，保留給玩家手動 Manual 設定
+      const hasUniversalStat = Object.keys(noncombat).some(
+        (prop) => prop.startsWith('skilling') || prop === 'drinkConcentration',
+      );
+      if (!hasUniversalStat) continue;
+
       if (enhanceLevel > bestEnhance) {
         bestEnhance = enhanceLevel;
         bestHrid = hrid;
