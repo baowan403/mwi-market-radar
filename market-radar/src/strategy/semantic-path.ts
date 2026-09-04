@@ -56,14 +56,19 @@ export function formatSemanticPath(
     parts.push(`${verb} ${itemName(firstStep.outputHrid)}`);
   } else {
     // 製造/煉金第一步：尋找需要自外部市場購入的主要原料
-    const externalInput = firstStep.inputs.find((flow) => (
-      flow.market
-      && !flow.itemHrid.includes('_tea')
-      && !flow.itemHrid.includes('_coffee')
-      && flow.itemHrid !== COIN_HRID
-    ));
-    if (externalInput) {
-      parts.push(`購買 ${itemName(externalInput.itemHrid)}`);
+    // 優先採用 candidate.path[0]（若不同於第一步產物），否則從 inputs 篩選非飲料與非貨幣材料
+    const primaryInputHrid = candidate.path[0] && candidate.path[0] !== firstStep.outputHrid
+      ? candidate.path[0]
+      : firstStep.inputs.find((flow) => (
+          flow.market
+          && flow.itemHrid !== COIN_HRID
+          && data.itemsByHrid.get(flow.itemHrid)?.categoryHrid !== '/item_categories/drink'
+          && !flow.itemHrid.endsWith('_tea')
+          && !flow.itemHrid.endsWith('_coffee')
+        ))?.itemHrid;
+
+    if (primaryInputHrid) {
+      parts.push(`購買 ${itemName(primaryInputHrid)}`);
     }
   }
 
