@@ -15,6 +15,9 @@ const mockNames: Record<string, string> = {
   '/items/coin': '金幣',
   '/items/redwood_log': '紅杉原木',
   '/items/redwood_lumber': '紅杉木板',
+  '/items/emp_tea_leaf': '虛空茶葉',
+  '/items/brewing_essence': '沖泡精華',
+  '/items/wisdom_tea': '智慧茶',
 };
 const itemName = (hrid: string) => mockNames[hrid] ?? hrid;
 
@@ -149,6 +152,44 @@ describe('formatSemanticPath', () => {
 
     expect(formatSemanticPath(candidate, mockData, itemName)).toBe(
       '購買 海盜精煉碎片 → 分解成 海盜精華 → 點金（金幣）',
+    );
+  });
+
+  it('formats decomposition of tea leaf correctly without dropping the primary input', () => {
+    const candidate: StrategyCandidate = {
+      id: 'decompose-emp-tea',
+      kind: 'decompose',
+      title: '沖泡精華',
+      path: ['/items/emp_tea_leaf', '/items/brewing_essence'],
+      profitPerHour: 1000,
+      profitPerDay: 24000,
+      costPerHour: 500,
+      incomePerHour: 1500,
+      workingCapital24h: 12000,
+      steps: [
+        {
+          id: 'step1',
+          action: 'alchemy',
+          actionHrid: '/actions/alchemy/decompose',
+          outputHrid: '/items/brewing_essence',
+          valid: true,
+          actionsPerHour: 10,
+          costPerHour: 500,
+          incomePerHour: 1500,
+          profitPerHour: 1000,
+          experiencePerHour: 10,
+          inputs: [
+            { itemHrid: '/items/emp_tea_leaf', enhancementLevel: 0, unitsPerHour: 20, unitPrice: 25, market: true },
+            { itemHrid: '/items/wisdom_tea', enhancementLevel: 0, unitsPerHour: 12, unitPrice: 10, market: true },
+          ],
+          outputs: [{ itemHrid: '/items/brewing_essence', enhancementLevel: 0, unitsPerHour: 200, unitPrice: 7.5, market: true }],
+        },
+      ],
+      verificationStatus: 'unverified',
+    };
+
+    expect(formatSemanticPath(candidate, mockData, itemName)).toBe(
+      '購買 虛空茶葉 → 分解成 沖泡精華 → 販賣 沖泡精華',
     );
   });
 });
