@@ -73,6 +73,34 @@ describe('Milkonomy-compatible skilling buffs', () => {
     expect(buffs.drinkConcentration).toBeCloseTo(0.1);
   });
 
+  it('stacks RareFind and Experience from every skilling house while keeping action house stats local', () => {
+    const profile = fixtureProfile();
+    const actions = [
+      'milking',
+      'foraging',
+      'woodcutting',
+      'cheesesmithing',
+      'crafting',
+      'tailoring',
+      'cooking',
+      'brewing',
+      'alchemy',
+      'enhancing',
+    ] as const;
+    for (const action of actions) profile.actions[action].houseLevel = 0;
+    profile.actions.alchemy.houseLevel = 4;
+    profile.actions.crafting.houseLevel = 3;
+    profile.actions.enhancing.houseLevel = 1;
+    profile.shrines = {};
+
+    const buffs = actionBuffs(profile, 'alchemy', gameDataFixture);
+
+    expect(buffs.RareFind).toBeCloseTo((4 + 3 + 1) * 0.002);
+    expect(buffs.Experience).toBeCloseTo((4 + 3 + 1) * 0.0005);
+    expect(buffs.Efficiency).toBeCloseTo(0.14 + 0.015 * 4 + 0.05 + 0.01 * 5);
+    expect(buffs.Speed).toBe(0);
+  });
+
   it('does not leak another action equipment or tea into alchemy', () => {
     const profile = fixtureProfile();
     profile.actions.crafting.tool = { itemHrid: '/items/test_crafting_tool', enhancementLevel: 10 };
