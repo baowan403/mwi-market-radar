@@ -94,42 +94,12 @@ function validateActions(value: Record<string, unknown>): Record<string, Strateg
   return result;
 }
 
-export class GameDataFreshnessError extends Error {
-  readonly code = 'game_data_freshness_error';
-  constructor(message: string) {
-    super(message);
-    this.name = 'GameDataFreshnessError';
-    Object.setPrototypeOf(this, new.target.prototype);
-  }
-}
-
-export interface VerifiedDecomposeOverride {
-  verifiedAt: string;
-  itemHrid: string;
-  outputHrid: string;
-  expectedStaleCount: number;
-  verifiedCount: number;
-  notes?: string;
-}
-
 /**
- * 經由真實 MWI Client Runtime 驗證之分解產出覆蓋（Verified Decompose Overrides）。
- * 嚴格實施最小化覆寫與 Freshness Guard（防過期保護）：
- * - expectedStaleCount: 舊版資料值（若符合則升級為 verifiedCount）
- * - verifiedCount: 真實 runtime 驗證值（若已是此值則 no-op）
- * - 若出現非預期的第三方數值，拋出 GameDataFreshnessError 阻止未經人工驗收的覆蓋。
+ * Overrides are intentionally empty by default.
+ * Do not add a production override from an AI inference or from a parity mismatch.
+ * A future override requires independently reproducible MWI runtime evidence and
+ * must document the exact raw field being corrected.
  */
-export const VERIFIED_DECOMPOSE_OVERRIDES: Record<string, VerifiedDecomposeOverride> = {
-  '/items/emp_tea_leaf': {
-    verifiedAt: '2026-09-04',
-    itemHrid: '/items/emp_tea_leaf',
-    outputHrid: '/items/brewing_essence',
-    expectedStaleCount: 10,
-    verifiedCount: 20,
-    notes: 'Verified via MWI Client runtime jotaro99: 40 brewing essence / success at bulkMultiplier=2',
-  },
-};
-
 export const VERIFIED_GAME_DATA_OVERRIDES: {
   items?: Record<string, Partial<StrategyItemDetail>>;
 } = {};
@@ -164,28 +134,6 @@ export function normalizeStrategyGameData(input: unknown): NormalizedStrategyGam
 
   const items = validateItems(itemDetailMap);
 
-  // 套用實機驗證的分解產出覆寫（最小化覆寫 + Freshness Guard）
-  for (const [hrid, rule] of Object.entries(VERIFIED_DECOMPOSE_OVERRIDES)) {
-    const item = items[hrid];
-    if (!item || !item.alchemyDetail) continue;
-    const decomposeItems = (item.alchemyDetail as Record<string, unknown>).decomposeItems as Array<{ itemHrid: string; count: number }> | undefined;
-    if (!Array.isArray(decomposeItems)) continue;
-
-    const target = decomposeItems.find((out) => out.itemHrid === rule.outputHrid);
-    if (!target) continue;
-
-    if (target.count === rule.expectedStaleCount) {
-      target.count = rule.verifiedCount;
-    } else if (target.count === rule.verifiedCount) {
-      // no-op (已是最新值)
-    } else {
-      throw new GameDataFreshnessError(
-        `[Freshness Guard] Stale conflict for ${hrid}: expected raw count ${rule.expectedStaleCount} or verified ${rule.verifiedCount}, but got ${target.count}. Please re-verify game data.`,
-      );
-    }
-  }
-
-  // 套用其他通用覆寫（若有）
   if (VERIFIED_GAME_DATA_OVERRIDES.items) {
     for (const [hrid, override] of Object.entries(VERIFIED_GAME_DATA_OVERRIDES.items)) {
       if (items[hrid]) {
@@ -217,4 +165,3 @@ export function normalizeStrategyGameData(input: unknown): NormalizedStrategyGam
     actionsByHrid: new Map(Object.entries(actions)),
   };
 }
-
