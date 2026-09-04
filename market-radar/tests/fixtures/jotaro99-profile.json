@@ -162,6 +162,10 @@
     "earrings": {
       "itemHrid": "/items/earrings_of_rare_find",
       "enhancementLevel": 0
+    },
+    "ring": {
+      "itemHrid": "/items/ring_of_rare_find",
+      "enhancementLevel": 0
     }
   },
   "communityBuffs": {
@@ -229,7 +233,9 @@
     "/items/flaming_robe_bottoms": "owned",
     "/items/holy_shears": "owned",
     "/items/holy_chisel": "owned",
-    "/items/holy_needle": "owned"
+    "/items/holy_needle": "owned",
+    "/items/ring_of_rare_find": "owned",
+    "/items/earrings_of_rare_find": "owned"
   },
   "inventoryMap": {
     "/items/holy_alembic": 10,
