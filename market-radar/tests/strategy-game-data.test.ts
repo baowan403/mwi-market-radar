@@ -46,7 +46,10 @@ describe('pinned strategy reference artifacts', () => {
     expect(rawCount).toBe(10);
 
     const normalized = normalizeStrategyGameData(strategyData);
-    const decomposeItems = normalized.itemsByHrid.get('/items/emp_tea_leaf')?.alchemyDetail?.decomposeItems;
+    const alchemyDetail = normalized.itemsByHrid.get('/items/emp_tea_leaf')?.alchemyDetail as {
+      decomposeItems?: Array<{ itemHrid: string; count: number }>;
+    } | null | undefined;
+    const decomposeItems = alchemyDetail?.decomposeItems;
     expect(decomposeItems?.[0]?.itemHrid).toBe('/items/brewing_essence');
     expect(decomposeItems?.[0]?.count).toBe(10);
   });
