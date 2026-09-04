@@ -181,6 +181,7 @@ describe('real manufacturing recipe adapter', () => {
   it('keeps gathering tea in both cost and external-input liquidity flows', () => {
     const teaProfile = structuredClone(profile);
     teaProfile.actions.woodcutting.teas = ['/items/super_speed_tea'];
+    teaProfile.actions.woodcutting.teaMode = 'manual';
     const customSnapshot: Snapshot = {
       timestamp: 1,
       quotes: {

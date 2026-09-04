@@ -49,6 +49,20 @@ describe('market radar dashboard shell', () => {
     expect(root?.querySelector('#collector-status')?.getAttribute('aria-live')).toBe('polite');
   });
 
+  it('verifies strategy tab is active by default and market tab is retired', () => {
+    const root = document.querySelector<HTMLElement>('#app');
+    expect(root).not.toBeNull();
+
+    renderApp(root as HTMLElement);
+
+    const strategyTab = root?.querySelector('[data-product-surface="strategy"]');
+    const marketTab = root?.querySelector('[data-product-surface="market"]');
+    expect(strategyTab).not.toBeNull();
+    expect(strategyTab?.classList.contains('is-active')).toBe(true);
+    expect(strategyTab?.getAttribute('aria-pressed')).toBe('true');
+    expect(marketTab).toBeNull();
+  });
+
   it('rejects a missing dashboard mount', () => {
     expect(() => renderApp(null)).toThrowError('Missing #app root');
   });

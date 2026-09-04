@@ -4,7 +4,7 @@ import type { ActionBuffs } from './buffs';
 import type { NormalizedStrategyGameData } from './game-data';
 import { expandStrategyLiquidation } from './liquidation';
 import type { MarketPriceBook } from './price-book';
-import type { StrategyFlow, StrategyStepResult } from './types';
+import type { StrategyFlow, StrategyStepResult, StrategyLedger } from './types';
 import { marketTaxFactor } from './tax';
 
 const HOUR_NS = 3_600_000_000_000;
@@ -210,6 +210,77 @@ function calculate(kind: 'decompose' | 'coinify', options: AlchemyOptions & { en
     : null;
   const baseExp = (kind === 'decompose' ? 1.4 : 1) * (10 + item.itemLevel);
 
+  const inputUnitsPerHourMap: Record<string, number> = {};
+  const inputAskPricesMap: Record<string, number | null> = {};
+  for (const flow of inputList) {
+    inputUnitsPerHourMap[flow.itemHrid] = flow.unitsPerHour;
+    inputAskPricesMap[flow.itemHrid] = flow.unitPrice;
+  }
+
+  const outputUnitsPerHourMap: Record<string, number> = {};
+  const outputBidPricesMap: Record<string, number | null> = {};
+  const rareAndEssenceUnitsPerHour: Record<string, number> = {};
+  const outputUnitsPerSuccess: Record<string, number> = {};
+
+  if (kind === 'decompose') {
+    for (const out of item.decomposeItems) {
+      outputUnitsPerSuccess[out.itemHrid] = out.count * item.bulkMultiplier;
+    }
+  } else {
+    outputUnitsPerSuccess[COIN_HRID] = item.sellPrice * 5 * item.bulkMultiplier;
+  }
+
+  const isPrimaryOutput = (hrid: string): boolean => (
+    kind === 'coinify' ? hrid === COIN_HRID : item.decomposeItems.some((out) => out.itemHrid === hrid)
+  );
+
+  for (const flow of outputList) {
+    if (isPrimaryOutput(flow.itemHrid)) {
+      outputUnitsPerHourMap[flow.itemHrid] = flow.unitsPerHour;
+    } else {
+      rareAndEssenceUnitsPerHour[flow.itemHrid] = flow.unitsPerHour;
+    }
+    outputBidPricesMap[flow.itemHrid] = flow.unitPrice;
+  }
+
+  const teaUnitsPerHour: Record<string, number> = {};
+  const teaAskPrices: Record<string, number | null> = {};
+  for (const teaHrid of profile.actions.alchemy?.teas ?? []) {
+    teaUnitsPerHour[teaHrid] = 12 * (1 + buffs.drinkConcentration);
+    teaAskPrices[teaHrid] = prices.ask(teaHrid);
+  }
+
+  const profitPerHour = valid ? incomePerHour! - costPerHour! : null;
+  const ledger: StrategyLedger = {
+    physical: {
+      effectiveLevel: buffs.Level,
+      speed,
+      efficiency,
+      successRate: rate,
+      actionTimeSeconds: effectiveTime / 1_000_000_000,
+      actionsPerHour,
+      successfulActionsPerHour,
+      inputUnitsPerHour: inputUnitsPerHourMap,
+      outputUnitsPerSuccess,
+      outputUnitsPerHour: outputUnitsPerHourMap,
+      rareAndEssenceUnitsPerHour,
+      teaUnitsPerHour,
+    },
+    economic: {
+      inputAskPrices: inputAskPricesMap,
+      outputBidPrices: outputBidPricesMap,
+      taxFactor: marketTaxFactor(
+        kind === 'coinify' ? COIN_HRID : (item.decomposeItems[0]?.itemHrid ?? COIN_HRID),
+        true,
+      ),
+      teaAskPrices,
+      revenuePerHour: incomePerHour,
+      costPerHour,
+      profitPerHour,
+      profitPerDay: profitPerHour !== null ? profitPerHour * 24 : null,
+    },
+  };
+
   return {
     id: `${kind}:${itemHrid}:${enhancementLevel}:c${rank}`,
     action: 'alchemy',
@@ -219,12 +290,13 @@ function calculate(kind: 'decompose' | 'coinify', options: AlchemyOptions & { en
     actionsPerHour,
     costPerHour,
     incomePerHour,
-    profitPerHour: valid ? incomePerHour! - costPerHour! : null,
+    profitPerHour,
     experiencePerHour: baseExp * (1 + buffs.Experience) * actionsPerHour,
     inputs: inputList,
     outputs: outputList,
     successRate: rate,
     catalystRank: rank,
+    ledger,
   };
 }
 

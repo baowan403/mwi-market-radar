@@ -199,6 +199,30 @@ function importExporter(data: Record<string, unknown>, importedAt: number): Play
     ...(Object.keys(inventoryMap).length === 0 ? ['inventoryMap'] : []),
   ];
 
+  const hasShrines = record(data.shrines) !== null;
+  const hasCommunityBuffs = record(data.communityBuffs) !== null;
+  const hasHouses = record(data.houses) !== null;
+  const hasInventory = Object.keys(inventoryMap).length > 0;
+
+  const provenanceMap: Record<string, 'unknown' | 'imported' | 'user-confirmed'> = {
+    skills: 'imported',
+    equipment: 'imported',
+    inventoryMap: hasInventory ? 'imported' : 'unknown',
+    shrines: hasShrines ? 'imported' : 'unknown',
+    communityBuffs: hasCommunityBuffs ? 'imported' : 'unknown',
+    houses: hasHouses ? 'imported' : 'unknown',
+  };
+
+  const equipmentOwnership: Record<string, 'unknown' | 'owned' | 'not-owned'> = {};
+  for (const hrid of Object.keys(inventoryMap)) {
+    equipmentOwnership[hrid] = 'owned';
+  }
+
+  let mechanicsCompleteness: 'complete' | 'estimated' | 'incomplete' = 'complete';
+  if (!hasInventory || !hasShrines || !hasCommunityBuffs) {
+    mechanicsCompleteness = hasInventory ? 'estimated' : 'incomplete';
+  }
+
   return {
     id: achievements.characterId === null
       ? `milkonomy-v1:${name}`
@@ -208,7 +232,10 @@ function importExporter(data: Record<string, unknown>, importedAt: number): Play
     source: 'milkonomy-v1',
     importedAt,
     completeness: missingFields.length === 0 ? 'full' : 'partial',
+    mechanicsCompleteness,
     missingFields,
+    provenanceMap,
+    equipmentOwnership,
     actions,
     specialEquipment,
     communityBuffs: numericRecord(data.communityBuffs, true),
@@ -236,6 +263,8 @@ function importPreset(data: Record<string, unknown>, importedAt: number): Player
       charm: equipment(raw.charm),
       houseLevel: integer(raw.houseLevel),
       teas: teaList(raw.tea),
+      loadoutMode: 'manual', // Preset 匯入通常為手動設定
+      teaMode: 'auto',
     };
   }
 
@@ -263,6 +292,15 @@ function importPreset(data: Record<string, unknown>, importedAt: number): Player
     )),
   );
 
+  const provenanceMap: Record<string, 'unknown' | 'imported' | 'user-confirmed'> = {
+    skills: 'imported',
+    equipment: 'imported',
+    inventoryMap: 'unknown',
+    shrines: Object.keys(shrines).length > 0 ? 'imported' : 'unknown',
+    communityBuffs: Object.keys(communityBuffs).length > 0 ? 'imported' : 'unknown',
+    houses: 'imported',
+  };
+
   return {
     id: `milkonomy-preset:${name}`,
     characterId: null,
@@ -270,7 +308,10 @@ function importPreset(data: Record<string, unknown>, importedAt: number): Player
     source: 'milkonomy-preset',
     importedAt,
     completeness: 'partial',
+    mechanicsCompleteness: 'estimated',
     missingFields: ['characterId', 'inventoryMap'],
+    provenanceMap,
+    equipmentOwnership: {},
     actions,
     specialEquipment,
     communityBuffs,

@@ -109,13 +109,12 @@ const dashboardMarkup = `
     </header>
 
     <nav id="product-nav" class="product-nav" aria-label="主要功能">
-      <button type="button" class="product-tab is-active" data-product-surface="market" aria-pressed="true">市場行情</button>
-      <button type="button" class="product-tab" data-product-surface="strategy" aria-pressed="false">策略推薦</button>
+      <button type="button" class="product-tab is-active" data-product-surface="strategy" aria-pressed="true">策略推薦</button>
     </nav>
 
-    <nav id="category-nav" class="category-nav" data-testid="category-nav" aria-label="市場分類"></nav>
+    <nav id="category-nav" class="category-nav" data-testid="category-nav" aria-label="市場分類" hidden></nav>
 
-    <section id="toolbar" class="toolbar" data-testid="toolbar" aria-label="行情工具列"></section>
+    <section id="toolbar" class="toolbar" data-testid="toolbar" aria-label="行情工具列" hidden></section>
 
     <section id="content" class="content" data-testid="content"></section>
 
@@ -1039,7 +1038,7 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
     ?? options.createStrategyPinStore?.()
     ?? (typeof indexedDB === 'undefined' ? createMemoryStrategyPinStore() : createStrategyPinStore());
   let strategyView: StrategyView | null = null;
-  let strategySurfaceActive = false;
+  let strategySurfaceActive = true;
   let strategyDataPromise: Promise<NormalizedStrategyGameData> | null = null;
   const productMarket = root.querySelector<HTMLButtonElement>('[data-product-surface="market"]');
   const productStrategy = root.querySelector<HTMLButtonElement>('[data-product-surface="strategy"]');
@@ -1048,9 +1047,11 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
   const profileOpen = root.querySelector<HTMLButtonElement>('#profile-open');
   const profileSummary = root.querySelector<HTMLElement>('#profile-summary');
   const profileDialog = root.querySelector<HTMLDialogElement>('#profile-dialog');
-  if (!profileOpen || !profileSummary || !profileDialog || !productMarket || !productStrategy || !categoryNav || !toolbar) {
+  if (!profileOpen || !profileSummary || !profileDialog || !productStrategy) {
     throw new Error('Profile shell is incomplete');
   }
+  if (categoryNav) categoryNav.hidden = true;
+  if (toolbar) toolbar.hidden = true;
   let profileItemName = (hrid: string): string => (
     hrid.split('/').at(-1)?.replaceAll('_', ' ') ?? hrid
   );
@@ -1067,25 +1068,25 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
   });
   const showMarket = (): void => {
     strategySurfaceActive = false;
-    productMarket.setAttribute('aria-pressed', 'true');
+    productMarket?.setAttribute('aria-pressed', 'true');
     productStrategy.setAttribute('aria-pressed', 'false');
-    productMarket.classList.add('is-active');
+    productMarket?.classList.add('is-active');
     productStrategy.classList.remove('is-active');
-    categoryNav.hidden = false;
-    toolbar.hidden = false;
+    if (categoryNav) categoryNav.hidden = false;
+    if (toolbar) toolbar.hidden = false;
     runtime?.renderMarket();
   };
   const showStrategy = (): void => {
     strategySurfaceActive = true;
-    productMarket.setAttribute('aria-pressed', 'false');
+    productMarket?.setAttribute('aria-pressed', 'false');
     productStrategy.setAttribute('aria-pressed', 'true');
-    productMarket.classList.remove('is-active');
+    productMarket?.classList.remove('is-active');
     productStrategy.classList.add('is-active');
-    categoryNav.hidden = true;
-    toolbar.hidden = true;
+    if (categoryNav) categoryNav.hidden = true;
+    if (toolbar) toolbar.hidden = true;
     void strategyView?.render();
   };
-  productMarket.addEventListener('click', showMarket);
+  if (productMarket) productMarket.addEventListener('click', showMarket);
   productStrategy.addEventListener('click', showStrategy);
   let localAttached = false;
 
@@ -1142,7 +1143,7 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       profilePanel.destroy();
       profileStore.close();
       strategyPinStore.close();
-      productMarket.removeEventListener('click', showMarket);
+      productMarket?.removeEventListener('click', showMarket);
       productStrategy.removeEventListener('click', showStrategy);
       return { destroy: () => undefined };
     }
@@ -1244,7 +1245,7 @@ export async function mountDashboard(options: DashboardMountOptions = {}): Promi
       preferences?.close?.();
       profilePanel.destroy();
       profileStore.close();
-      productMarket.removeEventListener('click', showMarket);
+      productMarket?.removeEventListener('click', showMarket);
       productStrategy.removeEventListener('click', showStrategy);
       strategyView?.destroy();
       strategyPinStore.close();

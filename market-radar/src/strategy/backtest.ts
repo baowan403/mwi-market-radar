@@ -1,6 +1,8 @@
 import type { StrategyMarginPoint } from './margin-series';
 import type { StrategySignal, StrategySignalBacktest } from './signals';
 
+export type BacktestHorizon = '24h' | '3d' | '7d';
+
 export interface BacktestHorizonResult {
   samples: number;
   hitRate: number | null;
@@ -9,12 +11,14 @@ export interface BacktestHorizonResult {
 }
 
 export interface StrategyBacktestResult {
-  byHorizon: Record<'3d' | '7d', BacktestHorizonResult>;
+  byHorizon: Record<BacktestHorizon, BacktestHorizonResult>;
   summary: StrategySignalBacktest;
 }
 
 export interface StrategyBacktestOptions {
   signalAt(series: readonly StrategyMarginPoint[]): StrategySignal;
+  horizons?: BacktestHorizon[];
+  nonOverlapping?: boolean;
 }
 
 const EMPTY_HORIZON: BacktestHorizonResult = {
@@ -22,7 +26,11 @@ const EMPTY_HORIZON: BacktestHorizonResult = {
 };
 
 const DAY_MS = 86_400_000;
-const HORIZONS = { '3d': 3 * DAY_MS, '7d': 7 * DAY_MS } as const;
+const HORIZON_DURATIONS: Record<BacktestHorizon, number> = {
+  '24h': DAY_MS,
+  '3d': 3 * DAY_MS,
+  '7d': 7 * DAY_MS,
+} as const;
 
 interface Outcome {
   hit: boolean;
@@ -111,26 +119,52 @@ export function backtestStrategySignals(
   options: StrategyBacktestOptions,
 ): StrategyBacktestResult {
   const points = orderedSeries(series);
-  const outcomes: Record<'3d' | '7d', Outcome[]> = { '3d': [], '7d': [] };
+  const activeHorizons: BacktestHorizon[] = options.horizons && options.horizons.length > 0
+    ? options.horizons
+    : ['3d', '7d'];
+
+  const outcomes: Record<BacktestHorizon, Outcome[]> = { '24h': [], '3d': [], '7d': [] };
+  const lastSampledTargetIndex: Record<BacktestHorizon, number> = {
+    '24h': -1,
+    '3d': -1,
+    '7d': -1,
+  };
+
   for (let index = 0; index < points.length; index += 1) {
-    const targets = Object.fromEntries(Object.entries(HORIZONS).map(([key, horizon]) => [
-      key, futureIndex(points, index, horizon),
-    ])) as Record<'3d' | '7d', number | null>;
-    if (targets['3d'] === null && targets['7d'] === null) continue;
+    const targets = Object.fromEntries(
+      activeHorizons.map((horizon) => [
+        horizon,
+        futureIndex(points, index, HORIZON_DURATIONS[horizon]),
+      ]),
+    ) as Partial<Record<BacktestHorizon, number | null>>;
+
+    const hasAnyTarget = activeHorizons.some((horizon) => (targets[horizon] ?? null) !== null);
+    if (!hasAnyTarget) continue;
+
     const actionDirection = direction(options.signalAt(points.slice(0, index + 1)).action);
     if (actionDirection === null) continue;
-    for (const horizon of ['3d', '7d'] as const) {
+
+    for (const horizon of activeHorizons) {
+      if (options.nonOverlapping && index < lastSampledTargetIndex[horizon]) {
+        continue;
+      }
       const target = targets[horizon];
-      if (target === null) continue;
+      if (target === null || target === undefined) continue;
       const outcome = outcomeFor(points, index, target, actionDirection);
-      if (outcome) outcomes[horizon].push(outcome);
+      if (outcome) {
+        outcomes[horizon].push(outcome);
+        lastSampledTargetIndex[horizon] = target;
+      }
     }
   }
-  const byHorizon = {
+
+  const byHorizon: Record<BacktestHorizon, BacktestHorizonResult> = {
+    '24h': summarize(outcomes['24h']),
     '3d': summarize(outcomes['3d']),
     '7d': summarize(outcomes['7d']),
   };
-  const combined = [...outcomes['3d'], ...outcomes['7d']];
+
+  const combined = activeHorizons.flatMap((horizon) => outcomes[horizon]);
   const hits = combined.filter((outcome) => outcome.hit).length;
   const hitRate = combined.length === 0 ? 0 : hits / combined.length;
   return {

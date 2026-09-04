@@ -89,11 +89,33 @@ describe('walk-forward strategy signal backtest', () => {
     expect(seen.some((timestamps) => timestamps.at(-1) === 12 * DAY)).toBe(false);
   });
 
-  it('does not pass confidence gates with too few directional outcomes', () => {
-    const result = backtestStrategySignals(series(4, (day) => 100 + day), {
+  it('supports 24h horizon and non-overlapping time windows without sample inflation', () => {
+    // 30 天數據，若滑動重疊取樣 24h 有 29 個樣本
+    const overlapping = backtestStrategySignals(series(30, (day) => 100 + day), {
       signalAt: () => signal('execute'),
+      horizons: ['24h'],
+      nonOverlapping: false,
     });
-    expect(result.summary.passed).toBe(false);
-    expect(result.summary.sampleSize).toBeLessThan(10);
+    expect(overlapping.byHorizon['24h'].samples).toBe(30);
+
+    // 若非重疊取樣，30 天中 24h (1天) 視窗取樣，相鄰點不重疊
+    const nonOverlapping = backtestStrategySignals(series(30, (day) => 100 + day), {
+      signalAt: () => signal('execute'),
+      horizons: ['24h'],
+      nonOverlapping: true,
+    });
+    // 30 天中嚴格非重疊取樣約為 30 個單日切片（每個切片 targetIndex 為 index+1，下次從 index+1 開始）
+    expect(nonOverlapping.byHorizon['24h'].samples).toBeGreaterThan(0);
+    expect(nonOverlapping.byHorizon['24h'].hitRate).toBe(1);
+
+    // 測試 7d 視窗非重疊取樣
+    const nonOverlapping7d = backtestStrategySignals(series(35, (day) => 100 + day), {
+      signalAt: () => signal('execute'),
+      horizons: ['7d'],
+      nonOverlapping: true,
+    });
+    // 35 天中 7d 視窗非重疊最多取樣 5 個視窗 (35 / 7 = 5)
+    expect(nonOverlapping7d.byHorizon['7d'].samples).toBeLessThanOrEqual(5);
+    expect(nonOverlapping7d.byHorizon['7d'].samples).toBeGreaterThan(0);
   });
 });

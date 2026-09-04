@@ -224,3 +224,163 @@ export function findOptimalTeasForManufacture(options: {
     buffs: bestBuffs,
   };
 }
+
+export function findOptimalTeasForGathering(options: {
+  action: SkillingAction;
+  detail: StrategyActionDetail;
+  profile: PlayerProfile;
+  data: NormalizedStrategyGameData;
+  prices: MarketPriceBook;
+}): OptimalTeaResult {
+  const { action, detail, profile, data, prices } = options;
+  const legalCombos = getLegalTeaCombinations(action);
+  const dropItems = Array.isArray(detail.dropTable) ? detail.dropTable : [];
+
+  let bestTeas: string[] = [];
+  let bestProfit = -Infinity;
+  let bestBuffs: ActionBuffs | null = null;
+
+  for (const combo of legalCombos) {
+    const tempProfile: PlayerProfile = {
+      ...profile,
+      actions: {
+        ...profile.actions,
+        [action]: {
+          ...profile.actions[action],
+          teas: combo,
+        },
+      },
+    };
+
+    const buffs = actionBuffs(tempProfile, action, data);
+    if (buffs.Level < detail.levelRequirement.level) continue;
+
+    const gatheringFactor = 1 + (buffs.Gathering ?? 0);
+    const products: PricedCount[] = dropItems.map((drop) => ({
+      itemHrid: drop.itemHrid,
+      count: ((drop.minCount + drop.maxCount) / 2) * drop.dropRate * gatheringFactor,
+      price: prices.bid(drop.itemHrid),
+      taxable: taxable(drop.itemHrid, data),
+    }));
+
+    const teaInputs: PricedCount[] = combo
+      .filter((hrid) => prices.ask(hrid) !== null)
+      .map((hrid) => ({
+        itemHrid: hrid,
+        count: 1,
+        price: prices.ask(hrid),
+      }));
+
+    const result = calculateManufacture({
+      baseTimeCost: detail.baseTimeCost,
+      actionLevel: detail.levelRequirement.level,
+      playerLevel: buffs.Level,
+      buffs,
+      ingredients: [],
+      products,
+      essenceDrops: (detail.essenceDropTable ?? []).map((drop) => ({
+        itemHrid: drop.itemHrid,
+        count: 1,
+        rate: drop.dropRate,
+        price: prices.bid(drop.itemHrid),
+        taxable: taxable(drop.itemHrid, data),
+      })),
+      rareDrops: (detail.rareDropTable ?? []).map((drop) => ({
+        itemHrid: drop.itemHrid,
+        count: 1,
+        rate: drop.dropRate,
+        price: prices.bid(drop.itemHrid),
+        taxable: taxable(drop.itemHrid, data),
+      })),
+      teas: teaInputs,
+    });
+
+    if (result.valid && result.profitPerHour !== null) {
+      if (result.profitPerHour > bestProfit) {
+        bestProfit = result.profitPerHour;
+        bestTeas = combo;
+        bestBuffs = buffs;
+      }
+    }
+  }
+
+  if (bestBuffs === null) {
+    const defaultBuffs = actionBuffs(profile, action, data);
+    return {
+      teas: [],
+      profitPerHour: null,
+      buffs: defaultBuffs,
+    };
+  }
+
+  return {
+    teas: bestTeas,
+    profitPerHour: bestProfit,
+    buffs: bestBuffs,
+  };
+}
+
+export function findOptimalTeasForAlchemy(options: {
+  kind: 'decompose' | 'coinify';
+  itemHrid: string;
+  catalystRank: 0 | 1 | 2;
+  enhancementLevel: number;
+  profile: PlayerProfile;
+  data: NormalizedStrategyGameData;
+  prices: MarketPriceBook;
+  calculateFn: (opts: any) => { valid: boolean; profitPerHour: number | null };
+}): OptimalTeaResult {
+  const { kind, itemHrid, catalystRank, enhancementLevel, profile, data, prices, calculateFn } = options;
+  const legalCombos = getLegalTeaCombinations('alchemy');
+
+  let bestTeas: string[] = [];
+  let bestProfit = -Infinity;
+  let bestBuffs: ActionBuffs | null = null;
+
+  for (const combo of legalCombos) {
+    const tempProfile: PlayerProfile = {
+      ...profile,
+      actions: {
+        ...profile.actions,
+        alchemy: {
+          ...profile.actions.alchemy,
+          teas: combo,
+        },
+      },
+    };
+
+    const buffs = actionBuffs(tempProfile, 'alchemy', data);
+    const result = calculateFn({
+      itemHrid,
+      catalystRank,
+      enhancementLevel,
+      profile: tempProfile,
+      data,
+      prices,
+      buffs,
+    });
+
+    if (result.valid && result.profitPerHour !== null) {
+      if (result.profitPerHour > bestProfit) {
+        bestProfit = result.profitPerHour;
+        bestTeas = combo;
+        bestBuffs = buffs;
+      }
+    }
+  }
+
+  if (bestBuffs === null) {
+    const defaultBuffs = actionBuffs(profile, 'alchemy', data);
+    return {
+      teas: [],
+      profitPerHour: null,
+      buffs: defaultBuffs,
+    };
+  }
+
+  return {
+    teas: bestTeas,
+    profitPerHour: bestProfit,
+    buffs: bestBuffs,
+  };
+}

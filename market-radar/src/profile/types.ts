@@ -18,6 +18,12 @@ export interface ProfileEquipment {
   enhancementLevel: number;
 }
 
+export type OwnershipState = 'unknown' | 'owned' | 'not-owned';
+export type LoadoutMode = 'auto' | 'manual';
+export type TeaMode = 'auto' | 'manual';
+export type MechanicsCompleteness = 'complete' | 'estimated' | 'incomplete';
+export type FieldProvenance = 'unknown' | 'imported' | 'user-confirmed';
+
 export interface ActionProfile {
   playerLevel: number;
   tool: ProfileEquipment | null;
@@ -27,6 +33,8 @@ export interface ActionProfile {
   charm: ProfileEquipment | null;
   houseLevel: number;
   teas: string[];
+  loadoutMode?: LoadoutMode;
+  teaMode?: TeaMode;
 }
 
 export interface PlayerProfile {
@@ -36,7 +44,10 @@ export interface PlayerProfile {
   source: 'milkonomy-v1' | 'milkonomy-preset';
   importedAt: number;
   completeness: 'full' | 'partial';
+  mechanicsCompleteness?: MechanicsCompleteness;
   missingFields: string[];
+  provenanceMap?: Record<string, FieldProvenance>;
+  equipmentOwnership?: Record<string, OwnershipState>;
   actions: Record<SkillingAction, ActionProfile>;
   specialEquipment: Record<string, ProfileEquipment>;
   communityBuffs: Record<string, number>;

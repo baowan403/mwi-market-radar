@@ -33,6 +33,8 @@ export interface ManufactureInput {
   teas: PricedCount[];
 }
 
+import type { StrategyLedger } from './types';
+
 export interface ManufactureResult {
   valid: boolean;
   efficiency: number;
@@ -44,6 +46,7 @@ export interface ManufactureResult {
   profitPerDay: number | null;
   ingredientUnitsPerHour: Record<string, number>;
   productUnitsPerHour: Record<string, number>;
+  ledger?: StrategyLedger;
 }
 
 function validNumber(value: number): boolean {
@@ -137,14 +140,67 @@ export function calculateManufacture(input: ManufactureInput): ManufactureResult
   for (const product of input.products as Array<PricedCount & { price: number }>) {
     addIncome(product, product.count * gourmetFactor * actionsPerHour * (product.rate ?? 1));
   }
+  const rareAndEssenceUnitsPerHour: Record<string, number> = {};
   for (const essence of input.essenceDrops as Array<PricedCount & { price: number }>) {
-    addIncome(essence, essence.count * (essence.rate ?? 1) * (1 + input.buffs.EssenceFind) * actionsPerHour);
+    const units = essence.count * (essence.rate ?? 1) * (1 + input.buffs.EssenceFind) * actionsPerHour;
+    addIncome(essence, units);
+    rareAndEssenceUnitsPerHour[essence.itemHrid] = (rareAndEssenceUnitsPerHour[essence.itemHrid] ?? 0) + units;
   }
   for (const rare of input.rareDrops as Array<PricedCount & { price: number }>) {
-    addIncome(rare, rare.count * (rare.rate ?? 1) * (1 + input.buffs.RareFind) * actionsPerHour);
+    const units = rare.count * (rare.rate ?? 1) * (1 + input.buffs.RareFind) * actionsPerHour;
+    addIncome(rare, units);
+    rareAndEssenceUnitsPerHour[rare.itemHrid] = (rareAndEssenceUnitsPerHour[rare.itemHrid] ?? 0) + units;
+  }
+
+  const teaUnitsPerHour: Record<string, number> = {};
+  for (const tea of input.teas as Array<PricedCount & { price: number }>) {
+    teaUnitsPerHour[tea.itemHrid] = tea.count * teaUnitsFactor;
+  }
+
+  const outputUnitsPerSuccess: Record<string, number> = {};
+  for (const product of input.products as Array<PricedCount & { price: number }>) {
+    outputUnitsPerSuccess[product.itemHrid] = product.count * gourmetFactor * (product.rate ?? 1);
   }
 
   const profitPerHour = incomePerHour - costPerHour;
+  const ledger: StrategyLedger = {
+    physical: {
+      effectiveLevel: input.playerLevel,
+      speed,
+      efficiency,
+      successRate: 1,
+      actionTimeSeconds: effectiveTime / 1_000_000_000,
+      actionsPerHour,
+      successfulActionsPerHour: actionsPerHour,
+      inputUnitsPerHour: Object.fromEntries(
+        (input.ingredients as Array<PricedCount & { price: number }>).map((ing) => [
+          ing.itemHrid,
+          ingredientUnitsPerHour[ing.itemHrid] ?? 0,
+        ]),
+      ),
+      outputUnitsPerSuccess,
+      outputUnitsPerHour: { ...productUnitsPerHour },
+      rareAndEssenceUnitsPerHour,
+      teaUnitsPerHour,
+    },
+    economic: {
+      inputAskPrices: Object.fromEntries(
+        (input.ingredients as Array<PricedCount & { price: number }>).map((ing) => [ing.itemHrid, ing.price]),
+      ),
+      outputBidPrices: Object.fromEntries(
+        (input.products as Array<PricedCount & { price: number }>).map((prod) => [prod.itemHrid, prod.price]),
+      ),
+      taxFactor: marketTaxFactor('/items/coin', true),
+      teaAskPrices: Object.fromEntries(
+        (input.teas as Array<PricedCount & { price: number }>).map((tea) => [tea.itemHrid, tea.price]),
+      ),
+      revenuePerHour: incomePerHour,
+      costPerHour,
+      profitPerHour,
+      profitPerDay: profitPerHour * 24,
+    },
+  };
+
   return {
     valid: true,
     efficiency,
@@ -156,5 +212,6 @@ export function calculateManufacture(input: ManufactureInput): ManufactureResult
     profitPerDay: profitPerHour * 24,
     ingredientUnitsPerHour,
     productUnitsPerHour,
+    ledger,
   };
 }

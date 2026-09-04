@@ -4,7 +4,7 @@ import type { NormalizedStrategyGameData } from './game-data';
 import { expandStrategyLiquidation } from './liquidation';
 import { calculateManufacture, type PricedCount } from './manufacture';
 import type { MarketPriceBook } from './price-book';
-import { findOptimalTeasForManufacture } from './tea-optimizer';
+import { findOptimalTeasForManufacture, findOptimalTeasForGathering } from './tea-optimizer';
 import { optimalTeasForAction } from './optimal-loadout';
 import type { DropItem, StrategyActionDetail, StrategyFlow, StrategyStepResult } from './types';
 
@@ -100,9 +100,7 @@ export function calculateManufactureAction(options: {
     throw new StrategyRecipeError();
   }
   let activeTeas = profile.actions[action]?.teas ?? [];
-  const defaultTeas = optimalTeasForAction(action);
-  const isAutoOptimal = activeTeas.length === 0
-    || (activeTeas.length === defaultTeas.length && activeTeas.every((t, i) => t === defaultTeas[i]));
+  const isAutoOptimal = profile.actions[action]?.teaMode !== 'manual';
 
   let buffs: ActionBuffs;
   if (isAutoOptimal) {
@@ -177,6 +175,7 @@ export function calculateManufactureAction(options: {
     experiencePerHour: baseExperience * (1 + buffs.Experience) * result.actionsPerHour,
     inputs: priceFlow(result.ingredientUnitsPerHour, 'ask', prices, data),
     outputs: liquidation.flows,
+    ledger: result.ledger,
   };
 }
 
@@ -199,7 +198,20 @@ export function calculateGatherAction(options: {
   const detail = data.actionsByHrid.get(actionHrid) as StrategyActionDetail | undefined;
   if (!detail) throw new StrategyRecipeError();
 
-  const buffs = options.buffs ?? actionBuffs(profile, action, data);
+  let activeTeas = profile.actions[action]?.teas ?? [];
+  const isAutoOptimal = profile.actions[action]?.teaMode !== 'manual';
+  let buffs: ActionBuffs;
+
+  if (isAutoOptimal) {
+    const optimal = findOptimalTeasForGathering({ action, detail, profile, data, prices });
+    activeTeas = optimal.teas;
+    buffs = optimal.buffs;
+  } else if (options.buffs) {
+    buffs = options.buffs;
+  } else {
+    buffs = actionBuffs(profile, action, data);
+  }
+
   if (buffs.Level < detail.levelRequirement.level) throw new StrategyRecipeError();
 
   const dropItems = drops(detail.dropTable);
@@ -213,7 +225,7 @@ export function calculateGatherAction(options: {
     taxable: taxable(drop.itemHrid, data),
   }));
 
-  const teas: PricedCount[] = (profile.actions[action]?.teas ?? [])
+  const teas: PricedCount[] = activeTeas
     .filter((itemHrid) => prices.ask(itemHrid) !== null)
     .map((itemHrid) => ({
       itemHrid,
@@ -252,5 +264,6 @@ export function calculateGatherAction(options: {
     experiencePerHour: baseExperience * (1 + buffs.Experience) * result.actionsPerHour,
     inputs: priceFlow(result.ingredientUnitsPerHour, 'ask', prices, data),
     outputs: liquidation.flows,
+    ledger: result.ledger,
   };
 }

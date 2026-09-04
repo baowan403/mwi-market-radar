@@ -225,4 +225,65 @@ describe('optimal loadout engine', () => {
     expect(enriched.specialEquipment.neck).toEqual({ itemHrid: '/items/necklace_of_speed', enhancementLevel: 3 });
     expect(enriched.specialEquipment.pouch).toEqual({ itemHrid: '/items/guzzling_pouch', enhancementLevel: 5 });
   });
+
+  it('selects higher profit uplift gear when competing in the same slot (Same-slot Uplift Test)', () => {
+    // 同 slot (body) 比較：
+    // 裝備 A: flaming_robe_top +10 (純戰鬥裝，無生活加成)
+    // 裝備 B: alchemists_top +3 (煉金專屬生活加成)
+    const inventory = {
+      '/items/flaming_robe_top': 10,
+      '/items/alchemists_top': 3,
+    };
+    const chosen = bestSkillingEquipmentFromInventory(inventory, 'alchemy', '/equipment_types/body', data);
+    expect(chosen).not.toBeNull();
+    // 必須選中 +3 的煉金上衣，而不是 +10 的火袍！
+    expect(chosen!.itemHrid).toBe('/items/alchemists_top');
+    expect(chosen!.enhancementLevel).toBe(3);
+  });
+
+  it('respects manual loadout lock and does not overwrite user locked equipment', () => {
+    const rawProfile: PlayerProfile = {
+      id: 'test:manual_lock',
+      characterId: 8888,
+      name: 'manual_lock_tester',
+      source: 'milkonomy-v1',
+      importedAt: Date.now(),
+      completeness: 'full',
+      missingFields: [],
+      actions: {
+        alchemy: {
+          playerLevel: 80,
+          tool: { itemHrid: '/items/alembic', enhancementLevel: 1 }, // 玩家手動鎖定的普通工具
+          body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [],
+          loadoutMode: 'manual', // 顯式手動鎖定
+        },
+        milking: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        foraging: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        woodcutting: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        cheesesmithing: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        crafting: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        tailoring: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        cooking: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        brewing: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        enhancing: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+      },
+      specialEquipment: {},
+      communityBuffs: {},
+      shrines: {},
+      achievements: {},
+      inventoryMap: {
+        '/items/holy_alembic': 10, // 背包裡有更強的 +10 神聖工具
+      },
+      materialInventoryMap: {},
+      seals: [],
+    };
+
+    const enriched = enrichProfileWithBestLoadout(rawProfile, data);
+
+    // 驗證手動模式下，系統絕不私自替換玩家鎖定的工具
+    expect(enriched.actions.alchemy.tool).toEqual({
+      itemHrid: '/items/alembic',
+      enhancementLevel: 1,
+    });
+  });
 });

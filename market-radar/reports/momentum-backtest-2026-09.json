@@ -1,0 +1,119 @@
+{
+  "timestamp": "2026-09-04T01:51:36.064Z",
+  "datasetStats": {
+    "totalSnapshots": 60,
+    "filteredSnapshots": 60,
+    "gameDataVersion": "1.2.0",
+    "splits": {
+      "train": 36,
+      "validation": 12,
+      "holdout": 12
+    }
+  },
+  "baselines": {
+    "A_SafeProfit": {
+      "baselineName": "A_SafeProfit",
+      "holdoutMetrics": {
+        "24h": {
+          "horizon": "24h",
+          "realizedProfitTotal": 5.703684467090385,
+          "averageProfitPerDay": 0.5185167697354895,
+          "hitRate": 0.5454545454545454,
+          "maxDrawdownPct": 3.587393784944172,
+          "sampleCount": 11
+        },
+        "3d": {
+          "horizon": "3d",
+          "realizedProfitTotal": 4.959162895017025,
+          "averageProfitPerDay": 1.6530542983390084,
+          "hitRate": 0.6666666666666666,
+          "maxDrawdownPct": 4.57099318447961,
+          "sampleCount": 3
+        },
+        "7d": {
+          "horizon": "7d",
+          "realizedProfitTotal": -0.9096698143933999,
+          "averageProfitPerDay": -0.9096698143933999,
+          "hitRate": 0,
+          "maxDrawdownPct": 0.9096698143933999,
+          "sampleCount": 1
+        }
+      },
+      "outperformanceVsA": {
+        "profitUpliftPct": 0,
+        "hitRateDiff": 0
+      }
+    },
+    "B_SafeProfit_Momentum": {
+      "baselineName": "B_SafeProfit_Momentum",
+      "holdoutMetrics": {
+        "24h": {
+          "horizon": "24h",
+          "realizedProfitTotal": 5.703684467090385,
+          "averageProfitPerDay": 0.5185167697354895,
+          "hitRate": 0.5454545454545454,
+          "maxDrawdownPct": 3.587393784944172,
+          "sampleCount": 11
+        },
+        "3d": {
+          "horizon": "3d",
+          "realizedProfitTotal": 4.959162895017025,
+          "averageProfitPerDay": 1.6530542983390084,
+          "hitRate": 0.6666666666666666,
+          "maxDrawdownPct": 4.57099318447961,
+          "sampleCount": 3
+        },
+        "7d": {
+          "horizon": "7d",
+          "realizedProfitTotal": -0.9096698143933999,
+          "averageProfitPerDay": -0.9096698143933999,
+          "hitRate": 0,
+          "maxDrawdownPct": 0.9096698143933999,
+          "sampleCount": 1
+        }
+      },
+      "outperformanceVsA": {
+        "profitUpliftPct": 0,
+        "hitRateDiff": 0
+      }
+    },
+    "C_TheoreticalProfit": {
+      "baselineName": "C_TheoreticalProfit",
+      "holdoutMetrics": {
+        "24h": {
+          "horizon": "24h",
+          "realizedProfitTotal": 5.703684467090385,
+          "averageProfitPerDay": 0.5185167697354895,
+          "hitRate": 0.5454545454545454,
+          "maxDrawdownPct": 3.587393784944172,
+          "sampleCount": 11
+        },
+        "3d": {
+          "horizon": "3d",
+          "realizedProfitTotal": 4.959162895017025,
+          "averageProfitPerDay": 1.6530542983390084,
+          "hitRate": 0.6666666666666666,
+          "maxDrawdownPct": 4.57099318447961,
+          "sampleCount": 3
+        },
+        "7d": {
+          "horizon": "7d",
+          "realizedProfitTotal": -0.9096698143933999,
+          "averageProfitPerDay": -0.9096698143933999,
+          "hitRate": 0,
+          "maxDrawdownPct": 0.9096698143933999,
+          "sampleCount": 1
+        }
+      },
+      "outperformanceVsA": {
+        "profitUpliftPct": 0,
+        "hitRateDiff": 0
+      }
+    }
+  },
+  "verdict": {
+    "momentumHasAlpha": false,
+    "recommendation": "動能訊號在 Holdout 測試集無統計顯著超額收益，應定位為輔助 Badge 燈號，首頁維持以安全日利為第一排序基準。",
+    "details": "Baseline B 相對 Baseline A 之平均勝率差異: 0.00%，收益增益: 0.00%。"
+  }
+}

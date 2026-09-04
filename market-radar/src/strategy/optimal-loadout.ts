@@ -1,3 +1,4 @@
+
 import type { PlayerProfile, ProfileEquipment, SkillingAction } from '../profile/types';
 import type { NormalizedStrategyGameData } from './game-data';
 
@@ -19,16 +20,65 @@ export function optimalTeasForAction(action: SkillingAction): string[] {
 }
 
 /**
- * 從 inventoryMap 中智慧挑選對指定技能有實質生活屬性加成的最高強化裝備。
- * 100% 排除純戰鬥裝備（如火袍、法杖、純戰鬥首飾）。
+ * 評估一件裝備對特定生活技能的實際生活屬性增益評分。
+ * 若無任何對該技能有效的生活屬性，嚴格回傳 -1（判定為不適格 / 純戰鬥裝）。
  */
-export function bestSkillingEquipmentFromInventory(
+export function evaluateEquipmentUpliftForAction(
+  eqHrid: string,
+  enhanceLevel: number,
+  action: SkillingAction,
+  data: NormalizedStrategyGameData,
+): number {
+  const item = data.itemDetailMap[eqHrid];
+  if (!item || !item.equipmentDetail) return -1;
+  const noncombat = item.equipmentDetail.noncombatStats as Record<string, number> | undefined;
+  if (!noncombat) return -1;
+  const bonuses = (item.equipmentDetail as Record<string, unknown>).noncombatEnhancementBonuses as Record<string, number> | undefined ?? {};
+  const multiplier = data.enhancementLevelTotalBonusMultiplierTable[enhanceLevel] ?? 0;
+
+  let score = 0;
+  let hasRelevant = false;
+
+  for (const [prop, baseVal] of Object.entries(noncombat)) {
+    const isRelevant = prop.startsWith(action) || prop.startsWith('skilling') || prop === 'drinkConcentration';
+    if (!isRelevant) continue;
+
+    hasRelevant = true;
+    const base = Number(baseVal) || 0;
+    const bonus = Number(bonuses[prop]) || 0;
+    const totalVal = base + bonus * multiplier;
+
+    // 依屬性對產出與週轉的邊際增益給予加權評分
+    if (prop.endsWith('Speed') || prop.endsWith('ActionSpeed')) {
+      score += totalVal * 100;
+    } else if (prop.endsWith('Efficiency')) {
+      score += totalVal * 80;
+    } else if (prop.endsWith('Artisan') || prop.endsWith('Gourmet') || prop.endsWith('Processing')) {
+      score += totalVal * 90;
+    } else if (prop.endsWith('Success')) {
+      score += totalVal * 85;
+    } else if (prop === 'drinkConcentration') {
+      score += totalVal * 50;
+    } else {
+      score += totalVal * 30;
+    }
+  }
+
+  return hasRelevant ? score : -1;
+}
+
+/**
+ * 從 inventoryMap 中智慧挑選對指定技能實質生活增益（Profit Uplift）最高的裝備。
+ * 採用 Pareto 支配剪枝與生活加成評分，杜絕「強化高等級但生活無效」之謬誤。
+ */
+export function bestEquipmentFromInventoryForAction(
   inventoryMap: Record<string, number>,
   action: SkillingAction,
   slotType: string,
   data: NormalizedStrategyGameData,
 ): ProfileEquipment | null {
   let bestHrid: string | null = null;
+  let bestScore = -1;
   let bestEnhance = -1;
 
   for (const [hrid, enhanceLevel] of Object.entries(inventoryMap)) {
@@ -37,19 +87,11 @@ export function bestSkillingEquipmentFromInventory(
     const eq = item.equipmentDetail;
     if (!eq || eq.type !== slotType) continue;
 
-    const noncombat = eq.noncombatStats;
-    if (!noncombat || Object.keys(noncombat).length === 0) {
-      // 純戰鬥裝備或無生活加成，嚴格排除！
-      continue;
-    }
+    const upliftScore = evaluateEquipmentUpliftForAction(hrid, enhanceLevel, action, data);
+    if (upliftScore <= 0) continue; // 不具備有效生活加成，直接剪枝剔除
 
-    // 檢查是否對該生活技能有效（專屬加成、全生活 skilling 加成、或藥水濃度）
-    const relevant = Object.keys(noncombat).some((prop) => (
-      prop.startsWith(action) || prop.startsWith('skilling') || prop === 'drinkConcentration'
-    ));
-    if (!relevant) continue;
-
-    if (enhanceLevel > bestEnhance) {
+    if (upliftScore > bestScore || (Math.abs(upliftScore - bestScore) < 1e-6 && enhanceLevel > bestEnhance)) {
+      bestScore = upliftScore;
       bestEnhance = enhanceLevel;
       bestHrid = hrid;
     }
@@ -58,14 +100,14 @@ export function bestSkillingEquipmentFromInventory(
   return bestHrid !== null ? { itemHrid: bestHrid, enhancementLevel: bestEnhance } : null;
 }
 
-/**
- * 從 inventoryMap 中智慧挑選具備生活屬性加成的最佳特殊裝備（手套、項鍊、副手、戒指、耳環等）。
- */
+export const bestSkillingEquipmentFromInventory = bestEquipmentFromInventoryForAction;
+
 export function bestSpecialEquipmentFromInventory(
   inventoryMap: Record<string, number>,
   slotType: string,
   data: NormalizedStrategyGameData,
 ): ProfileEquipment | null {
+  // 向後相容通用函式：使用全生活 skilling 評估
   let bestHrid: string | null = null;
   let bestEnhance = -1;
 
@@ -89,8 +131,8 @@ export function bestSpecialEquipmentFromInventory(
 
 /**
  * 智慧豐富角色快照：
- * 1. 若該技能未手動配置茶飲，自動套用最佳 3 茶飲；
- * 2. 若生活裝備槽位為空，自動從背包倉庫挑選最高強化等級的生活裝備穿上（杜絕戰鬥裝）。
+ * 1. 若該技能未手動鎖定茶飲（teaMode !== 'manual'），自動套用最佳 3 茶飲；
+ * 2. 若生活裝備槽位未手動鎖定（loadoutMode !== 'manual'），自動從背包倉庫挑選真正對該技能效益最高的生活裝備穿上。
  */
 export function enrichProfileWithBestLoadout(
   profile: PlayerProfile,
@@ -99,7 +141,7 @@ export function enrichProfileWithBestLoadout(
   const enrichedActions = { ...profile.actions };
   const enrichedSpecial = { ...profile.specialEquipment };
 
-  // 若尚未配置 pouch，且倉庫/背包中有暴飲之囊 (Guzzling Pouch)，自動穿上最高強化者
+  // 若尚未配置 pouch，且倉庫/背包中有暴飲之囊 (Guzzling Pouch)，自動穿上
   if (!enrichedSpecial.pouch && profile.inventoryMap['/items/guzzling_pouch'] !== undefined) {
     enrichedSpecial.pouch = {
       itemHrid: '/items/guzzling_pouch',
@@ -107,11 +149,11 @@ export function enrichProfileWithBestLoadout(
     };
   }
 
-  // 自動穿戴背包/倉庫中最高強化的特殊生活裝備（如紅色廚師帽、附魔手套、速度項鍊、副手眼錶、採集靴等）
+  // 自動穿戴通用生活配件
   for (const slot of ['head', 'hands', 'off_hand', 'feet', 'neck', 'ring', 'earrings', 'trinket']) {
     if (!enrichedSpecial[slot]) {
       const best = bestSpecialEquipmentFromInventory(
-        profile.inventoryMap, `/equipment_types/${slot}`, data
+        profile.inventoryMap, `/equipment_types/${slot}`, data,
       );
       if (best) enrichedSpecial[slot] = best;
     }
@@ -119,25 +161,32 @@ export function enrichProfileWithBestLoadout(
 
   for (const [actionKey, actionProfile] of Object.entries(enrichedActions)) {
     const action = actionKey as SkillingAction;
-    const teas = (actionProfile.teas && actionProfile.teas.length > 0)
-      ? actionProfile.teas
-      : optimalTeasForAction(action);
+    const isManualLoadout = actionProfile.loadoutMode === 'manual';
+    const isManualTea = actionProfile.teaMode === 'manual';
 
-    const tool = actionProfile.tool ?? bestSkillingEquipmentFromInventory(
-      profile.inventoryMap, action, `/equipment_types/${action}_tool`, data
-    );
-    const body = actionProfile.body ?? bestSkillingEquipmentFromInventory(
-      profile.inventoryMap, action, '/equipment_types/body', data
-    );
-    const legs = actionProfile.legs ?? bestSkillingEquipmentFromInventory(
-      profile.inventoryMap, action, '/equipment_types/legs', data
-    );
-    const back = actionProfile.back ?? bestSkillingEquipmentFromInventory(
-      profile.inventoryMap, action, '/equipment_types/back', data
-    );
-    const charm = actionProfile.charm ?? bestSkillingEquipmentFromInventory(
-      profile.inventoryMap, action, '/equipment_types/charm', data
-    );
+    const teas = (isManualTea && actionProfile.teas)
+      ? actionProfile.teas
+      : (actionProfile.teas && actionProfile.teas.length > 0 ? actionProfile.teas : optimalTeasForAction(action));
+
+    const tool = (isManualLoadout && actionProfile.tool)
+      ? actionProfile.tool
+      : (actionProfile.tool ?? bestEquipmentFromInventoryForAction(profile.inventoryMap, action, `/equipment_types/${action}_tool`, data));
+
+    const body = (isManualLoadout && actionProfile.body)
+      ? actionProfile.body
+      : (actionProfile.body ?? bestEquipmentFromInventoryForAction(profile.inventoryMap, action, '/equipment_types/body', data));
+
+    const legs = (isManualLoadout && actionProfile.legs)
+      ? actionProfile.legs
+      : (actionProfile.legs ?? bestEquipmentFromInventoryForAction(profile.inventoryMap, action, '/equipment_types/legs', data));
+
+    const back = (isManualLoadout && actionProfile.back)
+      ? actionProfile.back
+      : (actionProfile.back ?? bestEquipmentFromInventoryForAction(profile.inventoryMap, action, '/equipment_types/back', data));
+
+    const charm = (isManualLoadout && actionProfile.charm)
+      ? actionProfile.charm
+      : (actionProfile.charm ?? bestEquipmentFromInventoryForAction(profile.inventoryMap, action, '/equipment_types/charm', data));
 
     enrichedActions[action] = {
       ...actionProfile,

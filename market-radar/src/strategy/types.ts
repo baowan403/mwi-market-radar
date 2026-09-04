@@ -18,6 +18,37 @@ export interface StrategyFlow {
   market: boolean;
 }
 
+export interface PhysicalLedger {
+  effectiveLevel: number;
+  speed: number;
+  efficiency: number;
+  successRate: number;
+  actionTimeSeconds: number;
+  actionsPerHour: number;
+  successfulActionsPerHour: number;
+  inputUnitsPerHour: Record<string, number>;
+  outputUnitsPerSuccess: Record<string, number>;
+  outputUnitsPerHour: Record<string, number>;
+  rareAndEssenceUnitsPerHour: Record<string, number>;
+  teaUnitsPerHour: Record<string, number>;
+}
+
+export interface EconomicLedger {
+  inputAskPrices: Record<string, number | null>;
+  outputBidPrices: Record<string, number | null>;
+  taxFactor: number;
+  teaAskPrices: Record<string, number | null>;
+  revenuePerHour: number | null;
+  costPerHour: number | null;
+  profitPerHour: number | null;
+  profitPerDay: number | null;
+}
+
+export interface StrategyLedger {
+  physical: PhysicalLedger;
+  economic: EconomicLedger;
+}
+
 export interface StrategyStepResult {
   id: string;
   action: import('../profile/types').SkillingAction;
@@ -31,6 +62,7 @@ export interface StrategyStepResult {
   experiencePerHour: number;
   inputs: StrategyFlow[];
   outputs: StrategyFlow[];
+  ledger?: StrategyLedger;
 }
 
 export interface StrategyActionDetail {

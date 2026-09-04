@@ -58,7 +58,13 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-describe('dashboard bridge ready handshake', () => {
+/**
+ * @deprecated
+ * 市場行情 UI 分頁已依照 ADR-001 正式作廢退役（首頁預設且唯一呈現策略推薦）。
+ * 本測試套件保留作為歷史實作記錄，在未經使用者明確指示重啟市場行情分頁前標記作廢（skip），
+ * 避免誤讀為當前活動 UI。參見 docs/adr/ADR-001-market-surface-retired.md。
+ */
+describe.skip('dashboard bridge ready handshake (DEPRECATED: 市場行情頁已退役作廢，參見 ADR-001)', () => {
   it('waits for a late DOM bridge marker before starting client requests', async () => {
     const root = createRoot();
     const target = document.createElement('div');
