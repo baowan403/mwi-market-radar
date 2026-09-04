@@ -97,4 +97,60 @@ describe('optimal loadout engine', () => {
     // 驗證 alchemy 沒有生活上衣，不會誤穿火袍
     expect(enriched.actions.alchemy.body).toBeNull();
   });
+
+  it('automatically equips special skilling equipment (gloves, necklaces, off-hand) from inventory', () => {
+    const rawProfile: PlayerProfile = {
+      id: 'test:special',
+      characterId: 99999,
+      name: 'special_tester',
+      source: 'milkonomy-v1',
+      importedAt: Date.now(),
+      completeness: 'full',
+      missingFields: [],
+      actions: {
+        alchemy: { playerLevel: 110, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 4, teas: [] },
+        milking: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        foraging: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        woodcutting: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        cheesesmithing: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        crafting: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        tailoring: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        cooking: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        brewing: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        enhancing: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+      },
+      specialEquipment: {},
+      communityBuffs: {},
+      shrines: {},
+      achievements: {},
+      inventoryMap: {
+        '/items/enchanted_gloves': 10,
+        '/items/necklace_of_speed': 3,
+        '/items/eye_watch': 0,
+        '/items/guzzling_pouch': 5,
+        '/items/flaming_robe_top': 10,
+      },
+      materialInventoryMap: {},
+      seals: [],
+    };
+
+    const enriched = enrichProfileWithBestLoadout(rawProfile, data);
+
+    expect(enriched.specialEquipment.hands).toEqual({
+      itemHrid: '/items/enchanted_gloves',
+      enhancementLevel: 10,
+    });
+    expect(enriched.specialEquipment.neck).toEqual({
+      itemHrid: '/items/necklace_of_speed',
+      enhancementLevel: 3,
+    });
+    expect(enriched.specialEquipment.off_hand).toEqual({
+      itemHrid: '/items/eye_watch',
+      enhancementLevel: 0,
+    });
+    expect(enriched.specialEquipment.pouch).toEqual({
+      itemHrid: '/items/guzzling_pouch',
+      enhancementLevel: 5,
+    });
+  });
 });

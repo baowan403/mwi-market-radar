@@ -59,6 +59,35 @@ export function bestSkillingEquipmentFromInventory(
 }
 
 /**
+ * 從 inventoryMap 中智慧挑選具備生活屬性加成的最佳特殊裝備（手套、項鍊、副手、戒指、耳環等）。
+ */
+export function bestSpecialEquipmentFromInventory(
+  inventoryMap: Record<string, number>,
+  slotType: string,
+  data: NormalizedStrategyGameData,
+): ProfileEquipment | null {
+  let bestHrid: string | null = null;
+  let bestEnhance = -1;
+
+  for (const [hrid, enhanceLevel] of Object.entries(inventoryMap)) {
+    const item = data.itemDetailMap[hrid];
+    if (!item) continue;
+    const eq = item.equipmentDetail;
+    if (!eq || eq.type !== slotType) continue;
+
+    const noncombat = eq.noncombatStats;
+    if (!noncombat || Object.keys(noncombat).length === 0) continue;
+
+    if (enhanceLevel > bestEnhance) {
+      bestEnhance = enhanceLevel;
+      bestHrid = hrid;
+    }
+  }
+
+  return bestHrid !== null ? { itemHrid: bestHrid, enhancementLevel: bestEnhance } : null;
+}
+
+/**
  * 智慧豐富角色快照：
  * 1. 若該技能未手動配置茶飲，自動套用最佳 3 茶飲；
  * 2. 若生活裝備槽位為空，自動從背包倉庫挑選最高強化等級的生活裝備穿上（杜絕戰鬥裝）。
@@ -76,6 +105,16 @@ export function enrichProfileWithBestLoadout(
       itemHrid: '/items/guzzling_pouch',
       enhancementLevel: profile.inventoryMap['/items/guzzling_pouch'],
     };
+  }
+
+  // 自動穿戴背包/倉庫中最高強化的特殊生活裝備（如附魔手套、速度項鍊、副手眼錶等）
+  for (const slot of ['hands', 'neck', 'off_hand', 'ring', 'earrings', 'trinket']) {
+    if (!enrichedSpecial[slot]) {
+      const best = bestSpecialEquipmentFromInventory(
+        profile.inventoryMap, `/equipment_types/${slot}`, data
+      );
+      if (best) enrichedSpecial[slot] = best;
+    }
   }
 
   for (const [actionKey, actionProfile] of Object.entries(enrichedActions)) {
