@@ -107,8 +107,8 @@ export function enrichProfileWithBestLoadout(
     };
   }
 
-  // 自動穿戴背包/倉庫中最高強化的特殊生活裝備（如附魔手套、速度項鍊、副手眼錶等）
-  for (const slot of ['hands', 'neck', 'off_hand', 'ring', 'earrings', 'trinket']) {
+  // 自動穿戴背包/倉庫中最高強化的特殊生活裝備（如紅色廚師帽、附魔手套、速度項鍊、副手眼錶、採集靴等）
+  for (const slot of ['head', 'hands', 'off_hand', 'feet', 'neck', 'ring', 'earrings', 'trinket']) {
     if (!enrichedSpecial[slot]) {
       const best = bestSpecialEquipmentFromInventory(
         profile.inventoryMap, `/equipment_types/${slot}`, data
@@ -123,6 +123,9 @@ export function enrichProfileWithBestLoadout(
       ? actionProfile.teas
       : optimalTeasForAction(action);
 
+    const tool = actionProfile.tool ?? bestSkillingEquipmentFromInventory(
+      profile.inventoryMap, action, `/equipment_types/${action}_tool`, data
+    );
     const body = actionProfile.body ?? bestSkillingEquipmentFromInventory(
       profile.inventoryMap, action, '/equipment_types/body', data
     );
@@ -139,6 +142,7 @@ export function enrichProfileWithBestLoadout(
     enrichedActions[action] = {
       ...actionProfile,
       teas,
+      tool,
       body,
       legs,
       back,

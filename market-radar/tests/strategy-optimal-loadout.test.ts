@@ -153,4 +153,76 @@ describe('optimal loadout engine', () => {
       enhancementLevel: 5,
     });
   });
+
+  it('equips skilling tools and specialized head/feet gear across all 10 life skills', () => {
+    const rawProfile: PlayerProfile = {
+      id: 'test:all_10_skills',
+      characterId: 77777,
+      name: 'ten_skills_master',
+      source: 'milkonomy-v1',
+      importedAt: Date.now(),
+      completeness: 'full',
+      missingFields: [],
+      actions: {
+        milking: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        foraging: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        woodcutting: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        cheesesmithing: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        crafting: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        tailoring: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        cooking: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        brewing: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        alchemy: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        enhancing: { playerLevel: 80, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+      },
+      specialEquipment: {},
+      communityBuffs: {},
+      shrines: {},
+      achievements: {},
+      inventoryMap: {
+        // 10 大技能工具
+        '/items/holy_brush': 5,
+        '/items/holy_shears': 7,
+        '/items/rainbow_hatchet': 0,
+        '/items/holy_hammer': 8,
+        '/items/holy_chisel': 6,
+        '/items/holy_needle': 5,
+        '/items/rainbow_spatula': 2,
+        '/items/rainbow_pot': 3,
+        '/items/holy_alembic': 10,
+        '/items/rainbow_enhancer': 4,
+        // 特殊槽位
+        '/items/red_culinary_hat': 0,
+        '/items/collectors_boots': 0,
+        '/items/enchanted_gloves': 10,
+        '/items/eye_watch': 0,
+        '/items/necklace_of_speed': 3,
+        '/items/guzzling_pouch': 5,
+      },
+      materialInventoryMap: {},
+      seals: [],
+    };
+
+    const enriched = enrichProfileWithBestLoadout(rawProfile, data);
+
+    // 驗證 10 大技能工具均自動穿上
+    expect(enriched.actions.milking.tool).toEqual({ itemHrid: '/items/holy_brush', enhancementLevel: 5 });
+    expect(enriched.actions.foraging.tool).toEqual({ itemHrid: '/items/holy_shears', enhancementLevel: 7 });
+    expect(enriched.actions.woodcutting.tool).toEqual({ itemHrid: '/items/rainbow_hatchet', enhancementLevel: 0 });
+    expect(enriched.actions.cheesesmithing.tool).toEqual({ itemHrid: '/items/holy_hammer', enhancementLevel: 8 });
+    expect(enriched.actions.crafting.tool).toEqual({ itemHrid: '/items/holy_chisel', enhancementLevel: 6 });
+    expect(enriched.actions.tailoring.tool).toEqual({ itemHrid: '/items/holy_needle', enhancementLevel: 5 });
+    expect(enriched.actions.cooking.tool).toEqual({ itemHrid: '/items/rainbow_spatula', enhancementLevel: 2 });
+    expect(enriched.actions.brewing.tool).toEqual({ itemHrid: '/items/rainbow_pot', enhancementLevel: 3 });
+    expect(enriched.actions.alchemy.tool).toEqual({ itemHrid: '/items/holy_alembic', enhancementLevel: 10 });
+    expect(enriched.actions.enhancing.tool).toEqual({ itemHrid: '/items/rainbow_enhancer', enhancementLevel: 4 });
+
+    // 驗證特殊生活槽位均自動穿上
+    expect(enriched.specialEquipment.head).toEqual({ itemHrid: '/items/red_culinary_hat', enhancementLevel: 0 });
+    expect(enriched.specialEquipment.feet).toEqual({ itemHrid: '/items/collectors_boots', enhancementLevel: 0 });
+    expect(enriched.specialEquipment.hands).toEqual({ itemHrid: '/items/enchanted_gloves', enhancementLevel: 10 });
+    expect(enriched.specialEquipment.off_hand).toEqual({ itemHrid: '/items/eye_watch', enhancementLevel: 0 });
+    expect(enriched.specialEquipment.neck).toEqual({ itemHrid: '/items/necklace_of_speed', enhancementLevel: 3 });
+    expect(enriched.specialEquipment.pouch).toEqual({ itemHrid: '/items/guzzling_pouch', enhancementLevel: 5 });
+  });
 });
