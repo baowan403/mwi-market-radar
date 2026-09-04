@@ -286,4 +286,108 @@ describe('optimal loadout engine', () => {
       enhancementLevel: 1,
     });
   });
+
+  it('strictly retains null empty slots when loadoutMode is manual (Empty Slot Invariance)', () => {
+    const rawProfile: PlayerProfile = {
+      id: 'test:manual_empty_slots',
+      characterId: 8889,
+      name: 'manual_empty_tester',
+      source: 'milkonomy-v1',
+      importedAt: Date.now(),
+      completeness: 'full',
+      missingFields: [],
+      loadoutMode: 'manual', // 全域手動模式
+      actions: {
+        alchemy: {
+          playerLevel: 100,
+          tool: null, // 玩家刻意不穿工具
+          body: null, // 玩家刻意不穿衣服
+          legs: null,
+          back: null,
+          charm: null,
+          houseLevel: 2,
+          teas: [],
+          teaMode: 'manual',
+        },
+        milking: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        foraging: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        woodcutting: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        cheesesmithing: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        crafting: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        tailoring: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        cooking: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        brewing: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        enhancing: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+      },
+      specialEquipment: {},
+      communityBuffs: {},
+      shrines: {},
+      achievements: {},
+      inventoryMap: {
+        '/items/holy_alembic': 10,
+        '/items/alchemists_top': 7,
+        '/items/enchanted_gloves': 10,
+      },
+      materialInventoryMap: {},
+      seals: [],
+    };
+
+    const enriched = enrichProfileWithBestLoadout(rawProfile, data);
+
+    // 100% 尊重 Manual 空槽：即使背包有 +10 holy_alembic、+7 alchemists_top，也絕對維持 null
+    expect(enriched.actions.alchemy.tool).toBeNull();
+    expect(enriched.actions.alchemy.body).toBeNull();
+    expect(enriched.actions.alchemy.teas).toEqual([]);
+    // 全域 manual 模式下，特殊飾品亦不自動穿戴
+    expect(enriched.specialEquipment.hands).toBeUndefined();
+  });
+
+  it('strictly filters equipment based on equipmentOwnership (owned vs unowned/unknown)', () => {
+    const rawProfile: PlayerProfile = {
+      id: 'test:ownership_filter',
+      characterId: 8890,
+      name: 'ownership_filter_tester',
+      source: 'milkonomy-v1',
+      importedAt: Date.now(),
+      completeness: 'full',
+      missingFields: [],
+      loadoutMode: 'auto',
+      actions: {
+        alchemy: { playerLevel: 100, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 2, teas: [] },
+        milking: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        foraging: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        woodcutting: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        cheesesmithing: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        crafting: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        tailoring: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        cooking: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        brewing: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+        enhancing: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+      },
+      specialEquipment: {},
+      communityBuffs: {},
+      shrines: {},
+      achievements: {},
+      inventoryMap: {
+        '/items/holy_alembic': 10,
+        '/items/alchemists_top': 7,
+      },
+      equipmentOwnership: {
+        '/items/holy_alembic': 'not-owned', // 玩家明確標註未持有
+        '/items/alchemists_top': 'owned',    // 玩家明確標註持有
+      },
+      materialInventoryMap: {},
+      seals: [],
+    };
+
+    const enriched = enrichProfileWithBestLoadout(rawProfile, data);
+
+    // 未持有的 holy_alembic 絕不可被穿上
+    expect(enriched.actions.alchemy.tool).toBeNull();
+    // 確知持有的 alchemists_top 成功被 auto 模式穿上
+    expect(enriched.actions.alchemy.body).toEqual({
+      itemHrid: '/items/alchemists_top',
+      enhancementLevel: 7,
+    });
+  });
 });

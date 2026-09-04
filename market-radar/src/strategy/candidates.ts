@@ -7,6 +7,7 @@ import type { MarketPriceBook } from './price-book';
 import type { StrategyStepResult } from './types';
 import { calculateWorkflow, type WorkflowResult } from './workflow';
 import { enrichProfileWithBestLoadout } from './optimal-loadout';
+import { findOptimalTeasForAlchemy } from './tea-optimizer';
 
 const MANUFACTURING_ACTIONS = new Set<SkillingAction>([
   'cheesesmithing', 'crafting', 'tailoring', 'cooking', 'brewing',
@@ -254,9 +255,24 @@ export function buildStrategyCandidates(options: {
     if (hasDecompose) {
       for (const catalystRank of CATALYST_RANKS) {
         try {
-          const step = calculateDecompose({
+          let step = calculateDecompose({
             itemHrid, catalystRank, enhancementLevel: 0, profile, data, prices, buffs: alchemyBuffs,
           });
+          if (step.valid && (step.profitPerHour ?? 0) > 0 && profile.actions.alchemy?.teaMode !== 'manual') {
+            const opt = findOptimalTeasForAlchemy({
+              kind: 'decompose', itemHrid, catalystRank, enhancementLevel: 0, profile, data, prices,
+              calculateFn: calculateDecompose,
+            });
+            if (opt.teas.length > 0 && opt.profitPerHour !== null && opt.profitPerHour > (step.profitPerHour ?? -Infinity)) {
+              const stepProfile = {
+                ...profile,
+                actions: { ...profile.actions, alchemy: { ...profile.actions.alchemy, teas: opt.teas } },
+              };
+              step = calculateDecompose({
+                itemHrid, catalystRank, enhancementLevel: 0, profile: stepProfile, data, prices, buffs: opt.buffs,
+              });
+            }
+          }
           decompositions.push(step);
           addCandidate(candidateFromStep(step, 'decompose', data));
         } catch { diagnostics.push(`decompose:${itemHrid}:c${catalystRank}`); }
@@ -265,7 +281,20 @@ export function buildStrategyCandidates(options: {
     if (canCoinify) {
       for (const catalystRank of CATALYST_RANKS) {
         try {
-          const step = calculateCoinify({ itemHrid, catalystRank, profile, data, prices, buffs: alchemyBuffs });
+          let step = calculateCoinify({ itemHrid, catalystRank, profile, data, prices, buffs: alchemyBuffs });
+          if (step.valid && (step.profitPerHour ?? 0) > 0 && profile.actions.alchemy?.teaMode !== 'manual') {
+            const opt = findOptimalTeasForAlchemy({
+              kind: 'coinify', itemHrid, catalystRank, enhancementLevel: 0, profile, data, prices,
+              calculateFn: calculateCoinify,
+            });
+            if (opt.teas.length > 0 && opt.profitPerHour !== null && opt.profitPerHour > (step.profitPerHour ?? -Infinity)) {
+              const stepProfile = {
+                ...profile,
+                actions: { ...profile.actions, alchemy: { ...profile.actions.alchemy, teas: opt.teas } },
+              };
+              step = calculateCoinify({ itemHrid, catalystRank, profile: stepProfile, data, prices, buffs: opt.buffs });
+            }
+          }
           addCandidate(candidateFromStep(step, 'coinify', data));
         } catch { diagnostics.push(`coinify:${itemHrid}:c${catalystRank}`); }
       }

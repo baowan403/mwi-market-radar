@@ -1,0 +1,261 @@
+{
+  "id": "character:673624",
+  "characterId": 673624,
+  "name": "jotaro99",
+  "source": "milkonomy-v1",
+  "importedAt": 1788429569052,
+  "completeness": "full",
+  "missingFields": [],
+  "loadoutMode": "manual",
+  "mechanicsCompleteness": "exact",
+  "actions": {
+    "milking": {
+      "playerLevel": 68,
+      "tool": {
+        "itemHrid": "/items/rainbow_brush",
+        "enhancementLevel": 0
+      },
+      "body": null,
+      "legs": null,
+      "back": null,
+      "charm": null,
+      "houseLevel": 2,
+      "teas": []
+    },
+    "foraging": {
+      "playerLevel": 83,
+      "tool": {
+        "itemHrid": "/items/holy_shears",
+        "enhancementLevel": 7
+      },
+      "body": null,
+      "legs": null,
+      "back": null,
+      "charm": null,
+      "houseLevel": 3,
+      "teas": []
+    },
+    "woodcutting": {
+      "playerLevel": 69,
+      "tool": {
+        "itemHrid": "/items/rainbow_hatchet",
+        "enhancementLevel": 0
+      },
+      "body": null,
+      "legs": null,
+      "back": null,
+      "charm": null,
+      "houseLevel": 2,
+      "teas": []
+    },
+    "cheesesmithing": {
+      "playerLevel": 68,
+      "tool": {
+        "itemHrid": "/items/rainbow_hammer",
+        "enhancementLevel": 0
+      },
+      "body": null,
+      "legs": null,
+      "back": null,
+      "charm": null,
+      "houseLevel": 2,
+      "teas": []
+    },
+    "crafting": {
+      "playerLevel": 99,
+      "tool": {
+        "itemHrid": "/items/holy_chisel",
+        "enhancementLevel": 6
+      },
+      "body": null,
+      "legs": null,
+      "back": null,
+      "charm": null,
+      "houseLevel": 4,
+      "teas": []
+    },
+    "tailoring": {
+      "playerLevel": 80,
+      "tool": {
+        "itemHrid": "/items/holy_needle",
+        "enhancementLevel": 5
+      },
+      "body": null,
+      "legs": null,
+      "back": null,
+      "charm": null,
+      "houseLevel": 2,
+      "teas": []
+    },
+    "cooking": {
+      "playerLevel": 70,
+      "tool": {
+        "itemHrid": "/items/rainbow_spatula",
+        "enhancementLevel": 0
+      },
+      "body": null,
+      "legs": null,
+      "back": null,
+      "charm": null,
+      "houseLevel": 2,
+      "teas": []
+    },
+    "brewing": {
+      "playerLevel": 70,
+      "tool": {
+        "itemHrid": "/items/rainbow_pot",
+        "enhancementLevel": 0
+      },
+      "body": null,
+      "legs": null,
+      "back": null,
+      "charm": null,
+      "houseLevel": 2,
+      "teas": []
+    },
+    "alchemy": {
+      "playerLevel": 110,
+      "tool": {
+        "itemHrid": "/items/holy_alembic",
+        "enhancementLevel": 10
+      },
+      "body": {
+        "itemHrid": "/items/alchemists_top",
+        "enhancementLevel": 7
+      },
+      "legs": null,
+      "back": null,
+      "charm": {
+        "itemHrid": "/items/basic_alchemy_charm",
+        "enhancementLevel": 0
+      },
+      "houseLevel": 4,
+      "teas": [
+        "/items/ultra_alchemy_tea",
+        "/items/catalytic_tea",
+        "/items/efficiency_tea"
+      ]
+    },
+    "enhancing": {
+      "playerLevel": 66,
+      "tool": {
+        "itemHrid": "/items/rainbow_enhancer",
+        "enhancementLevel": 0
+      },
+      "body": null,
+      "legs": null,
+      "back": null,
+      "charm": null,
+      "houseLevel": 1,
+      "teas": []
+    }
+  },
+  "specialEquipment": {
+    "hands": {
+      "itemHrid": "/items/enchanted_gloves",
+      "enhancementLevel": 10
+    },
+    "neck": {
+      "itemHrid": "/items/necklace_of_speed",
+      "enhancementLevel": 3
+    },
+    "earrings": {
+      "itemHrid": "/items/earrings_of_rare_find",
+      "enhancementLevel": 0
+    }
+  },
+  "communityBuffs": {
+    "production_efficiency": 20,
+    "experience": 20,
+    "gathering_quantity": 20,
+    "combat_drop_quantity": 20,
+    "moo_card": 0
+  },
+  "shrines": {
+    "power": 2,
+    "rhythm": 3,
+    "scholar": 1
+  },
+  "achievements": {
+    "/achievements/brew_gourmet_tea": true,
+    "/achievements/collect_branch_of_insight": true,
+    "/achievements/collection_points_100": true,
+    "/achievements/complete_tutorial": true,
+    "/achievements/craft_wooden_bow": true,
+    "/achievements/defeat_shoebill": true,
+    "/achievements/total_level_1500": false,
+    "/achievements/labyrinth_floor_6": true,
+    "/achievements/bestiary_points_40": true,
+    "/achievements/collection_points_500": true,
+    "/achievements/cook_apple_gummy": true,
+    "/achievements/enhance_to_6": true,
+    "/achievements/defeat_luna_empress": true,
+    "/achievements/defeat_marine_huntress": true,
+    "/achievements/bestiary_points_20": true,
+    "/achievements/build_room_level_3": true,
+    "/achievements/collection_points_2000": false,
+    "/achievements/equip_ginkgo_weapon": true,
+    "/achievements/build_room_level_1": true,
+    "/achievements/total_level_1800": false,
+    "/achievements/gather_milk": true,
+    "/achievements/collection_points_1000": true,
+    "/achievements/enhance_to_3": true,
+    "/achievements/total_level_500": true,
+    "/achievements/labyrinth_floor_4": true,
+    "/achievements/bestiary_points_100": true,
+    "/achievements/buy_trainee_charm": true,
+    "/achievements/defeat_jerry": true,
+    "/achievements/enhance_to_10": true,
+    "/achievements/task_tokens_10": true,
+    "/achievements/total_level_100": true,
+    "/achievements/total_level_250": true,
+    "/achievements/labyrinth_floor_2": true,
+    "/achievements/cheesesmith_azure_tool": true,
+    "/achievements/collection_points_200": true,
+    "/achievements/tailor_medium_pouch": true,
+    "/achievements/total_level_1000": true,
+    "/achievements/bestiary_points_200": true,
+    "/achievements/bestiary_points_400": false,
+    "/achievements/learn_ability": true,
+    "/achievements/learn_special_ability": true
+  },
+  "equipmentOwnership": {
+    "/items/holy_alembic": "owned",
+    "/items/alchemists_top": "owned",
+    "/items/basic_alchemy_charm": "owned",
+    "/items/enchanted_gloves": "owned",
+    "/items/necklace_of_speed": "owned",
+    "/items/sorcerer_boots": "owned",
+    "/items/flaming_robe_bottoms": "owned",
+    "/items/holy_shears": "owned",
+    "/items/holy_chisel": "owned",
+    "/items/holy_needle": "owned"
+  },
+  "inventoryMap": {
+    "/items/holy_alembic": 10,
+    "/items/alchemists_top": 7,
+    "/items/rainbow_pot": 0,
+    "/items/basic_alchemy_charm": 0,
+    "/items/rainbow_hammer": 0,
+    "/items/rainbow_spatula": 0,
+    "/items/holy_chisel": 6,
+    "/items/earrings_of_rare_find": 0,
+    "/items/rainbow_enhancer": 0,
+    "/items/sorcerer_boots": 10,
+    "/items/holy_shears": 7,
+    "/items/enchanted_gloves": 10,
+    "/items/radiant_hat": 5,
+    "/items/flaming_robe_bottoms": 10,
+    "/items/redwood_fire_staff": 5,
+    "/items/rainbow_brush": 0,
+    "/items/necklace_of_speed": 3,
+    "/items/eye_watch": 0,
+    "/items/giant_pouch": 0,
+    "/items/ring_of_rare_find": 0,
+    "/items/holy_needle": 5,
+    "/items/advanced_task_badge": 0,
+    "/items/rainbow_hatchet": 0
+  },
+  "materialInventoryMap": {},
+  "seals": []
+}

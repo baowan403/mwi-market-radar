@@ -4,7 +4,7 @@ import type { ActionBuffs } from './buffs';
 import type { NormalizedStrategyGameData } from './game-data';
 import { expandStrategyLiquidation } from './liquidation';
 import type { MarketPriceBook } from './price-book';
-import type { StrategyFlow, StrategyStepResult, StrategyLedger } from './types';
+import type { StrategyFlow, StrategyStepResult, StrategyLedger, PhysicalLedger } from './types';
 import { marketTaxFactor } from './tax';
 
 const HOUR_NS = 3_600_000_000_000;
@@ -127,6 +127,7 @@ function calculate(kind: 'decompose' | 'coinify', options: AlchemyOptions & { en
   const actionHrid = `/actions/alchemy/${kind === 'decompose' ? 'decompose' : 'coinify'}`;
   const action = data.actionsByHrid.get(actionHrid);
   if (!action) throw new Error('煉金策略無法使用');
+  const enhancementLevel = options.enhancementLevel ?? 0;
   const buffs = options.buffs ?? actionBuffs(profile, 'alchemy', data);
   const rate = successRate(kind === 'decompose' ? 0.6 : 0.7, buffs.Level, item.itemLevel, buffs.Success, rank);
   const efficiency = 1 + Math.max(0, (buffs.Level - item.itemLevel) * 0.01) + buffs.Efficiency;
@@ -134,9 +135,69 @@ function calculate(kind: 'decompose' | 'coinify', options: AlchemyOptions & { en
   const effectiveTime = Math.max(action.baseTimeCost / speed, MIN_ACTION_TIME_NS);
   const actionsPerHour = HOUR_NS / effectiveTime * efficiency;
   const successfulActionsPerHour = actionsPerHour * rate;
+  // === 階段一：純物理計算 (Physical Calculation - 零價格依賴) ===
+  const physicalInputs: Record<string, number> = {};
+  physicalInputs[itemHrid] = item.bulkMultiplier * actionsPerHour;
+  if (kind === 'decompose') {
+    physicalInputs[COIN_HRID] = item.bulkMultiplier * (50 + 5 * item.itemLevel) * actionsPerHour;
+  }
+  const catalyst = catalystHrid(kind, rank);
+  if (catalyst) {
+    physicalInputs[catalyst] = successfulActionsPerHour;
+  }
+  const teaUnitsPerHour: Record<string, number> = {};
+  const activeTeas = profile.actions.alchemy?.teas ?? [];
+  for (const teaHrid of activeTeas) {
+    const teaRate = 12 * (1 + buffs.drinkConcentration);
+    teaUnitsPerHour[teaHrid] = teaRate;
+    physicalInputs[teaHrid] = (physicalInputs[teaHrid] ?? 0) + teaRate;
+  }
+
+  const outputUnitsPerSuccess: Record<string, number> = {};
+  const outputUnitsPerHourMap: Record<string, number> = {};
+  const rareAndEssenceUnitsPerHour: Record<string, number> = {};
+
+  if (kind === 'decompose') {
+    for (const out of item.decomposeItems) {
+      const perSuccess = out.count * item.bulkMultiplier;
+      outputUnitsPerSuccess[out.itemHrid] = perSuccess;
+      outputUnitsPerHourMap[out.itemHrid] = perSuccess * successfulActionsPerHour;
+    }
+    if (enhancementLevel > 0) {
+      const count = Math.round(2 * (0.5 + 0.1 * 1.05 ** item.itemLevel) * 2 ** enhancementLevel);
+      outputUnitsPerSuccess['/items/enhancing_essence'] = count;
+      rareAndEssenceUnitsPerHour['/items/enhancing_essence'] = count * successfulActionsPerHour;
+    }
+  } else {
+    const perSuccess = item.sellPrice * 5 * item.bulkMultiplier;
+    outputUnitsPerSuccess[COIN_HRID] = perSuccess;
+    outputUnitsPerHourMap[COIN_HRID] = perSuccess * successfulActionsPerHour;
+  }
+
+  const rare = rareDrop(item.itemLevel, action.baseTimeCost);
+  rareAndEssenceUnitsPerHour[rare.itemHrid] = actionsPerHour * rare.rate * (1 + buffs.RareFind);
+  rareAndEssenceUnitsPerHour['/items/alchemy_essence'] = actionsPerHour * essenceRate(item.itemLevel, action.baseTimeCost) * (1 + buffs.EssenceFind);
+
+  const physical: PhysicalLedger = {
+    effectiveLevel: buffs.Level,
+    speed,
+    efficiency,
+    successRate: rate,
+    actionTimeSeconds: effectiveTime / 1_000_000_000,
+    actionsPerHour,
+    successfulActionsPerHour,
+    inputUnitsPerHour: physicalInputs,
+    outputUnitsPerSuccess,
+    outputUnitsPerHour: outputUnitsPerHourMap,
+    rareAndEssenceUnitsPerHour,
+    teaUnitsPerHour,
+  };
+
+  // === 階段二：經濟價值評估 (Economic Valuation) ===
   const inputs = new Map<string, StrategyFlow>();
   const outputs = new Map<string, StrategyFlow>();
   let liquidationComplete = true;
+
   const addLiquidation = (outputHrid: string, unitsPerHour: number): void => {
     const result = expandStrategyLiquidation({ itemHrid: outputHrid, unitsPerHour, data, prices });
     if (!result.complete) {
@@ -145,7 +206,6 @@ function calculate(kind: 'decompose' | 'coinify', options: AlchemyOptions & { en
     }
     for (const flow of result.flows) addFlow(outputs, flow);
   };
-  const enhancementLevel = options.enhancementLevel ?? 0;
 
   addFlow(inputs, {
     itemHrid, enhancementLevel, unitsPerHour: item.bulkMultiplier * actionsPerHour,
@@ -158,14 +218,13 @@ function calculate(kind: 'decompose' | 'coinify', options: AlchemyOptions & { en
       unitPrice: 1, market: false,
     });
   }
-  const catalyst = catalystHrid(kind, rank);
   if (catalyst) {
     addFlow(inputs, {
       itemHrid: catalyst, enhancementLevel: 0, unitsPerHour: successfulActionsPerHour,
       unitPrice: prices.ask(catalyst), market: true,
     });
   }
-  for (const teaHrid of profile.actions.alchemy.teas) {
+  for (const teaHrid of activeTeas) {
     addFlow(inputs, {
       itemHrid: teaHrid, enhancementLevel: 0,
       unitsPerHour: 12 * (1 + buffs.drinkConcentration),
@@ -188,7 +247,6 @@ function calculate(kind: 'decompose' | 'coinify', options: AlchemyOptions & { en
     addLiquidation(COIN_HRID, item.sellPrice * 5 * item.bulkMultiplier * successfulActionsPerHour);
   }
 
-  const rare = rareDrop(item.itemLevel, action.baseTimeCost);
   addLiquidation(rare.itemHrid, actionsPerHour * rare.rate * (1 + buffs.RareFind));
   addLiquidation(
     '/items/alchemy_essence',
@@ -210,75 +268,52 @@ function calculate(kind: 'decompose' | 'coinify', options: AlchemyOptions & { en
     : null;
   const baseExp = (kind === 'decompose' ? 1.4 : 1) * (10 + item.itemLevel);
 
-  const inputUnitsPerHourMap: Record<string, number> = {};
   const inputAskPricesMap: Record<string, number | null> = {};
   for (const flow of inputList) {
-    inputUnitsPerHourMap[flow.itemHrid] = flow.unitsPerHour;
     inputAskPricesMap[flow.itemHrid] = flow.unitPrice;
   }
 
-  const outputUnitsPerHourMap: Record<string, number> = {};
   const outputBidPricesMap: Record<string, number | null> = {};
-  const rareAndEssenceUnitsPerHour: Record<string, number> = {};
-  const outputUnitsPerSuccess: Record<string, number> = {};
-
-  if (kind === 'decompose') {
-    for (const out of item.decomposeItems) {
-      outputUnitsPerSuccess[out.itemHrid] = out.count * item.bulkMultiplier;
-    }
-  } else {
-    outputUnitsPerSuccess[COIN_HRID] = item.sellPrice * 5 * item.bulkMultiplier;
-  }
-
-  const isPrimaryOutput = (hrid: string): boolean => (
-    kind === 'coinify' ? hrid === COIN_HRID : item.decomposeItems.some((out) => out.itemHrid === hrid)
-  );
-
+  const outputValuations: Record<string, import('./types').OutputValuation> = {};
   for (const flow of outputList) {
-    if (isPrimaryOutput(flow.itemHrid)) {
-      outputUnitsPerHourMap[flow.itemHrid] = flow.unitsPerHour;
-    } else {
-      rareAndEssenceUnitsPerHour[flow.itemHrid] = flow.unitsPerHour;
-    }
     outputBidPricesMap[flow.itemHrid] = flow.unitPrice;
+    const taxFactor = flow.market ? marketTaxFactor(flow.itemHrid) : 1.0;
+    const hasPrice = typeof flow.unitPrice === 'number' && Number.isFinite(flow.unitPrice);
+    outputValuations[flow.itemHrid] = {
+      itemHrid: flow.itemHrid,
+      unitsPerHour: flow.unitsPerHour,
+      unitBidPrice: flow.unitPrice,
+      taxFactor,
+      netValuePerHour: hasPrice ? flow.unitsPerHour * flow.unitPrice! * taxFactor : null,
+    };
   }
 
-  const teaUnitsPerHour: Record<string, number> = {};
   const teaAskPrices: Record<string, number | null> = {};
-  for (const teaHrid of profile.actions.alchemy?.teas ?? []) {
-    teaUnitsPerHour[teaHrid] = 12 * (1 + buffs.drinkConcentration);
+  for (const teaHrid of activeTeas) {
     teaAskPrices[teaHrid] = prices.ask(teaHrid);
   }
 
+  const defaultTaxFactor = kind === 'coinify'
+    ? 1.0
+    : marketTaxFactor(item.decomposeItems[0]?.itemHrid ?? COIN_HRID);
+
   const profitPerHour = valid ? incomePerHour! - costPerHour! : null;
+  const economic: import('./types').EconomicLedger = {
+    complete: valid,
+    inputAskPrices: inputAskPricesMap,
+    outputBidPrices: outputBidPricesMap,
+    outputValuations,
+    taxFactor: defaultTaxFactor,
+    teaAskPrices,
+    revenuePerHour: incomePerHour,
+    costPerHour,
+    profitPerHour,
+    profitPerDay: profitPerHour !== null ? profitPerHour * 24 : null,
+  };
+
   const ledger: StrategyLedger = {
-    physical: {
-      effectiveLevel: buffs.Level,
-      speed,
-      efficiency,
-      successRate: rate,
-      actionTimeSeconds: effectiveTime / 1_000_000_000,
-      actionsPerHour,
-      successfulActionsPerHour,
-      inputUnitsPerHour: inputUnitsPerHourMap,
-      outputUnitsPerSuccess,
-      outputUnitsPerHour: outputUnitsPerHourMap,
-      rareAndEssenceUnitsPerHour,
-      teaUnitsPerHour,
-    },
-    economic: {
-      inputAskPrices: inputAskPricesMap,
-      outputBidPrices: outputBidPricesMap,
-      taxFactor: marketTaxFactor(
-        kind === 'coinify' ? COIN_HRID : (item.decomposeItems[0]?.itemHrid ?? COIN_HRID),
-        true,
-      ),
-      teaAskPrices,
-      revenuePerHour: incomePerHour,
-      costPerHour,
-      profitPerHour,
-      profitPerDay: profitPerHour !== null ? profitPerHour * 24 : null,
-    },
+    physical,
+    economic,
   };
 
   return {

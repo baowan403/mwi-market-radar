@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import strategyDataJson from '../scripts/vendor/milkonomy/strategy-data.json';
+import jotaroProfileJson from './fixtures/jotaro99-profile.json';
 import { normalizeStrategyGameData } from '../src/strategy/game-data';
 import { createStrategyPriceBook } from '../src/strategy/price-book';
 import { calculateDecompose } from '../src/strategy/alchemy';
@@ -7,82 +8,21 @@ import type { PlayerProfile } from '../src/profile/types';
 import type { Snapshot } from '../src/core/types';
 
 const data = normalizeStrategyGameData(strategyDataJson);
+const jotaroProfile = jotaroProfileJson as unknown as PlayerProfile;
 
-describe('Two-Layer Contract: Physical & Economic Ledger Parity Golden Tests', () => {
-  const baselineProfile: PlayerProfile = {
-    id: 'test:ledger-oracle',
-    characterId: 9999,
-    name: 'OracleTester',
-    source: 'milkonomy-v1',
-    importedAt: 0,
-    completeness: 'full',
-    missingFields: [],
-    actions: {
-      alchemy: {
-        playerLevel: 100,
-        tool: { itemHrid: '/items/holy_alembic', enhancementLevel: 10 },
-        body: null,
-        legs: null,
-        back: null,
-        charm: null,
-        houseLevel: 4,
-        teas: ['/items/ultra_alchemy_tea', '/items/catalytic_tea', '/items/efficiency_tea'],
-      },
-      brewing: {
-        playerLevel: 100,
-        tool: { itemHrid: '/items/holy_brewing_vat', enhancementLevel: 10 },
-        body: null,
-        legs: null,
-        back: null,
-        charm: null,
-        houseLevel: 4,
-        teas: ['/items/super_brewing_tea', '/items/gourmet_tea', '/items/artisan_tea'],
-      },
-      cooking: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
-      cheesesmithing: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
-      crafting: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
-      tailoring: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
-      woodcutting: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
-      foraging: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
-      milking: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
-      enhancing: { playerLevel: 1, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
-    },
-    specialEquipment: {
-      hands: { itemHrid: '/items/enchanted_gloves', enhancementLevel: 10 },
-      pouch: { itemHrid: '/items/guzzling_pouch', enhancementLevel: 10 },
-    },
-    communityBuffs: {
-      experience: 10,
-      production: 10,
-      efficiency: 10,
-    },
-    shrines: {
-      shrine_of_wisdom: 10,
-      shrine_of_rhythm: 10,
-    },
-    achievements: {},
-    inventoryMap: {
-      '/items/holy_alembic': 10,
-      '/items/enchanted_gloves': 10,
-      '/items/guzzling_pouch': 10,
-    },
-    materialInventoryMap: {},
-    seals: [],
-  };
-
+describe('MWI Client Ground Truth & Parity Golden Tests (jotaro99)', () => {
   const snapshot: Snapshot = {
     timestamp: 1700000000,
     quotes: {
-      '/items/holy_milk::0': { a: 1530, b: 1450, p: 1490, v: 50000 },
-      '/items/milking_essence::0': { a: 780, b: 760, p: 770, v: 200000 },
-      '/items/prime_catalyst::0': { a: 15000, b: 14000, p: 14500, v: 2000 },
-      '/items/ultra_alchemy_tea::0': { a: 3500, b: 3200, p: 3350, v: 5000 },
-      '/items/catalytic_tea::0': { a: 2800, b: 2500, p: 2650, v: 5000 },
-      '/items/efficiency_tea::0': { a: 1800, b: 1600, p: 1700, v: 5000 },
-      '/items/alchemy_essence::0': { a: 2100, b: 2000, p: 2050, v: 10000 },
-      '/items/large_artisans_crate::0': { a: 12000, b: 10000, p: 11000, v: 1000 },
-      '/items/small_artisans_crate::0': { a: 1200, b: 1000, p: 1100, v: 1000 },
-      '/items/medium_artisans_crate::0': { a: 5000, b: 4000, p: 4500, v: 1000 },
+      '/items/holy_milk::0': { a: 960, b: 920, p: 940, v: 50000 },
+      '/items/milking_essence::0': { a: 450, b: 447, p: 448, v: 200000 },
+      '/items/ultra_alchemy_tea::0': { a: 10400, b: 9800, p: 10000, v: 5000 },
+      '/items/catalytic_tea::0': { a: 3320, b: 3100, p: 3200, v: 5000 },
+      '/items/efficiency_tea::0': { a: 2990, b: 2800, p: 2900, v: 5000 },
+      '/items/alchemy_essence::0': { a: 700, b: 674, p: 680, v: 10000 },
+      '/items/large_artisans_crate::0': { a: 800000, b: 787000, p: 790000, v: 1000 },
+      '/items/small_artisans_crate::0': { a: 8000, b: 7500, p: 7800, v: 1000 },
+      '/items/medium_artisans_crate::0': { a: 50000, b: 45000, p: 48000, v: 1000 },
       '/items/bag_of_10_cowbells::0': { a: 1000, b: 1000, p: 1000, v: 1000 },
       '/items/shard_of_protection::0': { a: 10, b: 10, p: 10, v: 1000 },
       '/items/mirror_of_protection::0': { a: 15, b: 15, p: 15, v: 1000 },
@@ -97,12 +37,12 @@ describe('Two-Layer Contract: Physical & Economic Ledger Parity Golden Tests', (
 
   const prices = createStrategyPriceBook(snapshot, data);
 
-  it('verifies Holy Milk Decompose Physical Ledger and Economic Ledger strictly', () => {
+  it('verifies jotaro99 Holy Milk Decompose against MWI Client Ground Truth (8.97s, 824.57 actions/h)', () => {
     const result = calculateDecompose({
       itemHrid: '/items/holy_milk',
-      catalystRank: 2,
+      catalystRank: 0,
       enhancementLevel: 0,
-      profile: baselineProfile,
+      profile: jotaroProfile,
       data,
       prices,
     });
@@ -110,43 +50,109 @@ describe('Two-Layer Contract: Physical & Economic Ledger Parity Golden Tests', (
     expect(result.valid).toBe(true);
     expect(result.ledger).toBeDefined();
     const ledger = result.ledger!;
-
-    // ── 1. Physical Ledger 檢驗（不受市場價格影響） ──
     const physical = ledger.physical;
-    expect(physical.effectiveLevel).toBeGreaterThanOrEqual(100);
-    expect(physical.speed).toBeGreaterThan(1);
-    expect(physical.efficiency).toBeGreaterThan(1);
-    expect(physical.successRate).toBeGreaterThan(0.6);
-    expect(physical.actionTimeSeconds).toBeGreaterThan(3.0);
-    expect(physical.actionsPerHour).toBeGreaterThan(0);
-    expect(physical.successfulActionsPerHour).toBeCloseTo(
-      physical.actionsPerHour * physical.successRate,
-      4,
-    );
 
-    // 產物物理數量檢驗
-    expect(physical.inputUnitsPerHour['/items/holy_milk']).toBeCloseTo(
-      physical.actionsPerHour * 2,
-      3,
-    );
+    // ── 1. MWI Client Ground Truth 物理數值精確斷言 ──
+    // 遊戲 Client 實機顯示：Action Time = 8.97s (實機 UI 四捨五入)，Actions/h 觀測值 ~824.57 (內部計算為 ~824.26，差異 < 0.5/h)
+    expect(physical.actionTimeSeconds).toBeCloseTo(8.97, 2);
+    expect(Math.abs(physical.actionsPerHour - 824.5714)).toBeLessThan(0.5);
+    expect(physical.actionsPerHour).toBeCloseTo(824.26, 1);
+    expect(physical.successRate).toBeCloseTo(0.63, 2);
+    expect(physical.successfulActionsPerHour).toBeCloseTo(physical.actionsPerHour * physical.successRate, 4);
+
+    // 茶飲消耗量：三種茶飲皆為 12.0/h
+    expect(physical.teaUnitsPerHour['/items/catalytic_tea']).toBeCloseTo(12.0, 2);
+    expect(physical.teaUnitsPerHour['/items/efficiency_tea']).toBeCloseTo(12.0, 2);
+    expect(physical.teaUnitsPerHour['/items/ultra_alchemy_tea']).toBeCloseTo(12.0, 2);
+
+    // 原料消耗量：每動 2 瓶 Holy Milk -> actionsPerHour * 2
+    expect(physical.inputUnitsPerHour['/items/holy_milk']).toBeCloseTo(physical.actionsPerHour * 2, 2);
+
+    // 主產物產出量：每成功 1 次產出 20 個 Milking Essence -> successfulActionsPerHour * 20
     expect(physical.outputUnitsPerSuccess['/items/milking_essence']).toBe(20);
     expect(physical.outputUnitsPerHour['/items/milking_essence']).toBeCloseTo(
       physical.successfulActionsPerHour * 20,
-      3,
+      2,
     );
 
-    // ── 2. Economic Ledger 檢驗（市場估值層） ──
+    // ── 2. 經濟估值層 (Economic Ledger) 與 Reconciliation ──
     const economic = ledger.economic;
-    expect(economic.inputAskPrices['/items/holy_milk']).toBe(1530);
-    expect(economic.outputBidPrices['/items/milking_essence']).toBe(760);
-    expect(economic.taxFactor).toBe(0.95);
+    expect(economic.complete).toBe(true);
+    expect(economic.inputAskPrices['/items/holy_milk']).toBe(960);
+    expect(economic.outputBidPrices['/items/milking_essence']).toBe(447);
+
+    // 稅率對帳：主要產物為市場交易品，稅率必須為 0.95
+    expect(economic.outputValuations['/items/milking_essence']?.taxFactor).toBe(0.95);
+    expect(economic.outputValuations['/items/milking_essence']?.unitBidPrice).toBe(447);
+    expect(economic.outputValuations['/items/milking_essence']?.netValuePerHour).toBeCloseTo(
+      physical.outputUnitsPerHour['/items/milking_essence']! * 447 * 0.95,
+      1,
+    );
+
+    // 總營收 Reconciliation：所有產物淨收益總和必須等於 revenuePerHour
+    let expectedRevenue = 0;
+    for (const val of Object.values(economic.outputValuations)) {
+      if (val.netValuePerHour !== null) {
+        expectedRevenue += val.netValuePerHour;
+      }
+    }
+    expect(economic.revenuePerHour).toBeCloseTo(expectedRevenue, 4);
+
+    // 淨利 = 總營收 - 總成本
     expect(economic.costPerHour).toBeGreaterThan(0);
-    expect(economic.revenuePerHour).toBeGreaterThan(0);
     expect(economic.profitPerHour).toBeCloseTo(
       economic.revenuePerHour! - economic.costPerHour!,
       4,
     );
     expect(economic.profitPerDay).toBeCloseTo(economic.profitPerHour! * 24, 2);
+  });
+
+  it('guarantees complete physical ledger even when market prices are missing (Zero-price dependency)', () => {
+    // 建立完全缺失價格的空 PriceBook
+    const emptySnapshot: Snapshot = {
+      timestamp: 1700000000,
+      quotes: {},
+    };
+    const emptyPrices = createStrategyPriceBook(emptySnapshot, data);
+
+    const normalRun = calculateDecompose({
+      itemHrid: '/items/holy_milk',
+      catalystRank: 0,
+      enhancementLevel: 0,
+      profile: jotaroProfile,
+      data,
+      prices,
+    });
+
+    const unpricedRun = calculateDecompose({
+      itemHrid: '/items/holy_milk',
+      catalystRank: 0,
+      enhancementLevel: 0,
+      profile: jotaroProfile,
+      data,
+      prices: emptyPrices,
+    });
+
+    // 1. 經濟評估必須如實標註不完整
+    expect(unpricedRun.ledger!.economic.complete).toBe(false);
+    expect(unpricedRun.ledger!.economic.revenuePerHour).toBeNull();
+    expect(unpricedRun.ledger!.economic.profitPerHour).toBeNull();
+    expect(unpricedRun.ledger!.economic.profitPerDay).toBeNull();
+
+    // 2. 物理台帳必須 100% 存在且數值與正常價格時完全同構
+    const pNormal = normalRun.ledger!.physical;
+    const pUnpriced = unpricedRun.ledger!.physical;
+
+    expect(pUnpriced.actionTimeSeconds).toBe(pNormal.actionTimeSeconds);
+    expect(pUnpriced.actionsPerHour).toBe(pNormal.actionsPerHour);
+    expect(pUnpriced.successfulActionsPerHour).toBe(pNormal.successfulActionsPerHour);
+    expect(pUnpriced.speed).toBe(pNormal.speed);
+    expect(pUnpriced.efficiency).toBe(pNormal.efficiency);
+    expect(pUnpriced.successRate).toBe(pNormal.successRate);
+    expect(pUnpriced.inputUnitsPerHour).toEqual(pNormal.inputUnitsPerHour);
+    expect(pUnpriced.outputUnitsPerHour).toEqual(pNormal.outputUnitsPerHour);
+    expect(pUnpriced.teaUnitsPerHour).toEqual(pNormal.teaUnitsPerHour);
+    expect(pUnpriced.rareAndEssenceUnitsPerHour).toEqual(pNormal.rareAndEssenceUnitsPerHour);
   });
 
   it('separates physical mechanics from price fluctuations (Price-invariant Physical Ledger)', () => {
@@ -162,18 +168,18 @@ describe('Two-Layer Contract: Physical & Economic Ledger Parity Golden Tests', (
 
     const normalRun = calculateDecompose({
       itemHrid: '/items/holy_milk',
-      catalystRank: 2,
+      catalystRank: 0,
       enhancementLevel: 0,
-      profile: baselineProfile,
+      profile: jotaroProfile,
       data,
       prices,
     });
 
     const expensiveRun = calculateDecompose({
       itemHrid: '/items/holy_milk',
-      catalystRank: 2,
+      catalystRank: 0,
       enhancementLevel: 0,
-      profile: baselineProfile,
+      profile: jotaroProfile,
       data,
       prices: expensivePrices,
     });

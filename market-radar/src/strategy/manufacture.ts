@@ -98,118 +98,165 @@ export function calculateManufacture(input: ManufactureInput): ManufactureResult
 
   const effectiveTime = Math.max(input.baseTimeCost / speed, MIN_ACTION_TIME_NS);
   const actionsPerHour = HOUR_NS / effectiveTime * efficiency;
-  const allPriced = [
-    ...input.ingredients,
-    ...input.products,
-    ...input.essenceDrops,
-    ...input.rareDrops,
-    ...input.teas,
-  ];
-  if (!allPriced.every(validPriced)) {
-    return invalidResult(efficiency, speed, actionsPerHour);
-  }
+  const successfulActionsPerHour = actionsPerHour;
 
+  // === 階段一：純物理計算 (Physical Calculation - 零價格依賴) ===
   const ingredientUnitsPerHour: Record<string, number> = {};
-  const productUnitsPerHour: Record<string, number> = {};
-  let costPerHour = 0;
-  let incomePerHour = 0;
-
   const artisanFactor = Math.max(0, 1 - input.buffs.Artisan);
-  for (const ingredient of input.ingredients as Array<PricedCount & { price: number }>) {
+  for (const ingredient of input.ingredients) {
     const units = ingredient.count
       * (ingredient.artisanEligible === false ? 1 : artisanFactor)
       * actionsPerHour;
     addUnit(ingredientUnitsPerHour, ingredient.itemHrid, units);
-    costPerHour += units * ingredient.price;
   }
 
   const teaUnitsFactor = 12 * (1 + input.buffs.drinkConcentration);
-  for (const tea of input.teas as Array<PricedCount & { price: number }>) {
+  const teaUnitsPerHour: Record<string, number> = {};
+  for (const tea of input.teas) {
     const units = tea.count * teaUnitsFactor;
-    addUnit(ingredientUnitsPerHour, tea.itemHrid, units);
-    costPerHour += units * tea.price;
+    teaUnitsPerHour[tea.itemHrid] = units;
   }
 
-  const addIncome = (item: PricedCount & { price: number }, units: number): void => {
-    addUnit(productUnitsPerHour, item.itemHrid, units);
-    const taxFactor = marketTaxFactor(item.itemHrid, item.taxable !== false);
-    incomePerHour += units * item.price * taxFactor;
+  const productUnitsPerHour: Record<string, number> = {};
+  const outputUnitsPerSuccess: Record<string, number> = {};
+  const gourmetFactor = 1 + input.buffs.Gourmet;
+  for (const product of input.products) {
+    const perSuccess = product.count * gourmetFactor * (product.rate ?? 1);
+    outputUnitsPerSuccess[product.itemHrid] = perSuccess;
+    addUnit(productUnitsPerHour, product.itemHrid, perSuccess * actionsPerHour);
+  }
+
+  const rareAndEssenceUnitsPerHour: Record<string, number> = {};
+  for (const essence of input.essenceDrops) {
+    const units = essence.count * (essence.rate ?? 1) * (1 + input.buffs.EssenceFind) * actionsPerHour;
+    addUnit(rareAndEssenceUnitsPerHour, essence.itemHrid, units);
+    addUnit(productUnitsPerHour, essence.itemHrid, units);
+  }
+  for (const rare of input.rareDrops) {
+    const units = rare.count * (rare.rate ?? 1) * (1 + input.buffs.RareFind) * actionsPerHour;
+    addUnit(rareAndEssenceUnitsPerHour, rare.itemHrid, units);
+    addUnit(productUnitsPerHour, rare.itemHrid, units);
+  }
+
+  const physical = {
+    effectiveLevel: input.playerLevel,
+    speed,
+    efficiency,
+    successRate: 1,
+    actionTimeSeconds: effectiveTime / 1_000_000_000,
+    actionsPerHour,
+    successfulActionsPerHour,
+    inputUnitsPerHour: { ...ingredientUnitsPerHour },
+    outputUnitsPerSuccess,
+    outputUnitsPerHour: { ...productUnitsPerHour },
+    rareAndEssenceUnitsPerHour,
+    teaUnitsPerHour,
   };
 
-  const gourmetFactor = 1 + input.buffs.Gourmet;
-  for (const product of input.products as Array<PricedCount & { price: number }>) {
-    addIncome(product, product.count * gourmetFactor * actionsPerHour * (product.rate ?? 1));
-  }
-  const rareAndEssenceUnitsPerHour: Record<string, number> = {};
-  for (const essence of input.essenceDrops as Array<PricedCount & { price: number }>) {
-    const units = essence.count * (essence.rate ?? 1) * (1 + input.buffs.EssenceFind) * actionsPerHour;
-    addIncome(essence, units);
-    rareAndEssenceUnitsPerHour[essence.itemHrid] = (rareAndEssenceUnitsPerHour[essence.itemHrid] ?? 0) + units;
-  }
-  for (const rare of input.rareDrops as Array<PricedCount & { price: number }>) {
-    const units = rare.count * (rare.rate ?? 1) * (1 + input.buffs.RareFind) * actionsPerHour;
-    addIncome(rare, units);
-    rareAndEssenceUnitsPerHour[rare.itemHrid] = (rareAndEssenceUnitsPerHour[rare.itemHrid] ?? 0) + units;
+  // === 階段二：經濟價值評估 (Economic Valuation) ===
+  const inputAskPrices: Record<string, number | null> = {};
+  let costPerHour = 0;
+  let economicComplete = true;
+
+  for (const ingredient of input.ingredients) {
+    inputAskPrices[ingredient.itemHrid] = ingredient.price;
+    const units = ingredientUnitsPerHour[ingredient.itemHrid] ?? 0;
+    if (typeof ingredient.price === 'number' && Number.isFinite(ingredient.price) && ingredient.price >= 0) {
+      costPerHour += units * ingredient.price;
+    } else {
+      economicComplete = false;
+    }
   }
 
-  const teaUnitsPerHour: Record<string, number> = {};
-  for (const tea of input.teas as Array<PricedCount & { price: number }>) {
-    teaUnitsPerHour[tea.itemHrid] = tea.count * teaUnitsFactor;
+  const teaAskPrices: Record<string, number | null> = {};
+  for (const tea of input.teas) {
+    teaAskPrices[tea.itemHrid] = tea.price;
+    const units = teaUnitsPerHour[tea.itemHrid] ?? 0;
+    if (typeof tea.price === 'number' && Number.isFinite(tea.price) && tea.price >= 0) {
+      costPerHour += units * tea.price;
+    } else {
+      economicComplete = false;
+    }
   }
 
-  const outputUnitsPerSuccess: Record<string, number> = {};
-  for (const product of input.products as Array<PricedCount & { price: number }>) {
-    outputUnitsPerSuccess[product.itemHrid] = product.count * gourmetFactor * (product.rate ?? 1);
+  const outputBidPrices: Record<string, number | null> = {};
+  const outputValuations: Record<string, import('./types').OutputValuation> = {};
+  let incomePerHour = 0;
+
+  for (const product of input.products) {
+    outputBidPrices[product.itemHrid] = product.price;
+    const units = productUnitsPerHour[product.itemHrid] ?? 0;
+    const taxFactor = marketTaxFactor(product.itemHrid, product.taxable !== false);
+    const hasPrice = typeof product.price === 'number' && Number.isFinite(product.price) && product.price >= 0;
+    const netValue = hasPrice ? units * product.price! * taxFactor : null;
+    outputValuations[product.itemHrid] = {
+      itemHrid: product.itemHrid,
+      unitsPerHour: units,
+      unitBidPrice: product.price,
+      taxFactor,
+      netValuePerHour: netValue,
+    };
+    if (hasPrice) {
+      incomePerHour += netValue!;
+    } else {
+      economicComplete = false;
+    }
   }
 
-  const profitPerHour = incomePerHour - costPerHour;
+  for (const drop of [...input.essenceDrops, ...input.rareDrops]) {
+    outputBidPrices[drop.itemHrid] = drop.price;
+    const units = rareAndEssenceUnitsPerHour[drop.itemHrid] ?? 0;
+    const taxFactor = marketTaxFactor(drop.itemHrid, drop.taxable !== false);
+    const hasPrice = typeof drop.price === 'number' && Number.isFinite(drop.price) && drop.price >= 0;
+    const netValue = hasPrice ? units * drop.price! * taxFactor : null;
+    outputValuations[drop.itemHrid] = {
+      itemHrid: drop.itemHrid,
+      unitsPerHour: units,
+      unitBidPrice: drop.price,
+      taxFactor,
+      netValuePerHour: netValue,
+    };
+    if (hasPrice) {
+      incomePerHour += netValue!;
+    } else {
+      economicComplete = false;
+    }
+  }
+
+  const profitPerHour = economicComplete ? incomePerHour - costPerHour : null;
+  const profitPerDay = profitPerHour !== null ? profitPerHour * 24 : null;
+
+  const defaultTaxFactor = input.products.length > 0
+    ? marketTaxFactor(input.products[0]!.itemHrid, input.products[0]!.taxable !== false)
+    : 0.95;
+
+  const economic: import('./types').EconomicLedger = {
+    complete: economicComplete,
+    inputAskPrices,
+    outputBidPrices,
+    outputValuations,
+    taxFactor: defaultTaxFactor,
+    teaAskPrices,
+    revenuePerHour: economicComplete ? incomePerHour : null,
+    costPerHour: economicComplete ? costPerHour : null,
+    profitPerHour,
+    profitPerDay,
+  };
+
   const ledger: StrategyLedger = {
-    physical: {
-      effectiveLevel: input.playerLevel,
-      speed,
-      efficiency,
-      successRate: 1,
-      actionTimeSeconds: effectiveTime / 1_000_000_000,
-      actionsPerHour,
-      successfulActionsPerHour: actionsPerHour,
-      inputUnitsPerHour: Object.fromEntries(
-        (input.ingredients as Array<PricedCount & { price: number }>).map((ing) => [
-          ing.itemHrid,
-          ingredientUnitsPerHour[ing.itemHrid] ?? 0,
-        ]),
-      ),
-      outputUnitsPerSuccess,
-      outputUnitsPerHour: { ...productUnitsPerHour },
-      rareAndEssenceUnitsPerHour,
-      teaUnitsPerHour,
-    },
-    economic: {
-      inputAskPrices: Object.fromEntries(
-        (input.ingredients as Array<PricedCount & { price: number }>).map((ing) => [ing.itemHrid, ing.price]),
-      ),
-      outputBidPrices: Object.fromEntries(
-        (input.products as Array<PricedCount & { price: number }>).map((prod) => [prod.itemHrid, prod.price]),
-      ),
-      taxFactor: marketTaxFactor('/items/coin', true),
-      teaAskPrices: Object.fromEntries(
-        (input.teas as Array<PricedCount & { price: number }>).map((tea) => [tea.itemHrid, tea.price]),
-      ),
-      revenuePerHour: incomePerHour,
-      costPerHour,
-      profitPerHour,
-      profitPerDay: profitPerHour * 24,
-    },
+    physical,
+    economic,
   };
 
   return {
-    valid: true,
+    valid: economicComplete,
     efficiency,
     speed,
     actionsPerHour,
-    costPerHour,
-    incomePerHour,
+    costPerHour: economic.costPerHour,
+    incomePerHour: economic.revenuePerHour,
     profitPerHour,
-    profitPerDay: profitPerHour * 24,
+    profitPerDay,
     ingredientUnitsPerHour,
     productUnitsPerHour,
     ledger,

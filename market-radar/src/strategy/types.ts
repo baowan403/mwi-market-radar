@@ -33,9 +33,19 @@ export interface PhysicalLedger {
   teaUnitsPerHour: Record<string, number>;
 }
 
+export interface OutputValuation {
+  itemHrid: string;
+  unitsPerHour: number;
+  unitBidPrice: number | null;
+  taxFactor: number;
+  netValuePerHour: number | null;
+}
+
 export interface EconomicLedger {
+  complete: boolean;
   inputAskPrices: Record<string, number | null>;
   outputBidPrices: Record<string, number | null>;
+  outputValuations: Record<string, OutputValuation>;
   taxFactor: number;
   teaAskPrices: Record<string, number | null>;
   revenuePerHour: number | null;

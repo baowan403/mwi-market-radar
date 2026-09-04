@@ -45,6 +45,7 @@ export interface PlayerProfile {
   importedAt: number;
   completeness: 'full' | 'partial';
   mechanicsCompleteness?: MechanicsCompleteness;
+  loadoutMode?: LoadoutMode;
   missingFields: string[];
   provenanceMap?: Record<string, FieldProvenance>;
   equipmentOwnership?: Record<string, OwnershipState>;

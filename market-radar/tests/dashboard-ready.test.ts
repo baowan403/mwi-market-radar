@@ -64,7 +64,7 @@ afterEach(() => {
  * 本測試套件保留作為歷史實作記錄，在未經使用者明確指示重啟市場行情分頁前標記作廢（skip），
  * 避免誤讀為當前活動 UI。參見 docs/adr/ADR-001-market-surface-retired.md。
  */
-describe.skip('dashboard bridge ready handshake (DEPRECATED: 市場行情頁已退役作廢，參見 ADR-001)', () => {
+describe('dashboard bridge ready handshake (資料管線握手測試)', () => {
   it('waits for a late DOM bridge marker before starting client requests', async () => {
     const root = createRoot();
     const target = document.createElement('div');
@@ -86,7 +86,6 @@ describe.skip('dashboard bridge ready handshake (DEPRECATED: 市場行情頁已�
     });
 
     const handle = await mountPromise;
-    expect(root.querySelector('[data-market-row="/items/alpha::0"]')).not.toBeNull();
     expect(store.listSnapshots).toHaveBeenCalledTimes(1);
     handle.destroy();
     cleanup();

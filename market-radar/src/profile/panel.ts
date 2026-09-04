@@ -293,7 +293,35 @@ function renderProfileAssumptions(
   heading.textContent = '目前計算配置';
   const note = element('p', 'profile-assumption-note');
   note.textContent = '可直接下拉選擇生活裝備並填寫強化等級（支援模擬）；修改後即時自動重算。';
-  section.append(heading, note);
+
+  // ── 全域配裝推論模式 (Auto / Manual) ──
+  const modeRow = element('div', 'profile-loadout-mode-row');
+  modeRow.style.display = 'flex';
+  modeRow.style.alignItems = 'center';
+  modeRow.style.gap = '8px';
+  modeRow.style.margin = '8px 0 12px 0';
+
+  const modeLabel = element('span', 'profile-assumption-label');
+  modeLabel.textContent = '配裝推論模式：';
+  const modeSelect = element('select', 'profile-select');
+  modeSelect.dataset.profileLoadoutMode = 'true';
+  modeSelect.setAttribute('aria-label', '配裝推論模式');
+  const autoOpt = element('option');
+  autoOpt.value = 'auto';
+  autoOpt.textContent = '全自動最佳化 (Auto: 依持有池推薦最優配裝與茶飲)';
+  const manualOpt = element('option');
+  manualOpt.value = 'manual';
+  manualOpt.textContent = '手動嚴格鎖定 (Manual: 100% 依目前配置與空槽計算)';
+  if (profile.loadoutMode === 'manual') manualOpt.selected = true;
+  else autoOpt.selected = true;
+  modeSelect.append(autoOpt, manualOpt);
+
+  modeSelect.addEventListener('change', () => {
+    profile.loadoutMode = modeSelect.value as 'auto' | 'manual';
+    void onUpdate?.();
+  });
+  modeRow.append(modeLabel, modeSelect);
+  section.append(heading, note, modeRow);
 
   const actions = element('div', 'profile-assumption-actions');
 
@@ -339,6 +367,8 @@ function renderProfileAssumptions(
       } else {
         config.tool = { itemHrid: hrid, enhancementLevel: level };
         profile.inventoryMap[hrid] = level;
+        profile.equipmentOwnership = profile.equipmentOwnership ?? {};
+        profile.equipmentOwnership[hrid] = 'owned';
       }
       void onUpdate?.();
     };
@@ -392,6 +422,8 @@ function renderProfileAssumptions(
       } else {
         config.body = { itemHrid: hrid, enhancementLevel: level };
         profile.inventoryMap[hrid] = level;
+        profile.equipmentOwnership = profile.equipmentOwnership ?? {};
+        profile.equipmentOwnership[hrid] = 'owned';
       }
       void onUpdate?.();
     };
@@ -445,6 +477,8 @@ function renderProfileAssumptions(
       } else {
         config.legs = { itemHrid: hrid, enhancementLevel: level };
         profile.inventoryMap[hrid] = level;
+        profile.equipmentOwnership = profile.equipmentOwnership ?? {};
+        profile.equipmentOwnership[hrid] = 'owned';
       }
       void onUpdate?.();
     };
@@ -518,11 +552,15 @@ function renderProfileAssumptions(
       if (check.checked) {
         profile.inventoryMap[gear.hrid] = level;
         profile.specialEquipment[gear.slot] = { itemHrid: gear.hrid, enhancementLevel: level };
+        profile.equipmentOwnership = profile.equipmentOwnership ?? {};
+        profile.equipmentOwnership[gear.hrid] = 'owned';
       } else {
         delete profile.inventoryMap[gear.hrid];
         if (profile.specialEquipment[gear.slot]?.itemHrid === gear.hrid) {
           delete profile.specialEquipment[gear.slot];
         }
+        profile.equipmentOwnership = profile.equipmentOwnership ?? {};
+        profile.equipmentOwnership[gear.hrid] = 'not-owned';
       }
       void onUpdate?.();
     };

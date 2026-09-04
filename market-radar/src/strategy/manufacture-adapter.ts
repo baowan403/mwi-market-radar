@@ -173,7 +173,10 @@ export function calculateManufactureAction(options: {
     incomePerHour: valid ? result.incomePerHour : null,
     profitPerHour: valid ? result.profitPerHour : null,
     experiencePerHour: baseExperience * (1 + buffs.Experience) * result.actionsPerHour,
-    inputs: priceFlow(result.ingredientUnitsPerHour, 'ask', prices, data),
+    inputs: [
+      ...priceFlow(result.ingredientUnitsPerHour, 'ask', prices, data),
+      ...priceFlow(result.ledger ? result.ledger.physical.teaUnitsPerHour : {}, 'ask', prices, data),
+    ],
     outputs: liquidation.flows,
     ledger: result.ledger,
   };
@@ -262,7 +265,10 @@ export function calculateGatherAction(options: {
     incomePerHour: valid ? result.incomePerHour : null,
     profitPerHour: valid ? result.profitPerHour : null,
     experiencePerHour: baseExperience * (1 + buffs.Experience) * result.actionsPerHour,
-    inputs: priceFlow(result.ingredientUnitsPerHour, 'ask', prices, data),
+    inputs: [
+      ...priceFlow(result.ingredientUnitsPerHour, 'ask', prices, data),
+      ...priceFlow(result.ledger ? result.ledger.physical.teaUnitsPerHour : {}, 'ask', prices, data),
+    ],
     outputs: liquidation.flows,
     ledger: result.ledger,
   };

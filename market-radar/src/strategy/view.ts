@@ -126,7 +126,7 @@ const CONFIDENCE_LABELS: Record<StrategySignalConfidence, string> = {
 export type StrategyFilterSkill = 'all' | 'alpha' | SkillingAction;
 
 export const STRATEGY_SKILL_OPTIONS: Array<{ value: StrategyFilterSkill; label: string }> = [
-  { value: 'all', label: '全部技能' },
+  { value: 'all', label: '全部生活技能（9大技能）' },
   { value: 'alpha', label: '⚡ 突發短缺 / 暴利' },
   { value: 'milking', label: '擠奶' },
   { value: 'foraging', label: '採摘' },
@@ -137,7 +137,7 @@ export const STRATEGY_SKILL_OPTIONS: Array<{ value: StrategyFilterSkill; label: 
   { value: 'cooking', label: '烹飪' },
   { value: 'brewing', label: '沖泡' },
   { value: 'alchemy', label: '煉金' },
-  { value: 'enhancing', label: '強化' },
+  { value: 'enhancing', label: '強化（暫無獨立候選模型）' },
 ];
 
 /** 常見簡繁字符映射，確保輸入簡體亦可精準搜尋繁體資料庫 */
@@ -532,8 +532,10 @@ function flowAssumption(
   side: '投入' | '產出',
   options: StrategyViewOptions,
 ): string {
+  const isTea = flow.itemHrid.endsWith('_tea');
+  const tag = isTea ? ' (理論最佳茶)' : '';
   const price = flow.unitPrice === null ? '內部流轉' : `單價 ${money(flow.unitPrice)}`;
-  return `${side} ${options.itemName(flow.itemHrid)} ${quantity(flow.unitsPerHour)}/h・${price}`;
+  return `${side} ${options.itemName(flow.itemHrid)}${tag} ${quantity(flow.unitsPerHour)}/h・${price}`;
 }
 
 function stepAssumptions(step: StrategyStepResult, options: StrategyViewOptions): HTMLElement {
@@ -588,6 +590,34 @@ function renderResults(
     ? '市場快照已超過 180 分鐘：資料嚴重過期，請留意價格變動。'
     : '主排名採 3D／7D 成交量容量折算收益；買料用賣一、出售用買一並扣 5% 稅，點金免稅。Exporter v1 不含材料數量，因此目前不以裝備 inventoryMap 抵扣原料成本。';
   header.append(heading, warning);
+
+  // ── 機制完整度門禁 (Mechanics Completeness Gate) ──
+  if (profile.mechanicsCompleteness === 'incomplete') {
+    const gateAlert = element('div', 'strategy-gate-alert');
+    gateAlert.dataset.strategyGate = 'incomplete';
+    gateAlert.style.padding = '12px 16px';
+    gateAlert.style.marginTop = '12px';
+    gateAlert.style.backgroundColor = 'rgba(239, 68, 68, 0.12)';
+    gateAlert.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+    gateAlert.style.borderRadius = '6px';
+    gateAlert.innerHTML = '<strong>⛔ 角色快照資料不完整（安全門禁已啟動）</strong>：檢測到神龕等級或社群 Buff 等基礎機制缺失，推薦策略已被暫停呈現，以防計算失真。請點擊上方<strong>「角色快照」</strong>完成資料設定。';
+    header.append(gateAlert);
+    options.target.append(header);
+    return;
+  }
+
+  if (profile.mechanicsCompleteness === 'estimated') {
+    const estBanner = element('div', 'strategy-gate-info');
+    estBanner.dataset.strategyGate = 'estimated';
+    estBanner.style.padding = '8px 12px';
+    estBanner.style.marginTop = '12px';
+    estBanner.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+    estBanner.style.border = '1px solid rgba(59, 130, 246, 0.3)';
+    estBanner.style.borderRadius = '6px';
+    estBanner.innerHTML = '<strong>ℹ️ 估算模式（Estimated）</strong>：目前配裝或茶飲包含理論自動推論，日利為理論極值/容量折算估算值。';
+    header.append(estBanner);
+  }
+
   options.target.append(header);
 
   const filterState: StrategyFilterContext = { ...initialFilter };
