@@ -40,6 +40,7 @@ function candidate(inputUnits: number, outputUnits: number): StrategyCandidate {
         ],
       },
     ],
+    verificationStatus: 'unverified',
   };
 }
 

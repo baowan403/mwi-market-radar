@@ -11,6 +11,7 @@ function candidate(id: string, profitPerHour: number, workingCapital24h: number)
     incomePerHour: workingCapital24h / 24 + profitPerHour,
     workingCapital24h,
     steps: [],
+    verificationStatus: 'unverified',
   };
 }
 

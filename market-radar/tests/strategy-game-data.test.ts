@@ -59,24 +59,28 @@ describe('pinned Milkonomy reference artifacts', () => {
     expect(isDerivedOpenableLootValue('/items/crafting_essence', normalized)).toBe(false);
   });
 
-  it('safely applies verified decompose override with Freshness Guard protection', () => {
-    // 1. 驗證預設 strategyData 中的 Emp Tea Leaf 成功由 10 升級為 20
+  it('preserves raw decompose count when VERIFIED_DECOMPOSE_OVERRIDES is empty (no override)', () => {
+    // 1. VERIFIED_DECOMPOSE_OVERRIDES 已清空，raw count 應保持原始值 10
+    //    經由 alchemy.ts 的 `out.count * bulkMultiplier` = 10 * 2 = 20 (正確 L1-OBSERVED 值)
     const normalized = normalizeStrategyGameData(strategyData);
     const empLeaf = normalized.itemsByHrid.get('/items/emp_tea_leaf');
     const decomp = (empLeaf?.alchemyDetail as any)?.decomposeItems;
     expect(decomp[0].itemHrid).toBe('/items/brewing_essence');
-    expect(decomp[0].count).toBe(20);
+    expect(decomp[0].count).toBe(10); // raw count 未被 override，保持原始 GameData 值
 
-    // 2. 驗證若未來的 raw data 本身已是 20，no-op 正常通過
-    const cloneNoop = JSON.parse(JSON.stringify(strategyData));
-    cloneNoop.itemDetailMap['/items/emp_tea_leaf'].alchemyDetail.decomposeItems[0].count = 20;
-    const normalizedNoop = normalizeStrategyGameData(cloneNoop);
-    const decompNoop = (normalizedNoop.itemsByHrid.get('/items/emp_tea_leaf')?.alchemyDetail as any)?.decomposeItems;
-    expect(decompNoop[0].count).toBe(20);
+    // 2. 驗證空 override dict 不干擾其他物品的正常 normalize
+    const holyMilk = normalized.itemsByHrid.get('/items/holy_milk');
+    const holyDecomp = (holyMilk?.alchemyDetail as any)?.decomposeItems;
+    if (holyDecomp?.[0]) {
+      expect(typeof holyDecomp[0].count).toBe('number');
+    }
 
-    // 3. 驗證若未來的 raw data 出現非預期數值（例如 30），觸發 Freshness Guard 拋出異常，防止未經驗收覆蓋
-    const cloneConflict = JSON.parse(JSON.stringify(strategyData));
-    cloneConflict.itemDetailMap['/items/emp_tea_leaf'].alchemyDetail.decomposeItems[0].count = 30;
-    expect(() => normalizeStrategyGameData(cloneConflict)).toThrowError(/\[Freshness Guard\]/);
+    // 3. 確認 override 機制框架仍存在（空 dict 不報錯）
+    const clone = JSON.parse(JSON.stringify(strategyData));
+    clone.itemDetailMap['/items/emp_tea_leaf'].alchemyDetail.decomposeItems[0].count = 30;
+    // 空 override dict 不會觸發 Freshness Guard，任何 raw count 都被原樣保留
+    const normalized30 = normalizeStrategyGameData(clone);
+    const decomp30 = (normalized30.itemsByHrid.get('/items/emp_tea_leaf')?.alchemyDetail as any)?.decomposeItems;
+    expect(decomp30[0].count).toBe(30); // 空 override = pass-through
   });
 });

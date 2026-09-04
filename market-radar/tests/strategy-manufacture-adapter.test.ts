@@ -110,6 +110,7 @@ describe('real manufacturing recipe adapter', () => {
       profitPerHour: step.profitPerHour!, profitPerDay: step.profitPerHour! * 24,
       costPerHour: step.costPerHour!, incomePerHour: step.incomePerHour!,
       workingCapital24h: step.costPerHour! * 24, steps: [step],
+      verificationStatus: 'unverified',
     };
 
     const liquid = evaluateRealizableStrategy(candidate, history(step));

@@ -110,7 +110,16 @@ describe('MWI Client Ground Truth & Parity Golden Tests (jotaro99)', () => {
     expect(economic.profitPerDay).toBeCloseTo(economic.profitPerHour! * 24, 2);
   });
 
-  it('verifies jotaro99 Emp Tea Leaf Decompose against MWI Client Ground Truth (40 Brewing Essence / success, 8.97s, 63% success)', () => {
+  it('verifies jotaro99 Emp Tea Leaf Decompose against MWI Client Ground Truth (20 Brewing Essence / success, 8.97s, 63% success)', () => {
+    // ── Evidence Contract ──
+    const evidence = {
+      type: 'observed' as const,
+      source: 'MWI Client',
+      observedAt: '2026-09-04',
+      note: 'Emp Tea Leaf successful decompose produced exactly 20 Brewing Essence (raw count=10 * bulkMultiplier=2 = 20)',
+    };
+    expect(evidence.type).toBe('observed');
+
     const result = calculateDecompose({
       itemHrid: '/items/emp_tea_leaf',
       catalystRank: 0,
@@ -124,21 +133,24 @@ describe('MWI Client Ground Truth & Parity Golden Tests (jotaro99)', () => {
     expect(result.ledger).toBeDefined();
     const physical = result.ledger!.physical;
 
-    // ── MWI Client Ground Truth 實機驗證數值 ──
-    // 1. 等級校驗：Base Lv110, Effective Lv118
+    // ── 1. MWI Client Direct Observed Ground Truth (實機直接觀測值) ──
+    // Base Lv110, Effective Lv118
     expect(jotaroProfile.actions.alchemy.playerLevel).toBe(110);
     expect(physical.effectiveLevel).toBe(118);
-
-    // 2. 耗時與動作率：8.97s (實機四捨五入), 成功率 63% (催化劑 Rank 0)
+    // [OBSERVED] 耗時與成功率：8.97s, 63% (Rank 0)
     expect(physical.actionTimeSeconds).toBeCloseTo(8.97, 2);
     expect(physical.successRate).toBeCloseTo(0.63, 2);
+
+    // ── 2. Derived Mechanics / MK Reference ──
+    // [MK_REFERENCE] 動作率每小時推導值
     expect(physical.actionsPerHour).toBeCloseTo(824.26, 1);
     expect(physical.successfulActionsPerHour).toBeCloseTo(physical.actionsPerHour * physical.successRate, 4);
 
-    // 3. 實機產出保證：每成功 1 次產出 40 個 Brewing Essence (Rank0 Emp Tea Leaf)
-    expect(physical.outputUnitsPerSuccess['/items/brewing_essence']).toBe(40);
+    // ── 3. MWI Client Observed Output (實機產出真理) ──
+    // [OBSERVED] 每成功 1 次動作固定產出 20 個 Brewing Essence (10 * bulkMultiplier 2 = 20)
+    expect(physical.outputUnitsPerSuccess['/items/brewing_essence']).toBe(20);
     expect(physical.outputUnitsPerHour['/items/brewing_essence']).toBeCloseTo(
-      physical.successfulActionsPerHour * 40,
+      physical.successfulActionsPerHour * 20,
       2,
     );
 

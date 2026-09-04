@@ -23,6 +23,7 @@ const candidate: StrategyCandidate = {
     ],
     outputs: [{ itemHrid: '/items/plank', enhancementLevel: 0, unitsPerHour: 5, unitPrice: 600, market: true }],
   }],
+  verificationStatus: 'unverified',
 };
 
 const profile = {
