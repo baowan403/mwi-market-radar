@@ -1,7 +1,5 @@
 name: Liquidity Review CI
 
-# Temporary review workflow retained as documentation only after validation.
-# No automatic triggers: main deployment CI is authoritative after merge.
 on:
   workflow_dispatch:
 
