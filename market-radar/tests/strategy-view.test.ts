@@ -508,7 +508,7 @@ describe('strategy recommendation view', () => {
     });
 
     await view.render();
-    // 預設安全日利模式下，只顯示 long（limited 因 24h 容量不足被過濾）
+    // 預設安全日利模式下：佔比 5000% 之異常 reject 策略被安全過濾，僅顯示安全可實現之 long
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual(['long']);
 
     // 點擊「⚡ 理論極值」
@@ -517,7 +517,7 @@ describe('strategy recommendation view', () => {
     expect(theoBtn).not.toBeNull();
     theoBtn.click();
 
-    // 在理論極值模式下，limited (120k/d) 不應被過濾，且依理論日利排在第一！
+    // 在理論極值模式下：按未折算理論極值排序，limited (120,000) 躍升第一，long (24,000) 退居第二！
     const rowsAfter = [...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow);
     expect(rowsAfter).toEqual(['limited', 'long']);
 

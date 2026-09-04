@@ -12,6 +12,7 @@ import {
   type StrategyDecision,
   type StrategyDecisionMode,
 } from './decision';
+import { formatSemanticPath } from './semantic-path';
 import { marketCapacity } from './liquidity';
 import {
   evaluateRealizableStrategy,
@@ -233,6 +234,8 @@ function strategyRow(
   assessedSignal: AssessedSignal,
   pinned: Set<string>,
   options: StrategyViewOptions,
+  data: NormalizedStrategyGameData,
+  sortMode: 'safe' | 'theoretical' = 'safe',
 ): HTMLTableRowElement {
   const { candidate, liquidity } = assessed;
   const { signal } = assessedSignal;
@@ -265,22 +268,41 @@ function strategyRow(
   row.append(stepCell);
 
   const pathCell = element('td', 'strategy-path-cell');
-  pathCell.textContent = candidate.path.map(options.itemName).join(' → ');
+  pathCell.textContent = formatSemanticPath(candidate, data, options.itemName);
   row.append(pathCell);
 
   const profitCell = element('td', 'strategy-profit');
   const mainProfit = element('div', 'strategy-profit-main');
-  mainProfit.textContent = money(candidate.profitPerDay);
-  profitCell.append(mainProfit);
-  if (
-    liquidity.realizableProfitPerDay !== null
-    && Number.isFinite(liquidity.realizableProfitPerDay)
-    && liquidity.realizableProfitPerDay < candidate.profitPerDay * 0.98
-  ) {
-    const subProfit = element('div', 'strategy-profit-sub');
-    subProfit.textContent = `折算 ~${money(liquidity.realizableProfitPerDay)}`;
-    subProfit.title = `市場容量限制：每日安全折算為 ${money(liquidity.realizableProfitPerDay)}`;
-    profitCell.append(subProfit);
+  const hasRealizable = liquidity.realizableProfitPerDay !== null && Number.isFinite(liquidity.realizableProfitPerDay);
+
+  if (sortMode === 'safe') {
+    if (hasRealizable) {
+      mainProfit.textContent = money(liquidity.realizableProfitPerDay!);
+      profitCell.append(mainProfit);
+      if (liquidity.realizableProfitPerDay! < candidate.profitPerDay * 0.98) {
+        const subProfit = element('div', 'strategy-profit-sub');
+        subProfit.textContent = `理論 ~${money(candidate.profitPerDay)}`;
+        subProfit.title = `理論極值為 ${money(candidate.profitPerDay)}，已受市場容量限制折算`;
+        profitCell.append(subProfit);
+      }
+    } else {
+      mainProfit.textContent = '—';
+      mainProfit.title = '市場成交量樣本不足，無法確認安全容量';
+      profitCell.append(mainProfit);
+      const subProfit = element('div', 'strategy-profit-sub');
+      subProfit.textContent = `理論 ~${money(candidate.profitPerDay)}`;
+      subProfit.title = '市場成交量樣本不足，未經安全容量折算';
+      profitCell.append(subProfit);
+    }
+  } else {
+    mainProfit.textContent = money(candidate.profitPerDay);
+    profitCell.append(mainProfit);
+    if (hasRealizable && liquidity.realizableProfitPerDay! < candidate.profitPerDay * 0.98) {
+      const subProfit = element('div', 'strategy-profit-sub');
+      subProfit.textContent = `安全 ~${money(liquidity.realizableProfitPerDay!)}`;
+      subProfit.title = `依市場容量限制，每日安全折算為 ${money(liquidity.realizableProfitPerDay!)}`;
+      profitCell.append(subProfit);
+    }
   }
   row.append(profitCell);
 
@@ -745,7 +767,9 @@ function renderResults(
     if (filterState.sortMode === 'theoretical') {
       return item.candidate.profitPerDay;
     }
-    return item.liquidity.realizableProfitPerDay ?? item.candidate.profitPerDay;
+    // 安全日利模式：嚴格依可實現日利（realizableProfitPerDay）排序
+    // 若為 null（資料不足/未經驗證），安全排序價值為 0，不可用未折算的理論日利充數！
+    return item.liquidity.realizableProfitPerDay ?? 0;
   }
 
   function priorityWeight(priority: StrategyPriority): number {
@@ -893,7 +917,7 @@ function renderResults(
         ? '⚡ 短缺套利首選'
         : (filterState.sortMode === 'theoretical' ? '⚡ 目前理論極值最佳' : '🛡️ 目前安全推薦最佳');
       const value = element('span', 'strategy-decision-summary-title');
-      const bestPathName = best.candidate.path.map((h) => options.itemName(h)).join(' → ');
+      const bestPathName = formatSemanticPath(best.candidate, data, options.itemName);
       value.textContent = `${bestPathName}・預估日利 ${metric(effectiveProfit(best))}`;
       leftContainer.append(label, value);
 
@@ -1002,7 +1026,7 @@ function renderResults(
         };
         signalCache.set(assessedCandidate.candidate.id, assessedSignal);
       }
-      const mainRow = strategyRow(assessedCandidate, assessedSignal, pinned, options);
+      const mainRow = strategyRow(assessedCandidate, assessedSignal, pinned, options, data, filterState.sortMode);
       const detail = detailRow(assessedCandidate, assessedSignal, options);
       detail.hidden = true;
       mainRow.addEventListener('click', (event) => {
