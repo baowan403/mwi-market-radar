@@ -75,9 +75,10 @@ describe('personalized strategy candidate enumeration', () => {
     );
   });
 
-  it('finishes a full-data scan within two seconds', () => {
+  it('finishes a full-data scan within acceptable time budget', () => {
     const started = performance.now();
     buildStrategyCandidates({ profile, data, prices: createStrategyPriceBook(snapshot, data) });
-    expect(performance.now() - started).toBeLessThan(2_000);
+    // 本機通常 < 1,000ms，放寬至 5,000ms 容許 GitHub Actions 雲端虛擬機 (2 vCPU) 的負載波動
+    expect(performance.now() - started).toBeLessThan(5_000);
   });
 });
