@@ -8,7 +8,7 @@ export type LiquidityClassification = 'long-run' | 'small-test' | 'limited' | 'r
 export interface LiquidityWarning {
   itemHrid: string;
   side: 'input' | 'output';
-  code: 'history-incomplete';
+  code: 'history-incomplete' | 'auxiliary-high-share';
 }
 
 export interface RealizableStrategy {
@@ -79,13 +79,19 @@ function classification(share: number): LiquidityClassification {
   return 'reject';
 }
 
+function isAuxiliaryTeaInput(external: ExternalFlow): boolean {
+  return external.side === 'input' && external.flow.itemHrid.endsWith('_tea');
+}
+
 /**
  * Liquidity contract:
  * - A missing current ask/bid is a hard availability failure.
  * - Historical `v` is traded-volume evidence, not visible order-book depth.
- * - Missing INPUT history therefore lowers confidence but must not turn a currently
- *   quoted consumable into an invented zero-liquidity blocker.
- * - Missing OUTPUT history remains a hard stop because sell-through cannot be estimated.
+ * - Tea is an auxiliary consumable. It must have a current ask for costing, but it
+ *   must not dominate the production-share/risk classification of the main trade.
+ *   Weak tea-volume evidence is surfaced as a procurement warning instead.
+ * - Other market inputs remain capacity-constrained when volume evidence exists.
+ * - Missing output history remains a hard stop because sell-through cannot be estimated.
  */
 export function evaluateRealizableStrategy(
   candidate: StrategyCandidate,
@@ -113,6 +119,19 @@ export function evaluateRealizableStrategy(
         classification: 'insufficient',
         warnings,
       };
+    }
+
+    const auxiliaryTea = isAuxiliaryTeaInput(external);
+    if (auxiliaryTea) {
+      if (!capacity.sufficient || capacity.median7d === null || capacity.median7d <= 0) {
+        warnings.push({ itemHrid: external.flow.itemHrid, side: 'input', code: 'history-incomplete' });
+      } else {
+        const teaShare = external.flow.unitsPerHour * 24 / capacity.median7d * 100;
+        if (teaShare > 25) {
+          warnings.push({ itemHrid: external.flow.itemHrid, side: 'input', code: 'auxiliary-high-share' });
+        }
+      }
+      continue;
     }
 
     if (
