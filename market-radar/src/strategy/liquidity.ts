@@ -125,8 +125,9 @@ export function marketCapacity(key: MarketKey, snapshots: readonly Snapshot[]): 
   const median3d = median(daily3d.totals);
   const median7d = median(daily7d.totals);
   const medianPrice7d = median(prices7d);
+  // Preserve the previous ~72h readiness contract while keeping units daily.
   const sufficient = daily3d.totals.length >= 2
-    && daily7d.totals.length >= 4
+    && daily7d.totals.length >= 3
     && median3d !== null
     && median7d !== null;
   const safeUnitsPerDay = sufficient ? SAFE_SHARE * Math.min(median3d, median7d) : null;
