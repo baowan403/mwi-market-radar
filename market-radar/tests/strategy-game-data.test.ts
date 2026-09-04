@@ -58,4 +58,25 @@ describe('pinned Milkonomy reference artifacts', () => {
     expect(isDerivedOpenableLootValue('/items/bag_of_10_cowbells', normalized)).toBe(false);
     expect(isDerivedOpenableLootValue('/items/crafting_essence', normalized)).toBe(false);
   });
+
+  it('safely applies verified decompose override with Freshness Guard protection', () => {
+    // 1. 驗證預設 strategyData 中的 Emp Tea Leaf 成功由 10 升級為 20
+    const normalized = normalizeStrategyGameData(strategyData);
+    const empLeaf = normalized.itemsByHrid.get('/items/emp_tea_leaf');
+    const decomp = (empLeaf?.alchemyDetail as any)?.decomposeItems;
+    expect(decomp[0].itemHrid).toBe('/items/brewing_essence');
+    expect(decomp[0].count).toBe(20);
+
+    // 2. 驗證若未來的 raw data 本身已是 20，no-op 正常通過
+    const cloneNoop = JSON.parse(JSON.stringify(strategyData));
+    cloneNoop.itemDetailMap['/items/emp_tea_leaf'].alchemyDetail.decomposeItems[0].count = 20;
+    const normalizedNoop = normalizeStrategyGameData(cloneNoop);
+    const decompNoop = (normalizedNoop.itemsByHrid.get('/items/emp_tea_leaf')?.alchemyDetail as any)?.decomposeItems;
+    expect(decompNoop[0].count).toBe(20);
+
+    // 3. 驗證若未來的 raw data 出現非預期數值（例如 30），觸發 Freshness Guard 拋出異常，防止未經驗收覆蓋
+    const cloneConflict = JSON.parse(JSON.stringify(strategyData));
+    cloneConflict.itemDetailMap['/items/emp_tea_leaf'].alchemyDetail.decomposeItems[0].count = 30;
+    expect(() => normalizeStrategyGameData(cloneConflict)).toThrowError(/\[Freshness Guard\]/);
+  });
 });

@@ -1,5 +1,6 @@
 import {
   SKILLING_ACTIONS,
+  SHRINE_KEYS,
   type ActionProfile,
   type PlayerProfile,
   type ProfileEquipment,
@@ -212,6 +213,9 @@ function importExporter(data: Record<string, unknown>, importedAt: number): Play
     communityBuffs: hasCommunityBuffs ? 'imported' : 'unknown',
     houses: hasHouses ? 'imported' : 'unknown',
   };
+  for (const key of SHRINE_KEYS) {
+    provenanceMap[`shrine:${key}`] = hasShrines ? 'imported' : 'unknown';
+  }
 
   const equipmentOwnership: Record<string, 'unknown' | 'owned' | 'not-owned'> = {};
   for (const hrid of Object.keys(inventoryMap)) {
@@ -219,7 +223,7 @@ function importExporter(data: Record<string, unknown>, importedAt: number): Play
   }
 
   let mechanicsCompleteness: 'complete' | 'estimated' | 'incomplete' = 'complete';
-  if (!hasInventory || !hasShrines || !hasCommunityBuffs) {
+  if (!hasInventory || !hasShrines || !hasCommunityBuffs || !hasHouses) {
     mechanicsCompleteness = hasInventory ? 'estimated' : 'incomplete';
   }
 
@@ -292,14 +296,21 @@ function importPreset(data: Record<string, unknown>, importedAt: number): Player
     )),
   );
 
+  const hasAllShrines = SHRINE_KEYS.every((k) => k in shrines);
   const provenanceMap: Record<string, 'unknown' | 'imported' | 'user-confirmed'> = {
     skills: 'imported',
     equipment: 'imported',
     inventoryMap: 'unknown',
-    shrines: Object.keys(shrines).length > 0 ? 'imported' : 'unknown',
+    shrines: hasAllShrines ? 'imported' : 'unknown',
     communityBuffs: Object.keys(communityBuffs).length > 0 ? 'imported' : 'unknown',
     houses: 'imported',
   };
+  for (const key of SHRINE_KEYS) {
+    provenanceMap[`shrine:${key}`] = (key in shrines) ? 'imported' : 'unknown';
+  }
+
+  const missingFields = ['characterId', 'inventoryMap'];
+  if (!hasAllShrines) missingFields.push('shrines');
 
   return {
     id: `milkonomy-preset:${name}`,
@@ -309,7 +320,7 @@ function importPreset(data: Record<string, unknown>, importedAt: number): Player
     importedAt,
     completeness: 'partial',
     mechanicsCompleteness: 'estimated',
-    missingFields: ['characterId', 'inventoryMap'],
+    missingFields,
     provenanceMap,
     equipmentOwnership: {},
     actions,
@@ -396,16 +407,28 @@ export function recomputeProfileCompleteness(profile: PlayerProfile): void {
     || (profile.inventoryMap && Object.keys(profile.inventoryMap).length > 0)
     || (profile.equipmentOwnership && Object.keys(profile.equipmentOwnership).length > 0);
 
-  const hasShrines = prov.shrines === 'user-confirmed'
-    || prov.shrines === 'imported'
-    || (profile.shrines && Object.keys(profile.shrines).length > 0);
+  // 5 項生活神龕必須全部確認（per-shrine provenance 門禁）
+  const allShrinesConfirmed = SHRINE_KEYS.every((k) => {
+    const kProv = prov[`shrine:${k}`];
+    return kProv === 'user-confirmed' || (kProv === 'imported' && typeof profile.shrines?.[k] === 'number');
+  });
+
+  if (allShrinesConfirmed) {
+    prov.shrines = prov.shrines === 'imported' ? 'imported' : 'user-confirmed';
+  } else {
+    prov.shrines = 'unknown';
+  }
+  const hasShrines = allShrinesConfirmed;
 
   const hasCommunityBuffs = prov.communityBuffs === 'user-confirmed'
     || prov.communityBuffs === 'imported'
     || (profile.communityBuffs && Object.keys(profile.communityBuffs).length > 0);
 
-  // 2. 判定機制完整度
-  if (hasInventory && hasShrines && hasCommunityBuffs) {
+  const hasHouses = prov.houses === 'user-confirmed'
+    || prov.houses === 'imported';
+
+  // 2. 判定機制完整度（四項核心機制均齊備才算 complete）
+  if (hasInventory && hasShrines && hasCommunityBuffs && hasHouses) {
     profile.mechanicsCompleteness = 'complete';
   } else if (hasInventory) {
     profile.mechanicsCompleteness = 'estimated';
@@ -419,6 +442,7 @@ export function recomputeProfileCompleteness(profile: PlayerProfile): void {
   if (!hasInventory) missing.push('inventoryMap');
   if (!hasShrines) missing.push('shrines');
   if (!hasCommunityBuffs) missing.push('communityBuffs');
+  if (!hasHouses) missing.push('houses');
   profile.missingFields = missing;
   profile.completeness = missing.length === 0 ? 'full' : 'partial';
 }

@@ -6,7 +6,7 @@ import { calculateManufactureAction, calculateGatherAction } from './manufacture
 import type { MarketPriceBook } from './price-book';
 import type { StrategyStepResult } from './types';
 import { calculateWorkflow, type WorkflowResult } from './workflow';
-import { enrichProfileWithBestLoadout } from './optimal-loadout';
+import { enrichProfileWithBestLoadout, isTeaManual } from './optimal-loadout';
 import { findOptimalTeasForAlchemy } from './tea-optimizer';
 
 const MANUFACTURING_ACTIONS = new Set<SkillingAction>([
@@ -252,7 +252,7 @@ export function buildStrategyCandidates(options: {
     const hasDecompose = detail.decomposeItems !== null && detail.decomposeItems !== undefined;
     const canCoinify = detail.isCoinifiable === true;
     const decompositions: StrategyStepResult[] = [];
-    const isManualTea = profile.actions.alchemy?.teaMode === 'manual' || profile.teaMode === 'manual';
+    const isManualTea = isTeaManual(profile, 'alchemy');
     const hasDecomposeMarketPrices = hasDecompose
       && prices.ask(itemHrid) !== null
       && (detail.decomposeItems as Array<{ itemHrid?: string }> ?? []).some((out) => out.itemHrid && prices.bid(out.itemHrid) !== null);

@@ -18,6 +18,9 @@ export interface ProfileEquipment {
   enhancementLevel: number;
 }
 
+export const SHRINE_KEYS = ['power', 'rhythm', 'spirit', 'rare', 'scholar'] as const;
+export type ShrineKey = typeof SHRINE_KEYS[number];
+
 export type OwnershipState = 'unknown' | 'owned' | 'not-owned';
 export type LoadoutMode = 'auto' | 'manual';
 export type TeaMode = 'auto' | 'manual';

@@ -5,7 +5,7 @@ import { expandStrategyLiquidation } from './liquidation';
 import { calculateManufacture, type PricedCount } from './manufacture';
 import type { MarketPriceBook } from './price-book';
 import { findOptimalTeasForManufacture, findOptimalTeasForGathering } from './tea-optimizer';
-import { optimalTeasForAction } from './optimal-loadout';
+import { optimalTeasForAction, isTeaManual } from './optimal-loadout';
 import type { DropItem, StrategyActionDetail, StrategyFlow, StrategyStepResult } from './types';
 
 const MANUFACTURING_ACTIONS = new Set<SkillingAction>([
@@ -100,7 +100,7 @@ export function calculateManufactureAction(options: {
     throw new StrategyRecipeError();
   }
   let activeTeas = profile.actions[action]?.teas ?? [];
-  const isAutoOptimal = profile.actions[action]?.teaMode !== 'manual';
+  const isAutoOptimal = !isTeaManual(profile, action);
 
   let buffs: ActionBuffs;
   if (isAutoOptimal) {
@@ -202,7 +202,7 @@ export function calculateGatherAction(options: {
   if (!detail) throw new StrategyRecipeError();
 
   let activeTeas = profile.actions[action]?.teas ?? [];
-  const isAutoOptimal = profile.actions[action]?.teaMode !== 'manual';
+  const isAutoOptimal = !isTeaManual(profile, action);
   let buffs: ActionBuffs;
 
   if (isAutoOptimal) {

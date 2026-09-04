@@ -203,15 +203,7 @@ describe('profile panel', () => {
 
     await panel.open();
 
-    // 1. 玩家在 UI 上手動確認神龕
-    const powerShrineInput = document.querySelector<HTMLInputElement>('input[data-shrine-key="power"]')!;
-    powerShrineInput.value = '5';
-    powerShrineInput.dispatchEvent(new Event('change'));
-    await new Promise((r) => setTimeout(r, 10));
-
-    expect(notifiedProfile?.provenanceMap.shrines).toBe('user-confirmed');
-
-    // 2. 玩家在 UI 上勾選生活配件（確認 inventoryMap / equipment）
+    // 1. 玩家在 UI 上勾選生活配件（確認 inventoryMap / equipment）
     const alchemy = document.querySelector<HTMLElement>('[data-profile-action="alchemy"]');
     const toolLevelInput = alchemy?.querySelector<HTMLInputElement>('input[aria-label="煉金工具強化等級"]')!;
     toolLevelInput.value = '10';
@@ -219,11 +211,33 @@ describe('profile panel', () => {
     await new Promise((r) => setTimeout(r, 10));
 
     expect(notifiedProfile?.provenanceMap.inventoryMap).toBe('user-confirmed');
+    // 有了裝備但生活神龕尚未齊備，完整度維持 estimated
+    expect(notifiedProfile?.mechanicsCompleteness).toBe('estimated');
 
-    // 3. 斷言完整度由 estimated 升級為 complete
+    // 2. 玩家在 UI 上僅手動修改 power 神龕（單一神龕確認）
+    const powerShrineInput = document.querySelector<HTMLInputElement>('input[data-shrine-key="power"]')!;
+    powerShrineInput.value = '5';
+    powerShrineInput.dispatchEvent(new Event('change'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    // 斷言：單改 power 神龕時，power 設為 user-confirmed，但總體 shrines 仍為 unknown，不得升為 complete！
+    expect(notifiedProfile?.provenanceMap['shrine:power']).toBe('user-confirmed');
+    expect(notifiedProfile?.provenanceMap.shrines).toBe('unknown');
+    expect(notifiedProfile?.mechanicsCompleteness).toBe('estimated');
+
+    // 3. 玩家將剩餘 4 個生活神龕（rhythm, spirit, rare, scholar）全數確認
+    for (const key of ['rhythm', 'spirit', 'rare', 'scholar']) {
+      const input = document.querySelector<HTMLInputElement>(`input[data-shrine-key="${key}"]`)!;
+      input.value = '3';
+      input.dispatchEvent(new Event('change'));
+      await new Promise((r) => setTimeout(r, 10));
+    }
+
+    // 4. 斷言：五項神龕均確認後，shrines 升為 user-confirmed，且完整度正式升級為 complete
+    expect(notifiedProfile?.provenanceMap.shrines).toBe('user-confirmed');
     expect(notifiedProfile?.mechanicsCompleteness).toBe('complete');
 
-    // 4. 斷言持久化：自 store 重新載入，確認 complete 狀態成功持久化
+    // 5. 斷言持久化：自 store 重新載入，確認 complete 狀態成功持久化
     const reloaded = await store.get(notifiedProfile.id);
     expect(reloaded?.mechanicsCompleteness).toBe('complete');
     expect(reloaded?.provenanceMap?.shrines).toBe('user-confirmed');

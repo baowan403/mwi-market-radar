@@ -45,13 +45,13 @@ function add(values: NumberRecord, key: string, value: number): void {
   values[key] = (values[key] ?? 0) + value;
 }
 
-function isActionScoped(property: string, action: SkillingAction): boolean {
-  return property.startsWith(action);
-}
-
-function isGlobalProperty(property: string): boolean {
-  return !SKILLING_ACTIONS.some((action) => property.startsWith(action))
-    && !property.startsWith('skilling');
+function isRelevantSkillingProperty(property: string, action: SkillingAction): boolean {
+  if (property.startsWith(action)) return true;
+  if (property.startsWith('skilling')) return true;
+  if (property === 'drinkConcentration') return true;
+  // 若屬於其他生活技能之專屬屬性，嚴格排除，防止跨技能污染
+  if (SKILLING_ACTIONS.some((otherAction) => property.startsWith(otherAction))) return false;
+  return true;
 }
 
 function equipmentStats(
@@ -69,7 +69,7 @@ function equipmentStats(
   if (!stats) return;
   const multiplier = data.enhancementLevelTotalBonusMultiplierTable[equipment.enhancementLevel] ?? 0;
   for (const [property, base] of Object.entries(stats)) {
-    if (!includeEveryProperty && !isActionScoped(property, action) && !isGlobalProperty(property)) continue;
+    if (!includeEveryProperty && !isRelevantSkillingProperty(property, action)) continue;
     add(values, property, finite(base) + finite(bonuses[property]) * multiplier);
   }
 }
@@ -96,13 +96,14 @@ function completedTier(
   tier: string,
   data: NormalizedStrategyGameData,
 ): boolean {
-  if (profile.achievements[tier] === true || profile.achievements[`/achievement_tiers/${tier}`] === true) {
+  const achievements = profile.achievements ?? {};
+  if (achievements[tier] === true || achievements[`/achievement_tiers/${tier}`] === true) {
     return true;
   }
   const members = Object.entries(data.achievementDetailMap).filter(([, raw]) => (
     record(raw)?.tierHrid === `/achievement_tiers/${tier}`
   ));
-  return members.length > 0 && members.every(([hrid]) => profile.achievements[hrid] === true);
+  return members.length > 0 && members.every(([hrid]) => achievements[hrid] === true);
 }
 
 function applyCommunityBuffs(
@@ -111,7 +112,7 @@ function applyCommunityBuffs(
   action: SkillingAction,
   data: NormalizedStrategyGameData,
 ): void {
-  for (const [type, level] of Object.entries(profile.communityBuffs)) {
+  for (const [type, level] of Object.entries(profile.communityBuffs ?? {})) {
     if (level <= 0) continue;
     const detail = record(data.communityBuffTypeDetailMap[type])
       ?? record(data.communityBuffTypeDetailMap[`/community_buff_types/${type}`]);
@@ -200,21 +201,24 @@ export function actionBuffs(
 ): ActionBuffs {
   const values: NumberRecord = {};
 
-  for (const equipment of Object.values(profile.specialEquipment)) {
-    equipmentStats(values, equipment, action, data, true);
+  for (const equipment of Object.values(profile.specialEquipment ?? {})) {
+    // 嚴格傳入 false：禁止將單一技能專屬特殊裝備的屬性無條件全域套用到其他無關技能！
+    equipmentStats(values, equipment, action, data, false);
   }
   applyCommunityBuffs(values, profile, action, data);
   applyAchievementBuffs(values, profile, action, data);
 
-  const actionProfile = profile.actions[action];
-  for (const equipment of [
-    actionProfile.tool,
-    actionProfile.body,
-    actionProfile.legs,
-    actionProfile.back,
-    actionProfile.charm,
-  ]) {
-    equipmentStats(values, equipment, action, data, false);
+  const actionProfile = profile.actions?.[action];
+  if (actionProfile) {
+    for (const equipment of [
+      actionProfile.tool,
+      actionProfile.body,
+      actionProfile.legs,
+      actionProfile.back,
+      actionProfile.charm,
+    ]) {
+      equipmentStats(values, equipment, action, data, false);
+    }
   }
 
   const house = action === 'enhancing' ? ENHANCING_HOUSE : DEFAULT_HOUSE;

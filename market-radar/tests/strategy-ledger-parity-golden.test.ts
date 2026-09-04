@@ -39,7 +39,7 @@ describe('MWI Client Ground Truth & Parity Golden Tests (jotaro99)', () => {
 
   const prices = createStrategyPriceBook(snapshot, data);
 
-  it('verifies jotaro99 Holy Milk Decompose against MWI Client Ground Truth (8.97s, 824.57 actions/h)', () => {
+  it('verifies jotaro99 Holy Milk Decompose against MWI Client Ground Truth (8.97s, 63%) and Derived Mechanics (~824.26 actions/h)', () => {
     const result = calculateDecompose({
       itemHrid: '/items/holy_milk',
       catalystRank: 0,
@@ -54,12 +54,13 @@ describe('MWI Client Ground Truth & Parity Golden Tests (jotaro99)', () => {
     const ledger = result.ledger!;
     const physical = ledger.physical;
 
-    // ── 1. MWI Client Ground Truth 物理數值精確斷言 ──
-    // 遊戲 Client 實機顯示：Action Time = 8.97s (實機 UI 四捨五入)，Actions/h 觀測值 ~824.57 (內部計算為 ~824.26，差異 < 0.5/h)
+    // ── 1. MWI Client Direct Observed Ground Truth (實機直接觀測值) ──
     expect(physical.actionTimeSeconds).toBeCloseTo(8.97, 2);
+    expect(physical.successRate).toBeCloseTo(0.63, 2);
+
+    // ── 2. Derived Mechanics (推導機制值，非 Client UI 直接顯示之原始數值) ──
     expect(Math.abs(physical.actionsPerHour - 824.5714)).toBeLessThan(0.5);
     expect(physical.actionsPerHour).toBeCloseTo(824.26, 1);
-    expect(physical.successRate).toBeCloseTo(0.63, 2);
     expect(physical.successfulActionsPerHour).toBeCloseTo(physical.actionsPerHour * physical.successRate, 4);
 
     // 茶飲消耗量：三種茶飲皆為 12.0/h

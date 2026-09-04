@@ -1,4 +1,5 @@
 import type { PlayerProfile, ProfileEquipment, SkillingAction } from '../profile/types';
+import { actionBuffs } from './buffs';
 import type { NormalizedStrategyGameData } from './game-data';
 
 const OPTIMAL_TEAS_BY_ACTION: Record<SkillingAction, string[]> = {
@@ -99,6 +100,18 @@ export function bestEquipmentForActionSlot(
   let bestCandidate: ProfileEquipment | null = null;
   let bestScore = -1;
 
+  // 判斷當前技能是否已達 3 秒時間下限（3,000,000,000 ns Floor）
+  let baseTimeCost = 12_000_000_000;
+  for (const [hrid, act] of data.actionsByHrid) {
+    if (hrid.startsWith(`/actions/${action}/`) && typeof act.baseTimeCost === 'number' && act.baseTimeCost > 0) {
+      baseTimeCost = act.baseTimeCost;
+      break;
+    }
+  }
+  const buffs = actionBuffs(profile, action, data);
+  const currentSpeed = 1 + buffs.Speed;
+  const isSpeedCapped = (baseTimeCost / currentSpeed) <= 3_000_000_000;
+
   // 納入目前已穿戴的裝備作為候選比較基準
   if (currentEquipped) {
     const score = evaluateEquipmentUpliftForAction(
@@ -106,6 +119,7 @@ export function bestEquipmentForActionSlot(
       currentEquipped.enhancementLevel,
       action,
       data,
+      { isSpeedCapped },
     );
     if (score > 0) {
       bestCandidate = currentEquipped;
@@ -120,7 +134,7 @@ export function bestEquipmentForActionSlot(
     const item = data.itemDetailMap[hrid];
     if (!item || !item.equipmentDetail || item.equipmentDetail.type !== slotType) continue;
 
-    const upliftScore = evaluateEquipmentUpliftForAction(hrid, enhanceLevel, action, data);
+    const upliftScore = evaluateEquipmentUpliftForAction(hrid, enhanceLevel, action, data, { isSpeedCapped });
     if (upliftScore <= 0) continue;
 
     if (upliftScore > bestScore || (Math.abs(upliftScore - bestScore) < 1e-6 && enhanceLevel > (bestCandidate?.enhancementLevel ?? -1))) {
@@ -145,6 +159,14 @@ export function bestEquipmentFromInventoryForAction(
   const dummyProfile: PlayerProfile = {
     inventoryMap,
     equipmentOwnership: ownershipMap,
+    specialEquipment: {},
+    actions: {
+      [action]: { playerLevel: 100, tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0, teas: [] },
+    },
+    communityBuffs: {},
+    shrines: {},
+    achievements: {},
+    seals: [],
   } as unknown as PlayerProfile;
 
   return bestEquipmentForActionSlot(dummyProfile, action, slotType, null, data);
@@ -193,12 +215,19 @@ export function bestSpecialEquipmentFromInventory(
 }
 
 /**
+ * 判斷指定生活技能之茶飲是否為手動模式（全域手動或單項手動皆視為手動）
+ */
+export function isTeaManual(profile: PlayerProfile, action: SkillingAction): boolean {
+  return profile.teaMode === 'manual' || profile.actions[action]?.teaMode === 'manual';
+}
+
+/**
  * 智慧豐富角色快照：
  * 1. 嚴格尊重 Manual 設定：
  *    - 若 profile.loadoutMode === 'manual' 或 action.loadoutMode === 'manual'，
  *      所有生活裝備槽位（tool, body, legs, back, charm）100% 保持原值（包含 null 空槽），絕不覆蓋。
  *    - 若 profile.loadoutMode === 'manual'，特殊生活飾品槽位亦 100% 保持原值，不自動填充。
- *    - 若 action.teaMode === 'manual'，茶飲清單 100% 保持原值，不自動填充。
+ *    - 若 isTeaManual(profile, action)，茶飲清單 100% 保持原值，不自動填充。
  * 2. Auto 模式：
  *    - 僅在玩家明確持有（equipmentOwnership === 'owned'）的裝備池中挑選最優生活裝備。
  *    - 若玩家目前穿戴之裝備比持有池中更佳，予以保留；否則換上持有池中收益最高的裝備。
@@ -236,7 +265,7 @@ export function enrichProfileWithBestLoadout(
   for (const [actionKey, actionProfile] of Object.entries(enrichedActions)) {
     const action = actionKey as SkillingAction;
     const isActionManualLoadout = isGlobalManualLoadout || actionProfile.loadoutMode === 'manual';
-    const isActionManualTea = actionProfile.teaMode === 'manual';
+    const isActionManualTea = isTeaManual(profile, action);
 
     // ── 茶飲解析 ──
     let teas = actionProfile.teas ?? [];

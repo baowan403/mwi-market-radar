@@ -2,6 +2,7 @@ import { ProfileImportError, importPlayerProfile, recomputeProfileCompleteness }
 import type { ProfileStore } from './store';
 import {
   SKILLING_ACTIONS,
+  SHRINE_KEYS,
   type PlayerProfile,
   type ProfileEquipment,
   type SkillingAction,
@@ -215,7 +216,6 @@ const COMMON_SKILLING_GEAR: { hrid: string; name: string; slot: string }[] = [
   { hrid: '/items/guzzling_pouch', name: '暴飲袋 (茶飲濃度)', slot: 'pouch' },
 ];
 
-const SHRINE_KEYS = ['power', 'rhythm', 'spirit', 'rare', 'scholar'] as const;
 const SHRINE_NAMES: Record<string, string> = {
   power: '力量神龕 (作業效率 +0.5%/Lv)',
   rhythm: '節奏神龕 (作業速度 +0.5%/Lv)',
@@ -647,7 +647,7 @@ function renderProfileAssumptions(
       input.value = String(lvl);
       profile.shrines[key] = lvl;
       profile.provenanceMap = profile.provenanceMap ?? {};
-      profile.provenanceMap.shrines = 'user-confirmed';
+      profile.provenanceMap[`shrine:${key}`] = 'user-confirmed';
       recomputeProfileCompleteness(profile);
       void onUpdate?.();
     });
