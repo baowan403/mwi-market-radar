@@ -1,4 +1,4 @@
-import type { Snapshot } from '../core/types';
+import type { MarketKey, Snapshot } from '../core/types';
 import { formatCompactNumber } from '../core/format-number';
 import type { PlayerProfile, SkillingAction } from '../profile/types';
 import { backtestStrategySignals, type StrategyBacktestResult } from './backtest';
@@ -12,6 +12,7 @@ import {
   type StrategyDecision,
   type StrategyDecisionMode,
 } from './decision';
+import { marketCapacity } from './liquidity';
 import {
   evaluateRealizableStrategy,
   externalStrategyFlows,
@@ -833,15 +834,32 @@ function renderResults(
         return effectiveProfit(right) - effectiveProfit(left);
       });
     } else {
-      matched = assessed.filter(({ candidate, decision }) => {
+      matched = assessed.filter(({ candidate, liquidity }) => {
         if (!matchesSkill(candidate, filterState.selectedSkill)) return false;
         if (isSearchActive) {
           return matchesSearchQuery(candidate, filterState.searchQuery, options.itemName);
         }
-        if (filterState.sortMode === 'theoretical') {
-          return candidate.profitPerDay > 0;
-        }
-        return decision.actionable;
+        // 理論日利 <= 0 者不顯示
+        if (candidate.profitPerDay <= 0) return false;
+
+        // 理論極值模式：放行所有正收益策略
+        if (filterState.sortMode === 'theoretical') return true;
+
+        // 常態模式：排除異常情形
+        // 1. reject: 成交量個位數之冷門裝備（如翠綠護手）、價格異常插針
+        if (liquidity.classification === 'reject') return false;
+
+        // 2. 市場只有掛買沒有掛賣或相反（單邊無掛單，原料買不到或產品賣不掉）
+        const flows = externalStrategyFlows(candidate);
+        const hasMissingSide = flows.some((external) => {
+          const cap = marketCapacity(`${external.flow.itemHrid}::${external.flow.enhancementLevel}` as MarketKey, snapshots);
+          return external.side === 'input' ? !cap.askAvailable : !cap.bidAvailable;
+        });
+        if (hasMissingSide) return false;
+
+        // 正常的原物料、大宗商品，即使吞吐佔比 > 5% 或歷史樣本未滿 72h，均正常顯示，
+        // 由日產佔比顏色示警（黃/橘/紅）與優先級降評，絕不無故隱藏。
+        return true;
       });
 
       // 常態排序：優先依折算後日利排序，99.9% 的情況下無需調用昂貴的信號回測！

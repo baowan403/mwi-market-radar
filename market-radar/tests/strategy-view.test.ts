@@ -205,10 +205,15 @@ describe('strategy recommendation view', () => {
     expect(target.querySelector('[data-strategy-scope]')).toBeNull();
     expect(target.querySelector('[data-strategy-mode]')).toBeNull();
     expect(target.querySelector('[data-strategy-hours]')).toBeNull();
-    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow)).toEqual([
-      'long',
-    ]);
+    
+    // 嚴格排除缺少報價（insufficient）與異常（reject）項目，保留 long 與 limited 供使用者知情與降評評估
+    const renderedRowIds = [...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow);
+    expect(renderedRowIds).toContain('long');
+    expect(renderedRowIds).toContain('limited');
+    expect(renderedRowIds).not.toContain('insufficient');
+    expect(renderedRowIds).not.toContain('reject');
     expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('低');
+    expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('高');
     expect(target.querySelector('[data-strategy-row="long"] [data-strategy-priority]')).not.toBeNull();
     expect(target.querySelector('[data-strategy-row="long"] .strategy-sparkline')).not.toBeNull();
     expect(target.querySelectorAll('[data-strategy-row="long"] .strategy-trend-cell')).toHaveLength(3);
