@@ -5,6 +5,12 @@ import type { StrategyFlow } from './types';
 
 export type LiquidityClassification = 'long-run' | 'small-test' | 'limited' | 'reject' | 'insufficient';
 
+export interface LiquidityWarning {
+  itemHrid: string;
+  side: 'input' | 'output';
+  code: 'history-incomplete' | 'auxiliary-high-share';
+}
+
 export interface RealizableStrategy {
   theoreticalProfitPerDay: number;
   realizableProfitPerDay: number | null;
@@ -15,6 +21,7 @@ export interface RealizableStrategy {
   bottleneckHrid: string | null;
   bottleneckSide: 'input' | 'output' | null;
   classification: LiquidityClassification;
+  warnings: LiquidityWarning[];
 }
 
 interface ExternalFlow {
@@ -24,6 +31,7 @@ interface ExternalFlow {
 
 type AvailableMarketCapacity = MarketCapacity & {
   safeUnitsPerHour: number;
+  safeUnitsPerDay: number;
   median7d: number;
 };
 
@@ -71,29 +79,34 @@ function classification(share: number): LiquidityClassification {
   return 'reject';
 }
 
+function isAuxiliaryTeaInput(external: ExternalFlow): boolean {
+  return external.side === 'input' && external.flow.itemHrid.endsWith('_tea');
+}
+
+/**
+ * Liquidity contract:
+ * - A missing current ask/bid is a hard availability failure.
+ * - Historical `v` is traded-volume evidence, not visible order-book depth.
+ * - Tea is an auxiliary consumable. It must have a current ask for costing, but it
+ *   must not dominate the production-share/risk classification of the main trade.
+ *   Weak tea-volume evidence is surfaced as a procurement warning instead.
+ * - Other market inputs remain capacity-constrained when volume evidence exists.
+ * - Missing output history remains a hard stop because sell-through cannot be estimated.
+ */
 export function evaluateRealizableStrategy(
   candidate: StrategyCandidate,
   snapshots: readonly Snapshot[],
 ): RealizableStrategy {
   const flows = externalStrategyFlows(candidate);
   const evaluated: EvaluatedExternalFlow[] = [];
+  const warnings: LiquidityWarning[] = [];
   let hasAnomaly = false;
+
   for (const external of flows) {
     const capacity = marketCapacity(key(external.flow) as MarketKey, snapshots);
     const sideAvailable = external.side === 'input' ? capacity.askAvailable : capacity.bidAvailable;
-    const isPriceAnomaly = external.side === 'output'
-      && capacity.medianPrice7d !== null
-      && external.flow.unitPrice !== null
-      && capacity.median7d !== null
-      && capacity.median7d < 50
-      && external.flow.unitPrice > capacity.medianPrice7d * 2.5;
 
-    if (
-      !capacity.sufficient
-      || !sideAvailable
-      || capacity.safeUnitsPerHour === null
-      || capacity.median7d === null
-    ) {
+    if (!sideAvailable) {
       return {
         theoreticalProfitPerDay: candidate.profitPerDay,
         realizableProfitPerDay: null,
@@ -104,28 +117,74 @@ export function evaluateRealizableStrategy(
         bottleneckHrid: external.flow.itemHrid,
         bottleneckSide: external.side,
         classification: 'insufficient',
+        warnings,
       };
     }
-    if (capacity.isGhostLiquidity || isPriceAnomaly) {
-      hasAnomaly = true;
+
+    const auxiliaryTea = isAuxiliaryTeaInput(external);
+    if (auxiliaryTea) {
+      if (!capacity.sufficient || capacity.median7d === null || capacity.median7d <= 0) {
+        warnings.push({ itemHrid: external.flow.itemHrid, side: 'input', code: 'history-incomplete' });
+      } else {
+        const teaShare = external.flow.unitsPerHour * 24 / capacity.median7d * 100;
+        if (teaShare > 25) {
+          warnings.push({ itemHrid: external.flow.itemHrid, side: 'input', code: 'auxiliary-high-share' });
+        }
+      }
+      continue;
     }
+
+    if (
+      !capacity.sufficient
+      || capacity.safeUnitsPerHour === null
+      || capacity.safeUnitsPerDay === null
+      || capacity.median7d === null
+    ) {
+      if (external.side === 'input') {
+        warnings.push({ itemHrid: external.flow.itemHrid, side: 'input', code: 'history-incomplete' });
+        continue;
+      }
+      return {
+        theoreticalProfitPerDay: candidate.profitPerDay,
+        realizableProfitPerDay: null,
+        safeHoursPerDay: null,
+        safeBatchUnits: null,
+        sellThroughDays: null,
+        marketSharePct: null,
+        bottleneckHrid: external.flow.itemHrid,
+        bottleneckSide: external.side,
+        classification: 'insufficient',
+        warnings,
+      };
+    }
+
+    const isPriceAnomaly = external.side === 'output'
+      && capacity.medianPrice7d !== null
+      && external.flow.unitPrice !== null
+      && capacity.median7d < 50 * 24
+      && external.flow.unitPrice > capacity.medianPrice7d * 2.5;
+
+    if (capacity.isGhostLiquidity || isPriceAnomaly) hasAnomaly = true;
+
+    const demandPerDay = external.flow.unitsPerHour * 24;
     const share = capacity.median7d === 0
-      ? external.flow.unitsPerHour > 0 ? Number.POSITIVE_INFINITY : 0
-      : external.flow.unitsPerHour / capacity.median7d * 100;
-    const safeRatio = external.flow.unitsPerHour <= 0
-      ? 1
-      : capacity.safeUnitsPerHour / external.flow.unitsPerHour;
+      ? demandPerDay > 0 ? Number.POSITIVE_INFINITY : 0
+      : demandPerDay / capacity.median7d * 100;
+    const safeRatio = demandPerDay <= 0 ? 1 : capacity.safeUnitsPerDay / demandPerDay;
+
     evaluated.push({
       ...external,
       capacity: {
         ...capacity,
         safeUnitsPerHour: capacity.safeUnitsPerHour,
+        safeUnitsPerDay: capacity.safeUnitsPerDay,
         median7d: capacity.median7d,
       },
       share,
       safeRatio,
     });
   }
+
   if (evaluated.length === 0) {
     return {
       theoreticalProfitPerDay: candidate.profitPerDay,
@@ -137,8 +196,10 @@ export function evaluateRealizableStrategy(
       bottleneckHrid: null,
       bottleneckSide: null,
       classification: 'long-run',
+      warnings,
     };
   }
+
   const bottleneck = evaluated.reduce((current, item) => (
     item.safeRatio < current.safeRatio ? item : current
   ));
@@ -146,19 +207,20 @@ export function evaluateRealizableStrategy(
   const operationRatio = Math.max(0, Math.min(1, bottleneck.safeRatio));
   const finalOutputHrid = candidate.path.at(-1);
   const finalOutput = evaluated.find((item) => item.side === 'output' && item.flow.itemHrid === finalOutputHrid);
-  const sellThroughDays = finalOutput && finalOutput.capacity.median7d !== null && finalOutput.capacity.median7d > 0
-    ? finalOutput.flow.unitsPerHour / finalOutput.capacity.median7d
+  const sellThroughDays = finalOutput && finalOutput.capacity.median7d > 0
+    ? (finalOutput.flow.unitsPerHour * 24) / finalOutput.capacity.median7d
     : null;
 
   return {
     theoreticalProfitPerDay: candidate.profitPerDay,
     realizableProfitPerDay: candidate.profitPerDay * operationRatio,
     safeHoursPerDay: 24 * operationRatio,
-    safeBatchUnits: bottleneck.capacity.safeUnitsPerHour * 24,
+    safeBatchUnits: bottleneck.capacity.safeUnitsPerDay,
     sellThroughDays,
     marketSharePct: maximumShare,
     bottleneckHrid: bottleneck.flow.itemHrid,
     bottleneckSide: bottleneck.side,
     classification: (hasAnomaly || maximumShare > 25) ? 'reject' : classification(maximumShare),
+    warnings,
   };
 }
