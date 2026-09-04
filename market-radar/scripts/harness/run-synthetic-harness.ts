@@ -81,7 +81,7 @@ export function generateAndSaveReport() {
     nonOverlapping: true,
   });
 
-  const jsonReportPath = path.resolve('reports/momentum-backtest-2026-09.json');
+  const jsonReportPath = path.resolve('reports/synthetic-harness-demo-2026-09.json');
   fs.writeFileSync(jsonReportPath, JSON.stringify(report, null, 2), 'utf-8');
   console.log('JSON report written to:', jsonReportPath);
 
@@ -92,12 +92,14 @@ export function generateAndSaveReport() {
   const bMetrics = report.baselines['B_SafeProfit_Momentum']?.holdoutMetrics;
   const cMetrics = report.baselines['C_TheoreticalProfit']?.holdoutMetrics;
 
-  const mdReport = `# MWI Market Radar: Walk-Forward 實證回測與三大 Baseline 對打報告 (2026-09)
+  const mdReport = `# MWI Market Radar: Synthetic Walk-Forward Harness Demo 報告 (2026-09)
+
+> **重要聲明**：本報告由合成資料集（Synthetic Dataset）生成，僅展示 Walk-Forward 測試框架的管線連通性與數值完整性，**絕非真實市場實證結論**。不可據此斷言動能無 Alpha。
 
 - **生成時間**：${report.timestamp}
 - **GameData 版本約束**：${report.datasetStats.gameDataVersion}
 - **樣本視窗**：共 ${report.datasetStats.totalSnapshots} 個日快照（有效樣本 ${report.datasetStats.filteredSnapshots} 個）
-- **時序切分機制**：Train 60% (${report.datasetStats.splits.train} 天) / Validation 20% (${report.datasetStats.splits.validation} 天) / Holdout Test 20% (${report.datasetStats.splits.holdout} 天)（嚴禁隨機 Shuffle，時間無洩漏）
+- **時序切分機制**：Train 60% (${report.datasetStats.splits.train} 天) / Validation 20% (${report.datasetStats.splits.validation} 天) / Holdout Test 20% (${report.datasetStats.splits.holdout} 天)（時間無洩漏，嚴格非重疊視窗）
 
 ---
 
@@ -111,51 +113,50 @@ export function generateAndSaveReport() {
 
 ---
 
-## 2. Holdout 測試集實測對打表現 (嚴格非重疊視窗)
+## 2. Holdout 測試集對打表現 (Synthetic Demo)
 
 ### 2.1 各視窗指標對照表
 
-| Baseline | 視窗 (Horizon) | 樣本數 | 勝率 (Hit Rate) | 每日平均收益變動率 | 最大不利回撤 (Max Drawdown) |
+| Baseline | 視窗 (Horizon) | 樣本數 | 勝率 (Hit Rate) | 每日平均收益變動率 (Margin Return %) | 最大不利回撤 (Max Drawdown) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Baseline A (Safe Profit)** | 24h | ${aMetrics?.['24h']?.sampleCount} | ${((aMetrics?.['24h']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(aMetrics?.['24h']?.averageProfitPerDay ?? 0).toFixed(2)}% | ${(aMetrics?.['24h']?.maxDrawdownPct ?? 0).toFixed(2)}% |
-| | 3d | ${aMetrics?.['3d']?.sampleCount} | ${((aMetrics?.['3d']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(aMetrics?.['3d']?.averageProfitPerDay ?? 0).toFixed(2)}% | ${(aMetrics?.['3d']?.maxDrawdownPct ?? 0).toFixed(2)}% |
-| | 7d | ${aMetrics?.['7d']?.sampleCount} | ${((aMetrics?.['7d']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(aMetrics?.['7d']?.averageProfitPerDay ?? 0).toFixed(2)}% | ${(aMetrics?.['7d']?.maxDrawdownPct ?? 0).toFixed(2)}% |
-| **Baseline B (Safe + Momentum)** | 24h | ${bMetrics?.['24h']?.sampleCount} | ${((bMetrics?.['24h']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(bMetrics?.['24h']?.averageProfitPerDay ?? 0).toFixed(2)}% | ${(bMetrics?.['24h']?.maxDrawdownPct ?? 0).toFixed(2)}% |
-| | 3d | ${bMetrics?.['3d']?.sampleCount} | ${((bMetrics?.['3d']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(bMetrics?.['3d']?.averageProfitPerDay ?? 0).toFixed(2)}% | ${(bMetrics?.['3d']?.maxDrawdownPct ?? 0).toFixed(2)}% |
-| | 7d | ${bMetrics?.['7d']?.sampleCount} | ${((bMetrics?.['7d']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(bMetrics?.['7d']?.averageProfitPerDay ?? 0).toFixed(2)}% | ${(bMetrics?.['7d']?.maxDrawdownPct ?? 0).toFixed(2)}% |
-| **Baseline C (Theoretical)** | 24h | ${cMetrics?.['24h']?.sampleCount} | ${((cMetrics?.['24h']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(cMetrics?.['24h']?.averageProfitPerDay ?? 0).toFixed(2)}% | ${(cMetrics?.['24h']?.maxDrawdownPct ?? 0).toFixed(2)}% |
-| | 3d | ${cMetrics?.['3d']?.sampleCount} | ${((cMetrics?.['3d']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(cMetrics?.['3d']?.averageProfitPerDay ?? 0).toFixed(2)}% | ${(cMetrics?.['3d']?.maxDrawdownPct ?? 0).toFixed(2)}% |
-| | 7d | ${cMetrics?.['7d']?.sampleCount} | ${((cMetrics?.['7d']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(cMetrics?.['7d']?.averageProfitPerDay ?? 0).toFixed(2)}% | ${(cMetrics?.['7d']?.maxDrawdownPct ?? 0).toFixed(2)}% |
+| **Baseline A (Safe Profit)** | 24h | ${aMetrics?.['24h']?.sampleCount} | ${((aMetrics?.['24h']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(aMetrics?.['24h']?.averageMarginReturnPctPerDay ?? 0).toFixed(2)}% | ${(aMetrics?.['24h']?.maxDrawdownPct ?? 0).toFixed(2)}% |
+| | 3d | ${aMetrics?.['3d']?.sampleCount} | ${((aMetrics?.['3d']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(aMetrics?.['3d']?.averageMarginReturnPctPerDay ?? 0).toFixed(2)}% | ${(aMetrics?.['3d']?.maxDrawdownPct ?? 0).toFixed(2)}% |
+| | 7d | ${aMetrics?.['7d']?.sampleCount} | ${((aMetrics?.['7d']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(aMetrics?.['7d']?.averageMarginReturnPctPerDay ?? 0).toFixed(2)}% | ${(aMetrics?.['7d']?.maxDrawdownPct ?? 0).toFixed(2)}% |
+| **Baseline B (Safe + Momentum)** | 24h | ${bMetrics?.['24h']?.sampleCount} | ${((bMetrics?.['24h']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(bMetrics?.['24h']?.averageMarginReturnPctPerDay ?? 0).toFixed(2)}% | ${(bMetrics?.['24h']?.maxDrawdownPct ?? 0).toFixed(2)}% |
+| | 3d | ${bMetrics?.['3d']?.sampleCount} | ${((bMetrics?.['3d']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(bMetrics?.['3d']?.averageMarginReturnPctPerDay ?? 0).toFixed(2)}% | ${(bMetrics?.['3d']?.maxDrawdownPct ?? 0).toFixed(2)}% |
+| | 7d | ${bMetrics?.['7d']?.sampleCount} | ${((bMetrics?.['7d']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(bMetrics?.['7d']?.averageMarginReturnPctPerDay ?? 0).toFixed(2)}% | ${(bMetrics?.['7d']?.maxDrawdownPct ?? 0).toFixed(2)}% |
+| **Baseline C (Theoretical)** | 24h | ${cMetrics?.['24h']?.sampleCount} | ${((cMetrics?.['24h']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(cMetrics?.['24h']?.averageMarginReturnPctPerDay ?? 0).toFixed(2)}% | ${(cMetrics?.['24h']?.maxDrawdownPct ?? 0).toFixed(2)}% |
+| | 3d | ${cMetrics?.['3d']?.sampleCount} | ${((cMetrics?.['3d']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(cMetrics?.['3d']?.averageMarginReturnPctPerDay ?? 0).toFixed(2)}% | ${(cMetrics?.['3d']?.maxDrawdownPct ?? 0).toFixed(2)}% |
+| | 7d | ${cMetrics?.['7d']?.sampleCount} | ${((cMetrics?.['7d']?.hitRate ?? 0) * 100).toFixed(1)}% | ${(cMetrics?.['7d']?.averageMarginReturnPctPerDay ?? 0).toFixed(2)}% | ${(cMetrics?.['7d']?.maxDrawdownPct ?? 0).toFixed(2)}% |
 
 ---
 
 ## 3. 相對 Baseline A 之超額表現 (Outperformance vs Baseline A)
 
 - **Baseline B (Safe + Momentum)**:
-  - 收益增益 (Profit Uplift): **${(bOut?.profitUpliftPct ?? 0).toFixed(2)}%**
+  - 邊際收益率相對增益 (Margin Uplift): **${(bOut?.profitUpliftPct ?? 0).toFixed(2)}%**
   - 平均勝率差異 (Hit Rate Diff): **${((bOut?.hitRateDiff ?? 0) * 100).toFixed(2)}%**
 - **Baseline C (Theoretical)**:
-  - 收益增益 (Profit Uplift): **${(cOut?.profitUpliftPct ?? 0).toFixed(2)}%**
+  - 邊際收益率相對增益 (Margin Uplift): **${(cOut?.profitUpliftPct ?? 0).toFixed(2)}%**
   - 平均勝率差異 (Hit Rate Diff): **${((cOut?.hitRateDiff ?? 0) * 100).toFixed(2)}%**
 
 ---
 
-## 4. 統計審核裁決與產品定位建議 (Verdict & Architectural Action)
+## 4. 架構與定位建議
 
-1. **實證結論**：
-   - ${report.verdict.recommendation}
-   - ${report.verdict.details}
-2. **UI 定位規則**：
-   - **首頁默認主排序**：必須 100% 以 **安全日利 (Safe Profit)** 為第一基準，確保玩家不會被紙面數字誤導。
-   - **動能訊號定位**：動能訊號與短缺提示保留為卡片及表格上的 **「暴利 Alpha / 短缺動能」輔助 Badge 燈號**，文案明確標註為短線突發機遇，不擅自取代安全日利做為主推薦權重。
-   - **CI 隔離防護**：本回測為市場機制研究實證報告，**嚴格禁止作為 CI 強制阻擋門禁**，避免因正常市場 regime 波動造成 CI 假警報。
+1. **框架驗證**：
+   - 驗證 Walk-Forward 時序切分、滾動非重疊評估、品質門禁（版本比對與最低 quotes 門檻）在合成時序下運作正常。
+2. **UI 定位原則**：
+   - **安全日利 (Safe Profit)** 始終作為主要排序基準。
+   - **動能訊號** 僅作為輔助標籤提示，不擅自取代安全日利權重。
 `;
 
-  const mdReportPath = path.resolve('reports/momentum-backtest-2026-09.md');
+  const mdReportPath = path.resolve('reports/synthetic-harness-demo-2026-09.md');
   fs.writeFileSync(mdReportPath, mdReport, 'utf-8');
   console.log('Markdown report written to:', mdReportPath);
 }
 
-if (process.argv[1] && process.argv[1].endsWith('run-reports.ts')) {
+if (process.argv[1] && (process.argv[1].endsWith('run-synthetic-harness.ts') || process.argv[1].endsWith('run-synthetic-harness.js'))) {
   generateAndSaveReport();
 }
+

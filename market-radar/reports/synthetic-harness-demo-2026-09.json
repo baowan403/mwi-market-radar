@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-04T01:51:36.064Z",
+  "timestamp": "2026-09-04T03:18:07.533Z",
   "datasetStats": {
     "totalSnapshots": 60,
     "filteredSnapshots": 60,
@@ -16,24 +16,24 @@
       "holdoutMetrics": {
         "24h": {
           "horizon": "24h",
-          "realizedProfitTotal": 5.703684467090385,
-          "averageProfitPerDay": 0.5185167697354895,
+          "realizedMarginReturnPct": 5.703684467090385,
+          "averageMarginReturnPctPerDay": 0.5185167697354895,
           "hitRate": 0.5454545454545454,
           "maxDrawdownPct": 3.587393784944172,
           "sampleCount": 11
         },
         "3d": {
           "horizon": "3d",
-          "realizedProfitTotal": 4.959162895017025,
-          "averageProfitPerDay": 1.6530542983390084,
+          "realizedMarginReturnPct": 4.959162895017025,
+          "averageMarginReturnPctPerDay": 1.6530542983390084,
           "hitRate": 0.6666666666666666,
           "maxDrawdownPct": 4.57099318447961,
           "sampleCount": 3
         },
         "7d": {
           "horizon": "7d",
-          "realizedProfitTotal": -0.9096698143933999,
-          "averageProfitPerDay": -0.9096698143933999,
+          "realizedMarginReturnPct": -0.9096698143933999,
+          "averageMarginReturnPctPerDay": -0.9096698143933999,
           "hitRate": 0,
           "maxDrawdownPct": 0.9096698143933999,
           "sampleCount": 1
@@ -49,24 +49,24 @@
       "holdoutMetrics": {
         "24h": {
           "horizon": "24h",
-          "realizedProfitTotal": 5.703684467090385,
-          "averageProfitPerDay": 0.5185167697354895,
+          "realizedMarginReturnPct": 5.703684467090385,
+          "averageMarginReturnPctPerDay": 0.5185167697354895,
           "hitRate": 0.5454545454545454,
           "maxDrawdownPct": 3.587393784944172,
           "sampleCount": 11
         },
         "3d": {
           "horizon": "3d",
-          "realizedProfitTotal": 4.959162895017025,
-          "averageProfitPerDay": 1.6530542983390084,
+          "realizedMarginReturnPct": 4.959162895017025,
+          "averageMarginReturnPctPerDay": 1.6530542983390084,
           "hitRate": 0.6666666666666666,
           "maxDrawdownPct": 4.57099318447961,
           "sampleCount": 3
         },
         "7d": {
           "horizon": "7d",
-          "realizedProfitTotal": -0.9096698143933999,
-          "averageProfitPerDay": -0.9096698143933999,
+          "realizedMarginReturnPct": -0.9096698143933999,
+          "averageMarginReturnPctPerDay": -0.9096698143933999,
           "hitRate": 0,
           "maxDrawdownPct": 0.9096698143933999,
           "sampleCount": 1
@@ -82,24 +82,24 @@
       "holdoutMetrics": {
         "24h": {
           "horizon": "24h",
-          "realizedProfitTotal": 5.703684467090385,
-          "averageProfitPerDay": 0.5185167697354895,
+          "realizedMarginReturnPct": 5.703684467090385,
+          "averageMarginReturnPctPerDay": 0.5185167697354895,
           "hitRate": 0.5454545454545454,
           "maxDrawdownPct": 3.587393784944172,
           "sampleCount": 11
         },
         "3d": {
           "horizon": "3d",
-          "realizedProfitTotal": 4.959162895017025,
-          "averageProfitPerDay": 1.6530542983390084,
+          "realizedMarginReturnPct": 4.959162895017025,
+          "averageMarginReturnPctPerDay": 1.6530542983390084,
           "hitRate": 0.6666666666666666,
           "maxDrawdownPct": 4.57099318447961,
           "sampleCount": 3
         },
         "7d": {
           "horizon": "7d",
-          "realizedProfitTotal": -0.9096698143933999,
-          "averageProfitPerDay": -0.9096698143933999,
+          "realizedMarginReturnPct": -0.9096698143933999,
+          "averageMarginReturnPctPerDay": -0.9096698143933999,
           "hitRate": 0,
           "maxDrawdownPct": 0.9096698143933999,
           "sampleCount": 1

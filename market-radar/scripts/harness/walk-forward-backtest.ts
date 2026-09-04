@@ -20,8 +20,8 @@ export interface SplitDataset<T> {
 
 export interface StrategyEvaluationMetric {
   horizon: BacktestHorizon;
-  realizedProfitTotal: number;
-  averageProfitPerDay: number;
+  realizedMarginReturnPct: number;
+  averageMarginReturnPctPerDay: number;
   hitRate: number;
   maxDrawdownPct: number;
   sampleCount: number;
@@ -208,8 +208,8 @@ export function evaluateCandidateBaselines(
       const hData = res.byHorizon[horizon];
       return {
         horizon,
-        realizedProfitTotal: (hData.averageChangePct ?? 0) * hData.samples,
-        averageProfitPerDay: (hData.averageChangePct ?? 0),
+        realizedMarginReturnPct: (hData.averageChangePct ?? 0) * hData.samples,
+        averageMarginReturnPctPerDay: (hData.averageChangePct ?? 0),
         hitRate: hData.hitRate ?? 0,
         maxDrawdownPct: hData.maximumAdversePct ?? 0,
         sampleCount: hData.samples,
@@ -250,9 +250,9 @@ export function runWalkForwardBacktest(options: {
     const aAvgHit = aMetrics.reduce((s, m) => s + m.hitRate, 0) / Math.max(1, aMetrics.length);
     const thisAvgHit = metrics.reduce((s, m) => s + m.hitRate, 0) / Math.max(1, metrics.length);
 
-    const aTotalProfit = aMetrics.reduce((s, m) => s + m.realizedProfitTotal, 0);
-    const thisTotalProfit = metrics.reduce((s, m) => s + m.realizedProfitTotal, 0);
-    const profitUplift = aTotalProfit !== 0 ? ((thisTotalProfit - aTotalProfit) / Math.abs(aTotalProfit)) * 100 : 0;
+    const aTotalMargin = aMetrics.reduce((s, m) => s + m.realizedMarginReturnPct, 0);
+    const thisTotalMargin = metrics.reduce((s, m) => s + m.realizedMarginReturnPct, 0);
+    const profitUplift = aTotalMargin !== 0 ? ((thisTotalMargin - aTotalMargin) / Math.abs(aTotalMargin)) * 100 : 0;
 
     byBaseline[key] = {
       baselineName: key,

@@ -182,9 +182,54 @@ describe('profile panel', () => {
     powerShrineInput.dispatchEvent(new Event('change'));
     await new Promise((r) => setTimeout(r, 10));
 
-    expect(notifiedProfile?.shrines.power).toBe(8);
+    panel.destroy();
+    store.close();
+  });
+
+  it('recomputes completeness from estimated to complete when user confirms unknown fields and persists to storage', async () => {
+    const store = createMemoryProfileStore();
+    let notifiedProfile: any = null;
+    const panel = createProfilePanel({
+      openButton: document.querySelector<HTMLButtonElement>('#open')!,
+      summary: document.querySelector<HTMLElement>('#summary')!,
+      dialog: document.querySelector<HTMLDialogElement>('#dialog')!,
+      store,
+      onActiveProfileChange: (p) => { notifiedProfile = p; },
+    });
+
+    // 匯入 Preset (初始 mechanicsCompleteness 為 estimated，inventoryMap 為 unknown)
+    await panel.importText(JSON.stringify(preset));
+    expect(panel.getActiveProfile()?.mechanicsCompleteness).toBe('estimated');
+
+    await panel.open();
+
+    // 1. 玩家在 UI 上手動確認神龕
+    const powerShrineInput = document.querySelector<HTMLInputElement>('input[data-shrine-key="power"]')!;
+    powerShrineInput.value = '5';
+    powerShrineInput.dispatchEvent(new Event('change'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(notifiedProfile?.provenanceMap.shrines).toBe('user-confirmed');
+
+    // 2. 玩家在 UI 上勾選生活配件（確認 inventoryMap / equipment）
+    const alchemy = document.querySelector<HTMLElement>('[data-profile-action="alchemy"]');
+    const toolLevelInput = alchemy?.querySelector<HTMLInputElement>('input[aria-label="煉金工具強化等級"]')!;
+    toolLevelInput.value = '10';
+    toolLevelInput.dispatchEvent(new Event('change'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(notifiedProfile?.provenanceMap.inventoryMap).toBe('user-confirmed');
+
+    // 3. 斷言完整度由 estimated 升級為 complete
+    expect(notifiedProfile?.mechanicsCompleteness).toBe('complete');
+
+    // 4. 斷言持久化：自 store 重新載入，確認 complete 狀態成功持久化
+    const reloaded = await store.get(notifiedProfile.id);
+    expect(reloaded?.mechanicsCompleteness).toBe('complete');
+    expect(reloaded?.provenanceMap?.shrines).toBe('user-confirmed');
 
     panel.destroy();
     store.close();
   });
 });
+

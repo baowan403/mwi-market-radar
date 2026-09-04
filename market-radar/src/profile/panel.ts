@@ -1,4 +1,4 @@
-import { ProfileImportError, importPlayerProfile } from './import';
+import { ProfileImportError, importPlayerProfile, recomputeProfileCompleteness } from './import';
 import type { ProfileStore } from './store';
 import {
   SKILLING_ACTIONS,
@@ -299,7 +299,7 @@ function renderProfileAssumptions(
   modeRow.style.display = 'flex';
   modeRow.style.alignItems = 'center';
   modeRow.style.gap = '8px';
-  modeRow.style.margin = '8px 0 12px 0';
+  modeRow.style.margin = '8px 0 6px 0';
 
   const modeLabel = element('span', 'profile-assumption-label');
   modeLabel.textContent = '配裝推論模式：';
@@ -308,10 +308,10 @@ function renderProfileAssumptions(
   modeSelect.setAttribute('aria-label', '配裝推論模式');
   const autoOpt = element('option');
   autoOpt.value = 'auto';
-  autoOpt.textContent = '全自動最佳化 (Auto: 依持有池推薦最優配裝與茶飲)';
+  autoOpt.textContent = '啟發式自動配裝 (Auto: 依持有池啟發式穿戴生活裝備)';
   const manualOpt = element('option');
   manualOpt.value = 'manual';
-  manualOpt.textContent = '手動嚴格鎖定 (Manual: 100% 依目前配置與空槽計算)';
+  manualOpt.textContent = '手動嚴格鎖定 (Manual: 100% 依目前裝備與空槽計算)';
   if (profile.loadoutMode === 'manual') manualOpt.selected = true;
   else autoOpt.selected = true;
   modeSelect.append(autoOpt, manualOpt);
@@ -321,7 +321,36 @@ function renderProfileAssumptions(
     void onUpdate?.();
   });
   modeRow.append(modeLabel, modeSelect);
-  section.append(heading, note, modeRow);
+
+  // ── 全域茶飲推論模式 (Auto / Manual) ──
+  const teaModeRow = element('div', 'profile-tea-mode-row');
+  teaModeRow.style.display = 'flex';
+  teaModeRow.style.alignItems = 'center';
+  teaModeRow.style.gap = '8px';
+  teaModeRow.style.margin = '4px 0 12px 0';
+
+  const teaModeLabel = element('span', 'profile-assumption-label');
+  teaModeLabel.textContent = '茶飲推論模式：';
+  const teaModeSelect = element('select', 'profile-select');
+  teaModeSelect.dataset.profileTeaMode = 'true';
+  teaModeSelect.setAttribute('aria-label', '茶飲推論模式');
+  const teaAutoOpt = element('option');
+  teaAutoOpt.value = 'auto';
+  teaAutoOpt.textContent = '自動推薦茶飲 (Auto: 依邊際獲利動態枚舉 0~3 杯最佳茶飲)';
+  const teaManualOpt = element('option');
+  teaManualOpt.value = 'manual';
+  teaManualOpt.textContent = '手動嚴格鎖定 (Manual: 100% 依目前各技能設定茶飲)';
+  if (profile.teaMode === 'manual') teaManualOpt.selected = true;
+  else teaAutoOpt.selected = true;
+  teaModeSelect.append(teaAutoOpt, teaManualOpt);
+
+  teaModeSelect.addEventListener('change', () => {
+    profile.teaMode = teaModeSelect.value as 'auto' | 'manual';
+    void onUpdate?.();
+  });
+  teaModeRow.append(teaModeLabel, teaModeSelect);
+
+  section.append(heading, note, modeRow, teaModeRow);
 
   const actions = element('div', 'profile-assumption-actions');
 
@@ -370,6 +399,10 @@ function renderProfileAssumptions(
         profile.equipmentOwnership = profile.equipmentOwnership ?? {};
         profile.equipmentOwnership[hrid] = 'owned';
       }
+      profile.provenanceMap = profile.provenanceMap ?? {};
+      profile.provenanceMap.equipment = 'user-confirmed';
+      profile.provenanceMap.inventoryMap = 'user-confirmed';
+      recomputeProfileCompleteness(profile);
       void onUpdate?.();
     };
     toolSelect.addEventListener('change', updateTool);
@@ -425,6 +458,10 @@ function renderProfileAssumptions(
         profile.equipmentOwnership = profile.equipmentOwnership ?? {};
         profile.equipmentOwnership[hrid] = 'owned';
       }
+      profile.provenanceMap = profile.provenanceMap ?? {};
+      profile.provenanceMap.equipment = 'user-confirmed';
+      profile.provenanceMap.inventoryMap = 'user-confirmed';
+      recomputeProfileCompleteness(profile);
       void onUpdate?.();
     };
     topSelect.addEventListener('change', updateTop);
@@ -480,6 +517,10 @@ function renderProfileAssumptions(
         profile.equipmentOwnership = profile.equipmentOwnership ?? {};
         profile.equipmentOwnership[hrid] = 'owned';
       }
+      profile.provenanceMap = profile.provenanceMap ?? {};
+      profile.provenanceMap.equipment = 'user-confirmed';
+      profile.provenanceMap.inventoryMap = 'user-confirmed';
+      recomputeProfileCompleteness(profile);
       void onUpdate?.();
     };
     bottomSelect.addEventListener('change', updateBottom);
@@ -504,6 +545,9 @@ function renderProfileAssumptions(
       const lvl = Math.max(0, Math.min(10, Math.floor(Number(houseLevelInput.value) || 0)));
       houseLevelInput.value = String(lvl);
       config.houseLevel = lvl;
+      profile.provenanceMap = profile.provenanceMap ?? {};
+      profile.provenanceMap.houses = 'user-confirmed';
+      recomputeProfileCompleteness(profile);
       void onUpdate?.();
     };
     houseLevelInput.addEventListener('change', updateHouse);
@@ -562,6 +606,10 @@ function renderProfileAssumptions(
         profile.equipmentOwnership = profile.equipmentOwnership ?? {};
         profile.equipmentOwnership[gear.hrid] = 'not-owned';
       }
+      profile.provenanceMap = profile.provenanceMap ?? {};
+      profile.provenanceMap.equipment = 'user-confirmed';
+      profile.provenanceMap.inventoryMap = 'user-confirmed';
+      recomputeProfileCompleteness(profile);
       void onUpdate?.();
     };
 
@@ -598,6 +646,9 @@ function renderProfileAssumptions(
       const lvl = Math.max(0, Math.min(10, Math.floor(Number(input.value) || 0)));
       input.value = String(lvl);
       profile.shrines[key] = lvl;
+      profile.provenanceMap = profile.provenanceMap ?? {};
+      profile.provenanceMap.shrines = 'user-confirmed';
+      recomputeProfileCompleteness(profile);
       void onUpdate?.();
     });
 

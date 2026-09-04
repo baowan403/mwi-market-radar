@@ -293,17 +293,12 @@ function calculate(kind: 'decompose' | 'coinify', options: AlchemyOptions & { en
     teaAskPrices[teaHrid] = prices.ask(teaHrid);
   }
 
-  const defaultTaxFactor = kind === 'coinify'
-    ? 1.0
-    : marketTaxFactor(item.decomposeItems[0]?.itemHrid ?? COIN_HRID);
-
   const profitPerHour = valid ? incomePerHour! - costPerHour! : null;
   const economic: import('./types').EconomicLedger = {
     complete: valid,
     inputAskPrices: inputAskPricesMap,
     outputBidPrices: outputBidPricesMap,
     outputValuations,
-    taxFactor: defaultTaxFactor,
     teaAskPrices,
     revenuePerHour: incomePerHour,
     costPerHour,

@@ -226,16 +226,11 @@ export function calculateManufacture(input: ManufactureInput): ManufactureResult
   const profitPerHour = economicComplete ? incomePerHour - costPerHour : null;
   const profitPerDay = profitPerHour !== null ? profitPerHour * 24 : null;
 
-  const defaultTaxFactor = input.products.length > 0
-    ? marketTaxFactor(input.products[0]!.itemHrid, input.products[0]!.taxable !== false)
-    : 0.95;
-
   const economic: import('./types').EconomicLedger = {
     complete: economicComplete,
     inputAskPrices,
     outputBidPrices,
     outputValuations,
-    taxFactor: defaultTaxFactor,
     teaAskPrices,
     revenuePerHour: economicComplete ? incomePerHour : null,
     costPerHour: economicComplete ? costPerHour : null,

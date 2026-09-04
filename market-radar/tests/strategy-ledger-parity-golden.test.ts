@@ -4,11 +4,11 @@ import jotaroProfileJson from './fixtures/jotaro99-profile.json';
 import { normalizeStrategyGameData } from '../src/strategy/game-data';
 import { createStrategyPriceBook } from '../src/strategy/price-book';
 import { calculateDecompose } from '../src/strategy/alchemy';
-import type { PlayerProfile } from '../src/profile/types';
+import { validatePlayerProfile } from '../src/profile/import';
 import type { Snapshot } from '../src/core/types';
 
 const data = normalizeStrategyGameData(strategyDataJson);
-const jotaroProfile = jotaroProfileJson as unknown as PlayerProfile;
+const jotaroProfile = validatePlayerProfile(jotaroProfileJson);
 
 describe('MWI Client Ground Truth & Parity Golden Tests (jotaro99)', () => {
   const snapshot: Snapshot = {
@@ -16,6 +16,8 @@ describe('MWI Client Ground Truth & Parity Golden Tests (jotaro99)', () => {
     quotes: {
       '/items/holy_milk::0': { a: 960, b: 920, p: 940, v: 50000 },
       '/items/milking_essence::0': { a: 450, b: 447, p: 448, v: 200000 },
+      '/items/emp_tea_leaf::0': { a: 116, b: 115, p: 115.5, v: 600000 },
+      '/items/brewing_essence::0': { a: 292, b: 290, p: 291, v: 600000 },
       '/items/ultra_alchemy_tea::0': { a: 10400, b: 9800, p: 10000, v: 5000 },
       '/items/catalytic_tea::0': { a: 3320, b: 3100, p: 3200, v: 5000 },
       '/items/efficiency_tea::0': { a: 2990, b: 2800, p: 2900, v: 5000 },
@@ -105,6 +107,42 @@ describe('MWI Client Ground Truth & Parity Golden Tests (jotaro99)', () => {
       4,
     );
     expect(economic.profitPerDay).toBeCloseTo(economic.profitPerHour! * 24, 2);
+  });
+
+  it('verifies jotaro99 Emp Tea Leaf Decompose against MWI Client Ground Truth (40 Brewing Essence / success, 8.97s, 63% success)', () => {
+    const result = calculateDecompose({
+      itemHrid: '/items/emp_tea_leaf',
+      catalystRank: 0,
+      enhancementLevel: 0,
+      profile: jotaroProfile,
+      data,
+      prices,
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.ledger).toBeDefined();
+    const physical = result.ledger!.physical;
+
+    // ── MWI Client Ground Truth 實機驗證數值 ──
+    // 1. 等級校驗：Base Lv110, Effective Lv118
+    expect(jotaroProfile.actions.alchemy.playerLevel).toBe(110);
+    expect(physical.effectiveLevel).toBe(118);
+
+    // 2. 耗時與動作率：8.97s (實機四捨五入), 成功率 63% (催化劑 Rank 0)
+    expect(physical.actionTimeSeconds).toBeCloseTo(8.97, 2);
+    expect(physical.successRate).toBeCloseTo(0.63, 2);
+    expect(physical.actionsPerHour).toBeCloseTo(824.26, 1);
+    expect(physical.successfulActionsPerHour).toBeCloseTo(physical.actionsPerHour * physical.successRate, 4);
+
+    // 3. 實機產出保證：每成功 1 次產出 40 個 Brewing Essence (Rank0 Emp Tea Leaf)
+    expect(physical.outputUnitsPerSuccess['/items/brewing_essence']).toBe(40);
+    expect(physical.outputUnitsPerHour['/items/brewing_essence']).toBeCloseTo(
+      physical.successfulActionsPerHour * 40,
+      2,
+    );
+
+    // 4. 原料消耗量：bulkMultiplier = 2, actionsPerHour * 2
+    expect(physical.inputUnitsPerHour['/items/emp_tea_leaf']).toBeCloseTo(physical.actionsPerHour * 2, 2);
   });
 
   it('guarantees complete physical ledger even when market prices are missing (Zero-price dependency)', () => {

@@ -44,6 +44,7 @@ export function evaluateEquipmentUpliftForAction(
   enhanceLevel: number,
   action: SkillingAction,
   data: NormalizedStrategyGameData,
+  options?: { isSpeedCapped?: boolean },
 ): number {
   const item = data.itemDetailMap[eqHrid];
   if (!item || !item.equipmentDetail) return -1;
@@ -66,7 +67,8 @@ export function evaluateEquipmentUpliftForAction(
 
     // 依生活屬性邊際收益進行評分：
     if (prop.endsWith('Speed') || prop.endsWith('ActionSpeed')) {
-      score += totalVal * 100;
+      // 若 Speed 已撞 3 秒 floor，額外 Speed 不產生收益，權重降為 0，避免錯選 speed 裝而犧牲效率
+      score += options?.isSpeedCapped ? 0 : totalVal * 100;
     } else if (prop.endsWith('Efficiency')) {
       score += totalVal * 80;
     } else if (prop.endsWith('Artisan') || prop.endsWith('Gourmet') || prop.endsWith('Processing')) {
@@ -155,8 +157,10 @@ export function bestSpecialEquipmentFromInventory(
   slotType: string,
   data: NormalizedStrategyGameData,
   ownershipMap?: Record<string, import('../profile/types').OwnershipState>,
+  forAction?: SkillingAction,
 ): ProfileEquipment | null {
   let bestHrid: string | null = null;
+  let bestScore = -1;
   let bestEnhance = -1;
 
   for (const [hrid, enhanceLevel] of Object.entries(inventoryMap)) {
@@ -170,9 +174,18 @@ export function bestSpecialEquipmentFromInventory(
     const noncombat = eq.noncombatStats;
     if (!noncombat || Object.keys(noncombat).length === 0) continue;
 
-    if (enhanceLevel > bestEnhance) {
-      bestEnhance = enhanceLevel;
-      bestHrid = hrid;
+    if (forAction) {
+      const score = evaluateEquipmentUpliftForAction(hrid, enhanceLevel, forAction, data);
+      if (score > bestScore) {
+        bestScore = score;
+        bestEnhance = enhanceLevel;
+        bestHrid = hrid;
+      }
+    } else {
+      if (enhanceLevel > bestEnhance) {
+        bestEnhance = enhanceLevel;
+        bestHrid = hrid;
+      }
     }
   }
 

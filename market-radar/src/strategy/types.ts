@@ -46,7 +46,6 @@ export interface EconomicLedger {
   inputAskPrices: Record<string, number | null>;
   outputBidPrices: Record<string, number | null>;
   outputValuations: Record<string, OutputValuation>;
-  taxFactor: number;
   teaAskPrices: Record<string, number | null>;
   revenuePerHour: number | null;
   costPerHour: number | null;

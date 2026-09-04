@@ -341,3 +341,86 @@ export function importPlayerProfile(text: string, importedAt = Date.now()): Play
   }
   throw new ProfileImportError();
 }
+
+export function validatePlayerProfile(input: unknown): PlayerProfile {
+  const data = record(input);
+  if (!data) throw new ProfileImportError();
+  if (typeof data.id !== 'string' || !data.id) throw new ProfileImportError();
+  if (typeof data.name !== 'string' || !data.name) throw new ProfileImportError();
+  if (!record(data.actions)) throw new ProfileImportError();
+
+  const completeness = data.completeness === 'full' || data.completeness === 'partial' ? data.completeness : 'partial';
+  const mechanicsCompleteness = (
+    data.mechanicsCompleteness === 'complete'
+    || data.mechanicsCompleteness === 'estimated'
+    || data.mechanicsCompleteness === 'incomplete'
+  ) ? data.mechanicsCompleteness : undefined;
+
+  return {
+    id: data.id,
+    characterId: typeof data.characterId === 'number' ? data.characterId : null,
+    name: data.name,
+    source: data.source === 'milkonomy-preset' ? 'milkonomy-preset' : 'milkonomy-v1',
+    importedAt: typeof data.importedAt === 'number' ? data.importedAt : Date.now(),
+    completeness,
+    mechanicsCompleteness,
+    loadoutMode: data.loadoutMode === 'manual' ? 'manual' : 'auto',
+    teaMode: data.teaMode === 'manual' ? 'manual' : 'auto',
+    missingFields: Array.isArray(data.missingFields) ? data.missingFields.filter((f): f is string => typeof f === 'string') : [],
+    provenanceMap: record(data.provenanceMap) as Record<string, import('./types').FieldProvenance> ?? {},
+    equipmentOwnership: record(data.equipmentOwnership) as Record<string, import('./types').OwnershipState> ?? {},
+    actions: data.actions as Record<SkillingAction, ActionProfile>,
+    specialEquipment: (record(data.specialEquipment) ?? {}) as Record<string, ProfileEquipment>,
+    communityBuffs: numericRecord(data.communityBuffs, true),
+    shrines: numericRecord(data.shrines, true),
+    achievements: (record(data.achievements) ?? {}) as Record<string, boolean>,
+    inventoryMap: equipmentInventoryRecord(data.inventoryMap),
+    materialInventoryMap: {},
+    seals: sealList(data.seals),
+  };
+}
+
+/**
+ * 依據玩家手動填入/確認的資料（provenanceMap 與實際設定值），
+ * 重新計算角色的 mechanicsCompleteness 與 missingFields。
+ * 當玩家補齊 unknown 資料（如神龕、裝備持有、公會等）後，
+ * mechanicsCompleteness 必須能由 'estimated' 或 'incomplete' 升級為 'complete'。
+ */
+export function recomputeProfileCompleteness(profile: PlayerProfile): void {
+  profile.provenanceMap = profile.provenanceMap ?? {};
+  const prov = profile.provenanceMap;
+
+  // 1. 檢查各領域是否有已確認或非空的有效資料
+  const hasInventory = prov.inventoryMap === 'user-confirmed'
+    || prov.inventoryMap === 'imported'
+    || (profile.inventoryMap && Object.keys(profile.inventoryMap).length > 0)
+    || (profile.equipmentOwnership && Object.keys(profile.equipmentOwnership).length > 0);
+
+  const hasShrines = prov.shrines === 'user-confirmed'
+    || prov.shrines === 'imported'
+    || (profile.shrines && Object.keys(profile.shrines).length > 0);
+
+  const hasCommunityBuffs = prov.communityBuffs === 'user-confirmed'
+    || prov.communityBuffs === 'imported'
+    || (profile.communityBuffs && Object.keys(profile.communityBuffs).length > 0);
+
+  // 2. 判定機制完整度
+  if (hasInventory && hasShrines && hasCommunityBuffs) {
+    profile.mechanicsCompleteness = 'complete';
+  } else if (hasInventory) {
+    profile.mechanicsCompleteness = 'estimated';
+  } else {
+    profile.mechanicsCompleteness = 'incomplete';
+  }
+
+  // 3. 更新缺失欄位
+  const missing: string[] = [];
+  if (profile.characterId === null) missing.push('characterId');
+  if (!hasInventory) missing.push('inventoryMap');
+  if (!hasShrines) missing.push('shrines');
+  if (!hasCommunityBuffs) missing.push('communityBuffs');
+  profile.missingFields = missing;
+  profile.completeness = missing.length === 0 ? 'full' : 'partial';
+}
+
+

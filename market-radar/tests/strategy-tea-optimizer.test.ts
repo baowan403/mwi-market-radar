@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { getLegalTeaCombinations, findOptimalTeasForManufacture } from '../src/strategy/tea-optimizer';
+import { getLegalTeaCombinations, findOptimalTeasForManufacture, findOptimalTeasForAlchemy } from '../src/strategy/tea-optimizer';
 import { enrichProfileWithBestLoadout } from '../src/strategy/optimal-loadout';
 import { calculateManufactureAction } from '../src/strategy/manufacture-adapter';
+import { calculateDecompose } from '../src/strategy/alchemy';
 import strategyDataJson from '../scripts/vendor/milkonomy/strategy-data.json';
 import { normalizeStrategyGameData } from '../src/strategy/game-data';
 import type { PlayerProfile } from '../src/profile/types';
@@ -136,4 +137,171 @@ describe('Dynamic Tea Optimizer & Guzzling Pouch', () => {
       enhancementLevel: 5,
     });
   });
+
+  it('retains candidate and selects [] when default teas yield negative profit but no-tea yields positive profit (Regression A)', () => {
+    // 構造場景：所有茶飲極為昂貴（單杯千萬），喝任何茶必然虧損；但無茶 [] 分解本身獲利為正
+    const prices = {
+      ask: (hrid: string) => {
+        if (hrid === '/items/holy_milk') return 100;
+        if (hrid.endsWith('_tea')) return 50_000_000;
+        return 1_000;
+      },
+      bid: (hrid: string) => {
+        if (hrid === '/items/milking_essence') return 500;
+        return 100;
+      },
+      average: () => null,
+      volume: () => null,
+      timestamp: 1,
+    };
+
+    const profile: PlayerProfile = {
+      id: 'test:player',
+      characterId: 1,
+      name: 'Tester',
+      importedAt: 1,
+      completeness: 'full',
+      missingFields: [],
+      source: 'milkonomy-v1',
+      achievements: {},
+      communityBuffs: {},
+      shrines: {},
+      seals: [],
+      specialEquipment: {},
+      inventoryMap: {},
+      materialInventoryMap: {},
+      actions: {
+        alchemy: {
+          playerLevel: 100,
+          teas: ['/items/ultra_alchemy_tea', '/items/catalytic_tea', '/items/efficiency_tea'],
+          tool: null,
+          body: null,
+          legs: null,
+          back: null,
+          charm: null,
+          houseLevel: 0,
+        },
+        brewing: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+        cooking: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+        cheesesmithing: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+        crafting: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+        tailoring: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+        woodcutting: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+        foraging: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+        milking: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+        enhancing: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+      },
+    };
+
+    // 1. 驗證以預設三茶執行時，利潤為負
+    const stepWithDefaultTeas = calculateDecompose({
+      itemHrid: '/items/holy_milk',
+      catalystRank: 0,
+      enhancementLevel: 0,
+      profile,
+      data,
+      prices,
+    });
+    expect(stepWithDefaultTeas.valid).toBe(true);
+    expect(stepWithDefaultTeas.profitPerHour).toBeLessThan(0);
+
+    // 2. 執行煉金 Auto Tea optimizer
+    const opt = findOptimalTeasForAlchemy({
+      kind: 'decompose',
+      itemHrid: '/items/holy_milk',
+      catalystRank: 0,
+      enhancementLevel: 0,
+      profile,
+      data,
+      prices,
+      calculateFn: calculateDecompose,
+    });
+
+    // 3. 斷言：必須選擇無茶 []，且獲利為正
+    expect(opt.teas).toEqual([]);
+    expect(opt.profitPerHour).toBeGreaterThan(0);
+  });
+
+  it('selects [] when default teas yield positive profit but no-tea yields higher profit (Regression B)', () => {
+    // 構造場景：毛利豐厚，喝預設茶依然有正利潤（例如 +50萬/h），但茶飲成本高於增幅，無茶 [] 利潤更高
+    const prices = {
+      ask: (hrid: string) => {
+        if (hrid === '/items/holy_milk') return 50;
+        if (hrid.endsWith('_tea')) return 50_000;
+        return 100;
+      },
+      bid: (hrid: string) => {
+        if (hrid === '/items/milking_essence') return 2000;
+        return 100;
+      },
+      average: () => null,
+      volume: () => null,
+      timestamp: 1,
+    };
+
+    const profile: PlayerProfile = {
+      id: 'test:player',
+      characterId: 1,
+      name: 'Tester',
+      importedAt: 1,
+      completeness: 'full',
+      missingFields: [],
+      source: 'milkonomy-v1',
+      achievements: {},
+      communityBuffs: {},
+      shrines: {},
+      seals: [],
+      specialEquipment: {},
+      inventoryMap: {},
+      materialInventoryMap: {},
+      actions: {
+        alchemy: {
+          playerLevel: 100,
+          teas: ['/items/ultra_alchemy_tea', '/items/catalytic_tea', '/items/efficiency_tea'],
+          tool: null,
+          body: null,
+          legs: null,
+          back: null,
+          charm: null,
+          houseLevel: 0,
+        },
+        brewing: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+        cooking: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+        cheesesmithing: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+        crafting: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+        tailoring: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+        woodcutting: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+        foraging: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+        milking: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+        enhancing: { playerLevel: 1, teas: [], tool: null, body: null, legs: null, back: null, charm: null, houseLevel: 0 },
+      },
+    };
+
+    const stepWithDefaultTeas = calculateDecompose({
+      itemHrid: '/items/holy_milk',
+      catalystRank: 0,
+      enhancementLevel: 0,
+      profile,
+      data,
+      prices,
+    });
+    expect(stepWithDefaultTeas.valid).toBe(true);
+    expect(stepWithDefaultTeas.profitPerHour).toBeGreaterThan(0);
+
+    const opt = findOptimalTeasForAlchemy({
+      kind: 'decompose',
+      itemHrid: '/items/holy_milk',
+      catalystRank: 0,
+      enhancementLevel: 0,
+      profile,
+      data,
+      prices,
+      calculateFn: calculateDecompose,
+    });
+
+    // 斷言：[] 的利潤超越預設三茶，且 optimizer 正確選取了 []
+    expect(opt.profitPerHour).toBeGreaterThan(stepWithDefaultTeas.profitPerHour!);
+    expect(opt.teas).toEqual([]);
+  });
 });
+

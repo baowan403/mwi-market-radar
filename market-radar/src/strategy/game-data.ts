@@ -94,6 +94,24 @@ function validateActions(value: Record<string, unknown>): Record<string, Strateg
   return result;
 }
 
+/**
+ * 經由真實 MWI Client Runtime 驗證之遊戲資料覆蓋（Verified Runtime Overrides）。
+ * 用於防止舊版 vendored metadata（例如 2026-03-09 舊檔）覆蓋真實 Client 運行時 Ground Truth。
+ */
+export const VERIFIED_GAME_DATA_OVERRIDES: {
+  items?: Record<string, Partial<StrategyItemDetail>>;
+} = {
+  items: {
+    '/items/emp_tea_leaf': {
+      alchemyDetail: {
+        bulkMultiplier: 2,
+        isCoinifiable: true,
+        decomposeItems: [{ count: 20, itemHrid: '/items/brewing_essence' }],
+      },
+    },
+  },
+};
+
 export function normalizeStrategyGameData(input: unknown): NormalizedStrategyGameData {
   const data = record(input);
   const itemDetailMap = record(data?.itemDetailMap);
@@ -123,6 +141,22 @@ export function normalizeStrategyGameData(input: unknown): NormalizedStrategyGam
   }
 
   const items = validateItems(itemDetailMap);
+
+  // 套用實機驗證的 GameData 覆寫（Verified Runtime Overrides）
+  if (VERIFIED_GAME_DATA_OVERRIDES.items) {
+    for (const [hrid, override] of Object.entries(VERIFIED_GAME_DATA_OVERRIDES.items)) {
+      if (items[hrid]) {
+        items[hrid] = {
+          ...items[hrid],
+          ...override,
+          alchemyDetail: override.alchemyDetail
+            ? { ...(items[hrid].alchemyDetail as Record<string, unknown> ?? {}), ...override.alchemyDetail }
+            : items[hrid].alchemyDetail,
+        };
+      }
+    }
+  }
+
   const actions = validateActions(actionDetailMap);
   return {
     gameVersion: data.gameVersion,
@@ -140,3 +174,4 @@ export function normalizeStrategyGameData(input: unknown): NormalizedStrategyGam
     actionsByHrid: new Map(Object.entries(actions)),
   };
 }
+

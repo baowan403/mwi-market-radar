@@ -252,18 +252,24 @@ export function buildStrategyCandidates(options: {
     const hasDecompose = detail.decomposeItems !== null && detail.decomposeItems !== undefined;
     const canCoinify = detail.isCoinifiable === true;
     const decompositions: StrategyStepResult[] = [];
+    const isManualTea = profile.actions.alchemy?.teaMode === 'manual' || profile.teaMode === 'manual';
+    const hasDecomposeMarketPrices = hasDecompose
+      && prices.ask(itemHrid) !== null
+      && (detail.decomposeItems as Array<{ itemHrid?: string }> ?? []).some((out) => out.itemHrid && prices.bid(out.itemHrid) !== null);
+    const hasCoinifyMarketPrices = canCoinify && prices.ask(itemHrid) !== null;
+
     if (hasDecompose) {
       for (const catalystRank of CATALYST_RANKS) {
         try {
           let step = calculateDecompose({
             itemHrid, catalystRank, enhancementLevel: 0, profile, data, prices, buffs: alchemyBuffs,
           });
-          if (step.valid && (step.profitPerHour ?? 0) > 0 && profile.actions.alchemy?.teaMode !== 'manual') {
+          if (!isManualTea && hasDecomposeMarketPrices) {
             const opt = findOptimalTeasForAlchemy({
               kind: 'decompose', itemHrid, catalystRank, enhancementLevel: 0, profile, data, prices,
               calculateFn: calculateDecompose,
             });
-            if (opt.teas.length > 0 && opt.profitPerHour !== null && opt.profitPerHour > (step.profitPerHour ?? -Infinity)) {
+            if (opt.profitPerHour !== null && opt.profitPerHour > (step.profitPerHour ?? -Infinity)) {
               const stepProfile = {
                 ...profile,
                 actions: { ...profile.actions, alchemy: { ...profile.actions.alchemy, teas: opt.teas } },
@@ -282,12 +288,12 @@ export function buildStrategyCandidates(options: {
       for (const catalystRank of CATALYST_RANKS) {
         try {
           let step = calculateCoinify({ itemHrid, catalystRank, profile, data, prices, buffs: alchemyBuffs });
-          if (step.valid && (step.profitPerHour ?? 0) > 0 && profile.actions.alchemy?.teaMode !== 'manual') {
+          if (!isManualTea && hasCoinifyMarketPrices) {
             const opt = findOptimalTeasForAlchemy({
               kind: 'coinify', itemHrid, catalystRank, enhancementLevel: 0, profile, data, prices,
               calculateFn: calculateCoinify,
             });
-            if (opt.teas.length > 0 && opt.profitPerHour !== null && opt.profitPerHour > (step.profitPerHour ?? -Infinity)) {
+            if (opt.profitPerHour !== null && opt.profitPerHour > (step.profitPerHour ?? -Infinity)) {
               const stepProfile = {
                 ...profile,
                 actions: { ...profile.actions, alchemy: { ...profile.actions.alchemy, teas: opt.teas } },
