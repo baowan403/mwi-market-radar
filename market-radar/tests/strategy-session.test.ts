@@ -76,5 +76,6 @@ describe('duration-aware strategy estimates', () => {
     expect(compareSessionRanking(make(2010000, 2, 0), make(2090000, 2, 2))).toBeLessThan(0);
     expect(compareSessionRanking(make(2010000, 2, 1, 1), make(2090000, 2, 1, 10))).toBeLessThan(0);
     expect(compareSessionRanking({ ...make(1), profit: null }, make(1))).toBeGreaterThan(0);
+    expect(compareSessionRanking(make(1110000, 4), make(1190000, 1), 100000 * 0.5 / 24)).toBeGreaterThan(0);
   });
 });

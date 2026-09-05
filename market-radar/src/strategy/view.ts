@@ -822,7 +822,7 @@ function renderResults(
 
   function updateResults(): void {
     syncModeButtons();
-    resultsContainer.replaceChildren();
+    const nextResults = document.createDocumentFragment();
     const isSearchActive = filterState.searchQuery.trim().length > 0;
     const assessed: AssessedStrategy[] = baseAssessed.map(({ candidate, liquidity }) => ({
       candidate,
@@ -862,14 +862,16 @@ function renderResults(
     // Only compute trends for the top50 and its boundary profit bucket, never the entire tail.
     matched.sort((a, b) => (effectiveProfit(b) - effectiveProfit(a)) || a.candidate.id.localeCompare(b.candidate.id));
     const boundary = matched[49];
+    const bucketSize = 100000 * (filterState.plannedHours ?? 24) / 24;
     const groupOnly = (item: AssessedStrategy) => ({ profit: item.decision.rankValue, priority: 0, risk: 0, cash: 0, id: '' });
     if (boundary) matched = matched.filter((item, index) => index < 50 || (boundary.decision.rankValue !== null
-      && compareSessionRanking(groupOnly(item), groupOnly(boundary)) === 0));
+      && compareSessionRanking(groupOnly(item), groupOnly(boundary), bucketSize) === 0));
     matched.sort((a, b) => compareSessionRanking(
       { profit: a.decision.rankValue, priority: a.decision.actionable ? priorityWeight(getAssessedSignal(a).signal.priority) : 0,
         risk: riskRank(a.decision.risk.classification), cash: a.decision.funding.cashRequired, id: a.candidate.id },
       { profit: b.decision.rankValue, priority: b.decision.actionable ? priorityWeight(getAssessedSignal(b).signal.priority) : 0,
         risk: riskRank(b.decision.risk.classification), cash: b.decision.funding.cashRequired, id: b.candidate.id },
+      bucketSize,
     ));
 
     // 筆數限制：取前 50 筆最高折算日利
@@ -902,13 +904,14 @@ function renderResults(
       }
 
       summary.append(leftContainer, note, radarBadge);
-      resultsContainer.append(summary);
+      nextResults.append(summary);
     }
 
     if (baseAssessed.length === 0) {
       const empty = element('p', 'strategy-no-result');
       empty.textContent = '目前價格下沒有資料完整且理論收益為正的策略。';
-      resultsContainer.append(empty);
+      nextResults.append(empty);
+      resultsContainer.replaceChildren(nextResults);
       return;
     }
 
@@ -924,7 +927,8 @@ function renderResults(
       } else {
         empty.textContent = '目前沒有可排序的策略；可勾選「顯示待確認候選」查看原因。';
       }
-      resultsContainer.append(empty);
+      nextResults.append(empty);
+      resultsContainer.replaceChildren(nextResults);
       return;
     }
 
@@ -939,7 +943,7 @@ function renderResults(
     } else {
       meta.textContent = `前${chosen.length}條・${filterState.plannedHours ?? 24}H預估收益排序；相近收益依優先級、風險、資金比較`;
     }
-    resultsContainer.append(meta);
+    nextResults.append(meta);
     const scroll = element('div', 'strategy-table-scroll');
     const table = element('table', 'strategy-table');
     const columnGroup = element('colgroup');
@@ -979,7 +983,8 @@ function renderResults(
     }
     table.append(columnGroup, head, body);
     scroll.append(table);
-    resultsContainer.append(scroll);
+    nextResults.append(scroll);
+    resultsContainer.replaceChildren(nextResults);
   }
 
   skillSelect.addEventListener('change', () => {

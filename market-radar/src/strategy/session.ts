@@ -42,12 +42,12 @@ export function estimateStrategySession(options: {
 }
 
 interface SessionRank { profit: number | null; priority: number; risk: number; cash: number; id: string }
-export function compareSessionRanking(a: SessionRank, b: SessionRank): number {
+export function compareSessionRanking(a: SessionRank, b: SessionRank, bucketSize = 100000): number {
   const knownA = a.profit !== null && Number.isFinite(a.profit);
   const knownB = b.profit !== null && Number.isFinite(b.profit);
   if (knownA !== knownB) return knownA ? -1 : 1;
   // Stable buckets, not a pairwise tolerance (which would produce non-transitive sorts).
-  const bucket = (value: number) => value < 100000 ? value / 100000 : Math.floor(value / 100000);
+  const bucket = (value: number) => value < bucketSize ? value / bucketSize : Math.floor(value / bucketSize);
   if (knownA && knownB) {
     const delta = bucket(b.profit!) - bucket(a.profit!);
     if (delta !== 0) return delta;

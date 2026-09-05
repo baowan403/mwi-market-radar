@@ -93,7 +93,10 @@ describe('strategy recommendation view', () => {
     expect(select).not.toBeNull();
     expect(select.value).toBe('24');
     expect(target.querySelector('[data-strategy-row="fast"]')?.textContent).toContain('限做1H');
+    const paint = vi.spyOn(target.querySelector('.strategy-results-container')!, 'replaceChildren');
     select.value = '0.5'; select.dispatchEvent(new Event('change'));
+    expect(paint.mock.calls).toHaveLength(1);
+    expect(paint.mock.calls[0]).toHaveLength(1); // replace with a complete fragment, never clear the current view first
     expect(ids()).toEqual(['fast', 'steady']);
     expect(target.querySelector('[data-strategy-row="fast"] .strategy-profit-main')?.textContent).toBe('1.5M');
     expect(target.querySelector('[data-strategy-row="fast"] .strategy-capital')?.textContent).toBe('5K');
