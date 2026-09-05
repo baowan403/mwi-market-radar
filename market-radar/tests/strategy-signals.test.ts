@@ -111,8 +111,26 @@ describe('explainable strategy trend signals', () => {
     })));
 
     expect(signal.action).toBe('wait');
+    expect(signal.priority).toBe('medium');
     expect(signal.confidence).toBe('none');
     expect(signal.reasons.join(' ')).toContain('不足 7 天');
+  });
+
+  it('does not force priority to low only because capacity evidence is incomplete', () => {
+    const points = series(8, (ratio) => ({
+      cost: 100,
+      income: 200 + 30 * ratio,
+      capacity: 100,
+      spread: 1,
+    }));
+    const latest = points.at(-1)!;
+    latest.realizableProfitPerDay = null;
+    latest.complete = false;
+    latest.classification = 'insufficient';
+
+    const signal = strategyTrendSignal(points, { classification: 'insufficient' });
+    expect(signal.priority).toBe('medium');
+    expect(signal.reasons.join(' ')).toContain('保留中性優先');
   });
 
   it('blocks executable language when the latest market snapshot is stale', () => {
@@ -121,11 +139,11 @@ describe('explainable strategy trend signals', () => {
       income: 200 + 100 * ratio,
       capacity: 100 + 50 * ratio,
       spread: 1,
-    })), { latestSnapshotAgeMs: 60 * 60_000 + 1 });
+    })), { latestSnapshotAgeMs: 180 * 60_000 + 1 });
 
     expect(signal.action).toBe('wait');
     expect(signal.confidence).toBe('none');
-    expect(signal.reasons.join(' ')).toContain('超過 60 分鐘');
+    expect(signal.reasons.join(' ')).toContain('超過 180 分鐘');
   });
 
   it('downgrades priority when liquidity classification indicates risk', () => {
@@ -142,12 +160,12 @@ describe('explainable strategy trend signals', () => {
       backtest: { passed: true, sampleSize: 10, hitRate: 0.6 },
     });
     expect(signalLimited.priority).toBe('medium');
-    expect(signalLimited.reasons.join(' ')).toContain('市場深度受限');
+    expect(signalLimited.reasons.join(' ')).toContain('成品承接或原料供給偏緊');
 
     const signalReject = strategyTrendSignal(surgingSeries, {
       classification: 'reject',
     });
     expect(signalReject.priority).toBe('low');
-    expect(signalReject.reasons.join(' ')).toContain('市場深度嚴重不足');
+    expect(signalReject.reasons.join(' ')).toContain('明顯滯銷、進貨或報價風險');
   });
 });

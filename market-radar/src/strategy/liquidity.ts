@@ -4,11 +4,19 @@ const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 const SAFE_SHARE = 0.05;
 const MIN_DAILY_COVERAGE_HOURS = 12;
+const MIN_ROLLING_24H_COVERAGE_HOURS = 12;
 export const MIN_VOLUME_FLOOR = 5;
 export const MAX_PRICE_DEVIATION_RATIO = 2.5;
 
 export interface MarketCapacity {
   key: MarketKey;
+  /** Estimated traded units during a normalized rolling 24-hour window. */
+  volume24h: number | null;
+  /** Raw sum of observed hourly `v` values in the rolling window. */
+  observedVolume24h: number | null;
+  /** Distinct quote-covered hours in the rolling 24-hour window. */
+  coverageHours24h: number;
+  volume24hSufficient: boolean;
   /** Median traded units per day across usable days in the last 3 days. */
   median3d: number | null;
   /** Median traded units per day across usable days in the last 7 days. */
@@ -33,6 +41,13 @@ interface DailyVolumeBucket {
   coverageHours: number;
 }
 
+interface RollingVolume24h {
+  volume24h: number | null;
+  observedVolume24h: number | null;
+  coverageHours24h: number;
+  sufficient: boolean;
+}
+
 function median(values: number[]): number | null {
   if (values.length === 0) return null;
   const sorted = [...values].sort((left, right) => left - right);
@@ -43,10 +58,9 @@ function median(values: number[]): number | null {
 }
 
 /**
- * marketplace.json `v` is hourly traded volume, not order-book depth.
- * Aggregate it into rolling 24h buckets before comparing against a 24h strategy.
- * A present quote with v=null is a covered hour with zero observed trades; a missing
- * quote is not silently treated as zero because history coverage is unknown.
+ * marketplace.json `v` is hourly traded volume, not visible order-book depth.
+ * Quotes with v=null are covered hours with zero observed trades. Missing quotes
+ * remain uncovered rather than being silently treated as zero.
  */
 function dailyVolumes(
   key: MarketKey,
@@ -79,6 +93,47 @@ function dailyVolumes(
   };
 }
 
+/**
+ * Directly answers the product question: how many units traded in the latest 24h?
+ * If 12-23 hourly samples are present, normalize the observed sum to 24h instead
+ * of declaring the entire strategy unusable. Duplicate samples in the same hour
+ * are collapsed to the newest snapshot.
+ */
+function rollingVolume24h(
+  key: MarketKey,
+  snapshots: readonly Snapshot[],
+  latestTimestamp: number,
+): RollingVolume24h {
+  const latestByHour = new Map<number, Snapshot>();
+  for (const snapshot of snapshots) {
+    if (snapshot.timestamp > latestTimestamp) continue;
+    const ageMs = latestTimestamp - snapshot.timestamp;
+    if (ageMs < 0 || ageMs >= DAY_MS) continue;
+    const hourBucket = Math.floor(snapshot.timestamp / HOUR_MS);
+    const current = latestByHour.get(hourBucket);
+    if (!current || snapshot.timestamp > current.timestamp) latestByHour.set(hourBucket, snapshot);
+  }
+
+  let observedVolume = 0;
+  let coverageHours = 0;
+  for (const snapshot of latestByHour.values()) {
+    const quote = snapshot.quotes[key];
+    if (!quote) continue;
+    coverageHours += 1;
+    if (typeof quote.v === 'number' && Number.isFinite(quote.v) && quote.v >= 0) {
+      observedVolume += quote.v;
+    }
+  }
+
+  const sufficient = coverageHours >= MIN_ROLLING_24H_COVERAGE_HOURS;
+  return {
+    observedVolume24h: coverageHours > 0 ? observedVolume : null,
+    volume24h: sufficient ? observedVolume * 24 / coverageHours : null,
+    coverageHours24h: coverageHours,
+    sufficient,
+  };
+}
+
 function pricesInWindow(
   key: MarketKey,
   snapshots: readonly Snapshot[],
@@ -89,8 +144,8 @@ function pricesInWindow(
   return snapshots
     .filter((snapshot) => snapshot.timestamp >= cutoff && snapshot.timestamp <= latestTimestamp)
     .map((snapshot) => {
-      const q = snapshot.quotes[key];
-      return q?.p ?? q?.b ?? q?.a;
+      const quote = snapshot.quotes[key];
+      return quote?.p ?? quote?.b ?? quote?.a;
     })
     .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
 }
@@ -102,6 +157,10 @@ export function marketCapacity(key: MarketKey, snapshots: readonly Snapshot[]): 
   if (!latest) {
     return {
       key,
+      volume24h: null,
+      observedVolume24h: null,
+      coverageHours24h: 0,
+      volume24hSufficient: false,
       median3d: null,
       median7d: null,
       medianPrice7d: null,
@@ -119,25 +178,40 @@ export function marketCapacity(key: MarketKey, snapshots: readonly Snapshot[]): 
     };
   }
 
+  const rolling24h = rollingVolume24h(key, snapshots, latest.timestamp);
   const daily3d = dailyVolumes(key, snapshots, latest.timestamp, 3);
   const daily7d = dailyVolumes(key, snapshots, latest.timestamp, 7);
   const prices7d = pricesInWindow(key, snapshots, latest.timestamp, 168);
   const median3d = median(daily3d.totals);
   const median7d = median(daily7d.totals);
   const medianPrice7d = median(prices7d);
-  // Preserve the previous ~72h readiness contract while keeping units daily.
   const sufficient = daily3d.totals.length >= 2
     && daily7d.totals.length >= 3
     && median3d !== null
     && median7d !== null;
-  const safeUnitsPerDay = sufficient ? SAFE_SHARE * Math.min(median3d, median7d) : null;
+
+  // Capacity mode remains conservative, but the visible 24h share always uses
+  // the direct rolling-24h volume above. This avoids one spike inflating a batch.
+  const capacityBaselines: number[] = [];
+  if (rolling24h.volume24h !== null) capacityBaselines.push(rolling24h.volume24h);
+  if (sufficient && median3d !== null && median7d !== null) {
+    capacityBaselines.push(median3d, median7d);
+  }
+  const safeUnitsPerDay = capacityBaselines.length > 0
+    ? SAFE_SHARE * Math.min(...capacityBaselines)
+    : null;
   const quote = latest.quotes[key];
   const latestHourlyVolume = typeof quote?.v === 'number' && Number.isFinite(quote.v) && quote.v >= 0
     ? quote.v
     : null;
+  const referenceVolume = rolling24h.volume24h ?? median7d;
 
   return {
     key,
+    volume24h: rolling24h.volume24h,
+    observedVolume24h: rolling24h.observedVolume24h,
+    coverageHours24h: rolling24h.coverageHours24h,
+    volume24hSufficient: rolling24h.sufficient,
     median3d,
     median7d,
     medianPrice7d,
@@ -149,7 +223,7 @@ export function marketCapacity(key: MarketKey, snapshots: readonly Snapshot[]): 
     safeUnitsPerHour: safeUnitsPerDay === null ? null : safeUnitsPerDay / 24,
     safeUnitsPerDay,
     sufficient,
-    isGhostLiquidity: median7d !== null && median7d < MIN_VOLUME_FLOOR * 24,
+    isGhostLiquidity: referenceVolume !== null && referenceVolume < MIN_VOLUME_FLOOR * 24,
     askAvailable: typeof quote?.a === 'number' && Number.isFinite(quote.a) && quote.a >= 0,
     bidAvailable: typeof quote?.b === 'number' && Number.isFinite(quote.b) && quote.b >= 0,
   };

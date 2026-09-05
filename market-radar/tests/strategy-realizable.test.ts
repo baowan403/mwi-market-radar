@@ -44,77 +44,85 @@ function candidate(inputUnits: number, outputUnits: number): StrategyCandidate {
   };
 }
 
-describe('liquidity-adjusted realizable strategy', () => {
-  it('uses the output bottleneck to reduce daily profit and classify a small test', () => {
+describe('simple 24h market assessment', () => {
+  it('uses only the final output for the visible daily production share', () => {
     const result = evaluateRealizableStrategy(candidate(1, 10), snapshots({
       '/items/input': 100,
       '/items/output': 100,
     }));
 
-    expect(result.classification).toBe('small-test');
+    expect(result.outputShare24hPct).toBe(10);
     expect(result.marketSharePct).toBe(10);
+    expect(result.maxInputShare24hPct).toBe(1);
+    expect(result.riskLabel).toBe('滯銷注意');
+    expect(result.classification).toBe('limited');
     expect(result.safeHoursPerDay).toBe(12);
     expect(result.realizableProfitPerDay).toBe(12_000);
     expect(result.bottleneckHrid).toBe('/items/output');
-    expect(result.safeBatchUnits).toBe(120);
     expect(result.sellThroughDays).toBe(0.1);
   });
 
-  it('checks input bottlenecks and ignores internal/coin flows', () => {
+  it('separates procurement pressure from the displayed output share', () => {
     const result = evaluateRealizableStrategy(candidate(20, 1), snapshots({
       '/items/input': 100,
       '/items/output': 100,
     }));
-    expect(result.classification).toBe('limited');
-    expect(result.marketSharePct).toBe(20);
+
+    expect(result.outputShare24hPct).toBe(1);
+    expect(result.maxInputShare24hPct).toBe(20);
+    expect(result.inputBottleneckHrid).toBe('/items/input');
+    expect(result.riskLabel).toBe('原料難買');
+    expect(result.classification).toBe('reject');
     expect(result.safeHoursPerDay).toBe(6);
     expect(result.realizableProfitPerDay).toBe(6_000);
-    expect(result.bottleneckHrid).toBe('/items/input');
   });
 
-  it('returns insufficient instead of inventing capacity from short history', () => {
+  it('uses a normalized rolling 24h estimate with only 20 covered hours', () => {
     const result = evaluateRealizableStrategy(candidate(1, 1), snapshots({
       '/items/input': 100,
       '/items/output': 100,
     }, 20));
-    expect(result.classification).toBe('insufficient');
-    expect(result.realizableProfitPerDay).toBeNull();
+
+    expect(result.classification).toBe('long-run');
+    expect(result.outputShare24hPct).toBe(1);
+    expect(result.outputVolumeCoverageHours).toBe(20);
+    expect(result.realizableProfitPerDay).toBe(24_000);
   });
 
-  it('checks contained market leaves while ignoring liquidated currency leaves', () => {
+  it('does not let a sparse secondary rare drop erase the main product assessment', () => {
     const value = candidate(1, 10);
     value.steps[1]!.outputs.push(
       { itemHrid: '/items/cowbell', enhancementLevel: 0, unitsPerHour: 0.1, unitPrice: 100, market: false },
       { itemHrid: '/items/moonstone', enhancementLevel: 0, unitsPerHour: 1, unitPrice: 70, market: true },
     );
-    const liquid = evaluateRealizableStrategy(value, snapshots({
-      '/items/input': 1_000,
-      '/items/output': 1_000,
-      '/items/moonstone': 1_000,
-    }));
-    const missingGem = evaluateRealizableStrategy(value, snapshots({
+    const result = evaluateRealizableStrategy(value, snapshots({
       '/items/input': 1_000,
       '/items/output': 1_000,
     }));
 
-    expect(liquid.classification).toBe('long-run');
-    expect(liquid.theoreticalProfitPerDay).toBe(value.profitPerDay);
-    expect(missingGem.classification).toBe('insufficient');
-    expect(missingGem.bottleneckHrid).toBe('/items/moonstone');
-    expect(missingGem.bottleneckSide).toBe('output');
+    expect(result.classification).toBe('long-run');
+    expect(result.outputShare24hPct).toBeCloseTo(1, 4);
+    expect(result.riskLabel).toBe('低');
+    expect(result.warnings).toContainEqual({
+      itemHrid: '/items/moonstone',
+      side: 'output',
+      code: 'secondary-history-incomplete',
+    });
   });
 
-  it('still reports insufficient for a market output with no volume history', () => {
+  it('reports a missing current primary bid as an explicit sell risk', () => {
     const result = evaluateRealizableStrategy(candidate(1, 1), snapshots({
       '/items/input': 1_000,
     }));
 
-    expect(result.classification).toBe('insufficient');
+    expect(result.classification).toBe('reject');
+    expect(result.riskCode).toBe('no-bid');
+    expect(result.riskLabel).toBe('成品無買單');
     expect(result.bottleneckHrid).toBe('/items/output');
     expect(result.bottleneckSide).toBe('output');
   });
 
-  it('uses the narrowest of multiple market inputs instead of checking only the final output', () => {
+  it('uses the largest real input demand share as the procurement bottleneck', () => {
     const value = candidate(1, 1);
     value.steps[0]!.inputs.push({
       itemHrid: '/items/rare_input', enhancementLevel: 0, unitsPerHour: 10, unitPrice: 110, market: true,
@@ -125,16 +133,18 @@ describe('liquidity-adjusted realizable strategy', () => {
       '/items/output': 1_000,
     }));
 
-    expect(result.classification).toBe('small-test');
-    expect(result.marketSharePct).toBe(10);
+    expect(result.outputShare24hPct).toBeCloseTo(0.1, 4);
+    expect(result.maxInputShare24hPct).toBe(10);
+    expect(result.riskLabel).toBe('原料偏緊');
     expect(result.bottleneckHrid).toBe('/items/rare_input');
     expect(result.bottleneckSide).toBe('input');
     expect(result.safeHoursPerDay).toBe(12);
   });
 
-  it('rejects a profitable equipment output whose observed market cannot absorb one-per-hour production', () => {
+  it('flags a final equipment output whose 24h production overwhelms market volume', () => {
     const value = candidate(0.01, 1);
     value.path[value.path.length - 1] = '/items/slow_equipment';
+    value.steps[1]!.outputHrid = '/items/slow_equipment';
     value.steps[1]!.outputs[0] = {
       itemHrid: '/items/slow_equipment', enhancementLevel: 0, unitsPerHour: 1, unitPrice: 100, market: true,
     };
@@ -144,24 +154,35 @@ describe('liquidity-adjusted realizable strategy', () => {
     }));
 
     expect(result.classification).toBe('reject');
-    expect(result.marketSharePct).toBe(50);
+    expect(result.outputShare24hPct).toBe(50);
+    expect(result.riskLabel).toBe('滯銷風險');
     expect(result.safeHoursPerDay).toBeCloseTo(2.4);
     expect(result.sellThroughDays).toBe(0.5);
   });
 
-  it('rejects an equipment output whose price deviates abnormally (>2.5x) from 7d historical price', () => {
+  it('flags an equipment output whose current price is abnormally above history', () => {
     const value = candidate(1, 1);
     value.path[value.path.length - 1] = '/items/spiked_gloves';
-    // 當前報價被掛了 500 (歷史中位數為 100，偏離 5 倍)
+    value.steps[1]!.outputHrid = '/items/spiked_gloves';
     value.steps[1]!.outputs[0] = {
       itemHrid: '/items/spiked_gloves', enhancementLevel: 0, unitsPerHour: 1, unitPrice: 500, market: true,
     };
-    const result = evaluateRealizableStrategy(value, snapshots({
+    const history = snapshots({
       '/items/input': 1_000,
       '/items/spiked_gloves': 20,
-    }));
+    });
+    for (const snapshot of history) {
+      snapshot.quotes['/items/spiked_gloves::0' as MarketKey] = {
+        a: 110, b: 100, p: 100, v: 20,
+      };
+    }
+    history.at(-1)!.quotes['/items/spiked_gloves::0' as MarketKey] = {
+      a: 510, b: 500, p: 500, v: 20,
+    };
+    const result = evaluateRealizableStrategy(value, history);
 
-    // 冷門裝備（20件/天）且價格暴漲偏離 5 倍，被判定為插針異常拒絕
     expect(result.classification).toBe('reject');
+    expect(result.riskCode).toBe('price-anomaly');
+    expect(result.riskLabel).toBe('價格異常');
   });
 });
