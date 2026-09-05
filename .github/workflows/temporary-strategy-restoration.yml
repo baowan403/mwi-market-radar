@@ -1,0 +1,56 @@
+name: Temporary strategy restoration
+
+on:
+  push:
+    branches: [fix-current-profit-transmute-20260905]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@49933ea5288ca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: market-radar/package-lock.json
+
+      - name: Apply strategy restoration patch
+        run: python .github/strategy-restore-patch.py
+
+      - name: Install dependencies
+        working-directory: market-radar
+        run: npm ci
+
+      - name: Run unit tests
+        working-directory: market-radar
+        run: npm test -- --run
+
+      - name: Build dashboard and userscript
+        working-directory: market-radar
+        run: npm run build
+
+      - name: Commit validated restoration
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          rm -f .github/strategy-restore-patch.py .github/workflows/temporary-strategy-restoration.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No validated source changes were produced.'
+            exit 1
+          fi
+          git commit -m 'fix(strategy): restore current-profit ranking and transmute coverage'
+          git push origin "HEAD:${BRANCH_NAME}"
