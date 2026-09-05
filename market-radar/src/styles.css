@@ -1025,6 +1025,28 @@ summary:focus-visible {
 }
 
 /* ── 策略推薦：工具列（技能、時長、物品搜尋與待確認切換）── */
+.opportunity-panel {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+}
+.opportunity-controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.opportunity-controls h3 { margin: 0; font-size: 1rem; }
+.opportunity-controls label { display: inline-flex; align-items: center; gap: 6px; font-size: .82rem; }
+.opportunity-controls input { width: 130px; height: 40px; min-height: 40px; padding: 0 10px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-bg); color: var(--color-text); }
+.opportunity-controls button { height: 40px; min-height: 40px; }
+.opportunity-content p { margin: 8px 0; font-size: .84rem; line-height: 1.5; }
+.opportunity-note { color: var(--color-muted); }
+.opportunity-cards { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,260px),1fr)); gap: 12px; }
+.opportunity-card { padding: 12px; border: 1px solid var(--color-line); border-radius: 6px; min-width: 0; }
+.opportunity-card > strong { display: block; font-size: .9rem; line-height: 1.5; overflow-wrap: anywhere; }
+.opportunity-badge { display: inline-block; margin-top: 6px; padding: 2px 8px; border: 1px solid var(--color-line); border-radius: 4px; font-size: .8rem; color: var(--color-muted); }
+.opportunity-card[data-opportunity-action="prepare"] .opportunity-badge { color: #60d6aa; border-color: #366c59; }
+.opportunity-card details, .opportunity-history { margin-top: 8px; font-size: .84rem; }
+.opportunity-card li { margin: 4px 0; }
+.opportunity-history-item { padding: 8px 0; border-top: 1px solid var(--color-line); font-size: .82rem; overflow-wrap: anywhere; }
+
 .strategy-toolbar.toolbar {
   display: flex;
   flex-direction: row;

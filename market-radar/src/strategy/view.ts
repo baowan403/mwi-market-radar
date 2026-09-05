@@ -8,6 +8,8 @@ import { buildStrategyMarginSeries, repriceFixedCandidate, type StrategyMarginPo
 import { generateSparklineSvg } from './sparkline';
 import { createStrategyPriceBook } from './price-book';
 import { estimateStrategySession, compareSessionRanking, type StrategySession } from './session';
+import { createOpportunityPanel } from './opportunity-view';
+import { createOpportunityJournal, type OpportunityJournal } from './opportunity-journal';
 import { formatSemanticPath } from './semantic-path';
 import {
   evaluateRealizableStrategy,
@@ -40,6 +42,8 @@ export interface StrategyViewOptions {
   itemName(hrid: string): string;
   onImportProfile(): void;
   now?: () => number;
+  opportunityJournal?: OpportunityJournal;
+  opportunitySignal?: AbortSignal;
 }
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
@@ -736,6 +740,10 @@ function renderResults(
   const baseAssessed = result.candidates
     .filter((candidate) => candidate.profitPerDay > 0)
     .map((candidate) => ({ candidate, liquidity: evaluateRealizableStrategy(candidate, snapshots) }));
+  const opportunityPanel = createOpportunityPanel({ candidates: result.candidates, snapshots, data, profile,
+    getHours: () => filterState.plannedHours ?? 24, itemName: options.itemName,
+    journal: options.opportunityJournal!, now: options.now, signal: options.opportunitySignal });
+  options.target.insertBefore(opportunityPanel.element, resultsContainer);
   let bestEstimatedProfit = 0;
 
   function getAssessedSignal(item: AssessedStrategy): AssessedSignal {
@@ -1020,12 +1028,14 @@ function renderResults(
     if (!filterState.customDuration) {
       filterState.plannedHours = Number(durationSelect.value);
       customHours.value = String(filterState.plannedHours);
+      opportunityPanel.invalidate();
       updateResults();
     }
   });
   customHours.addEventListener('change', () => {
     if (!customHours.checkValidity() || !Number.isFinite(customHours.valueAsNumber)) return;
     filterState.plannedHours = customHours.valueAsNumber;
+    opportunityPanel.invalidate();
     updateResults();
   });
   unrankedInput.addEventListener('change', () => {
@@ -1040,11 +1050,15 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
   const calculate = options.calculate ?? buildStrategyCandidates;
   let generation = 0;
   let destroyed = false;
+  let renderController = new AbortController();
+  const journal = options.opportunityJournal ?? createOpportunityJournal();
   const filterState: StrategyFilterContext = { selectedSkill: 'all', searchQuery: '', plannedHours: 24 };
   return {
     async render(): Promise<void> {
       if (destroyed) return;
       const current = ++generation;
+      renderController.abort();
+      renderController = new AbortController();
       const profile = options.getProfile();
       if (!profile) {
         renderNoProfile(options);
@@ -1064,13 +1078,15 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
         if (destroyed || current !== generation) return;
         const result = calculate({ profile, data, prices: createStrategyPriceBook(snapshot, data) });
         const now = options.now?.() ?? Date.now();
-        renderResults(result, new Set(pins), options, snapshots, data, profile, Math.max(0, now - snapshot.timestamp), filterState);
+        renderResults(result, new Set(pins), { ...options, opportunityJournal: journal, opportunitySignal: renderController.signal }, snapshots, data, profile, Math.max(0, now - snapshot.timestamp), filterState);
       } catch {
         if (!destroyed && current === generation) options.target.textContent = '策略資料無法使用，請稍後再試。';
       }
     },
     destroy(): void {
       destroyed = true;
+      renderController.abort();
+      if (!options.opportunityJournal) journal.close();
       generation += 1;
     },
   };
