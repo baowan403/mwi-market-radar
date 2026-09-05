@@ -151,7 +151,9 @@ function candidateFromWorkflow(
   );
   const firstInput = isFirstGather
     ? undefined
-    : workflow.inputs.find((flow) => flow.market && !isDrink(flow.itemHrid, data))?.itemHrid;
+    : firstStep?.action === 'alchemy'
+      ? firstStep.inputs[0]?.itemHrid
+      : workflow.inputs.find((flow) => flow.market && !isDrink(flow.itemHrid, data))?.itemHrid;
   return {
     id: workflow.id,
     kind,
