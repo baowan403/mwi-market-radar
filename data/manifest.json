@@ -1,18 +1,8 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-05T16:17:07.237Z",
-  "latestTimestamp": 1788624360000,
+  "generatedAt": "2026-09-05T18:30:19.936Z",
+  "latestTimestamp": 1788631560000,
   "snapshots": [
-    {
-      "timestamp": 1787760360000,
-      "file": "snapshots/1787760360000.txt",
-      "bytes": 10095
-    },
-    {
-      "timestamp": 1787763960000,
-      "file": "snapshots/1787763960000.txt",
-      "bytes": 10063
-    },
     {
       "timestamp": 1787767560000,
       "file": "snapshots/1787767560000.txt",
@@ -1207,6 +1197,11 @@
       "timestamp": 1788624360000,
       "file": "snapshots/1788624360000.txt",
       "bytes": 43987
+    },
+    {
+      "timestamp": 1788631560000,
+      "file": "snapshots/1788631560000.txt",
+      "bytes": 43451
     }
   ]
 }
