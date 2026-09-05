@@ -64,6 +64,12 @@ jobs:
                       "expect(target.querySelector('[data-strategy-row=\"goblin_staff\"] .strategy-classification')?.textContent).toBe('原料無賣單');",
                   ),
               ],
+              'market-radar/tests/strategy-decision.test.ts': [
+                  (
+                      "    marketSharePct: 10,\n    bottleneckHrid: '/items/plank',\n    bottleneckSide: 'output',\n    classification: 'small-test',",
+                      "    marketSharePct: 4,\n    outputShare24hPct: 4,\n    outputUnitsPerDay: 120,\n    outputVolume24h: 3_000,\n    outputVolumeCoverageHours: 24,\n    primaryOutputHrid: '/items/plank',\n    primaryOutputMode: 'market',\n    maxInputShare24hPct: 2,\n    inputBottleneckHrid: '/items/log',\n    inputBottleneckVolume24h: 12_000,\n    riskCode: 'sell-watch',\n    riskSeverity: 'medium',\n    riskLabel: '承接稍弱',\n    bottleneckHrid: '/items/plank',\n    bottleneckSide: 'output',\n    classification: 'small-test',",
+                  ),
+              ],
           }
 
           for file_name, pairs in replacements.items():
