@@ -1,0 +1,1 @@
+Trigger the temporary strategy restoration workflow after fixing the action versions.
