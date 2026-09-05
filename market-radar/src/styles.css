@@ -1055,6 +1055,11 @@ summary:focus-visible {
 .opportunity-watch-list > summary, .opportunity-method > summary { cursor: pointer; }
 .opportunity-panel[hidden], .opportunity-brief[hidden], .strategy-results-container[hidden] { display: none; }
 .strategy-toolbar [hidden] { display: none !important; }
+.strategy-toolbar [data-strategy-tab][aria-pressed="true"] {
+  background: rgb(114 167 255 / 12%);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
 .opportunity-card details, .opportunity-history { margin-top: 8px; font-size: .84rem; }
 .opportunity-card li { margin: 4px 0; }
 .opportunity-history-item { padding: 8px 0; border-top: 1px solid var(--color-line); font-size: .82rem; overflow-wrap: anywhere; }
