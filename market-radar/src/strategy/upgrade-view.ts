@@ -80,6 +80,7 @@ function rowKey(row: UpgradeRow): string {
 }
 
 function efficiency(row: UpgradeRow): number | null {
+  if(row.priority==='已有更高強化'||row.eligibility!=='met')return null;
   if (row.price === null || row.price <= 0 || row.delta === null || row.delta <= 0) return null;
   const value = row.delta / row.price;
   return Number.isFinite(value) ? value : null;
@@ -90,7 +91,7 @@ function sortRows(rows: readonly UpgradeRow[], sort: UpgradeSort): UpgradeRow[] 
     .map((row, index) => ({ row, index, value: sort === 'gain' ? row.delta : efficiency(row) }))
     .sort((left, right) => {
       if(sort==='efficiency'){
-        const lf=left.row.owned&&(left.row.delta??0)>0,rf=right.row.owned&&(right.row.delta??0)>0;
+        const lf=left.row.owned&&left.row.eligibility==='met'&&(left.row.delta??0)>0,rf=right.row.owned&&right.row.eligibility==='met'&&(right.row.delta??0)>0;
         if(lf!==rf)return lf?-1:1;
       }
       const leftKnown = left.value !== null && Number.isFinite(left.value);

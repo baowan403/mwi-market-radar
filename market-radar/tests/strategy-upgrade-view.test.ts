@@ -2,6 +2,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { createUpgradePanel } from '../src/strategy/upgrade-view';
+import type { UpgradeAnalysis } from '../src/strategy/upgrades';
 import type { PlayerProfile } from '../src/profile/types';
 
 const profile = {
@@ -27,7 +28,7 @@ function evaluation(profit: number, route: string[]) {
   return { profit, route, theoreticalProfit: profit + 10 };
 }
 
-function analysis() {
+function analysis(): UpgradeAnalysis {
   return {
     action: 'foraging',
     hoursPerDay: 24,
@@ -57,6 +58,15 @@ function analysis() {
 }
 
 describe('upgrade target panel', () => {
+  it('does not put a redundant lower grade before useful purchases in efficiency order',async()=>{
+    const result=analysis();result.rows[1]!.priority='已有更高強化';
+    result.rows.push({...result.rows[1]!,itemHrid:'/items/useful',delta:30,priority:'可考慮'});
+    const panel=createUpgradePanel({profile,data,snapshots,itemName:h=>h,analyze:vi.fn(async()=>result) as never});
+    (panel.element.querySelector('[data-upgrade-analyze]') as HTMLButtonElement).click();
+    await vi.waitFor(()=>expect(panel.element.querySelectorAll('[data-upgrade-row]')).toHaveLength(4));
+    const sort=panel.element.querySelector<HTMLSelectElement>('[data-upgrade-sort]')!;sort.value='efficiency';sort.dispatchEvent(new Event('change'));
+    expect(panel.element.querySelector<HTMLElement>('[data-upgrade-row]')?.dataset.upgradeRow).toBe('/items/useful::6');
+  });
   it('shows nine skills excluding enhancing, defaults to strongest skill and 24H, and has no budget control', () => {
     const panel = createUpgradePanel({
       profile, data, snapshots, itemName: (hrid) => hrid,
