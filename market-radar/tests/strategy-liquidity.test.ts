@@ -15,6 +15,13 @@ function history(hours: number, volume: (index: number) => number | null = () =>
 }
 
 describe('daily traded-volume market capacity', () => {
+  it('labels sparse coverage separately from its indicative volume estimate', () => {
+    const result = marketCapacity(KEY, history(8));
+    expect(result.volume24h).toBe(2400);
+    expect(result.coverageHours24h).toBe(8);
+    expect(result.volume24hSufficient).toBe(false);
+    expect(result.safeUnitsPerDay).toBeNull();
+  });
   it('exposes the direct rolling 24h traded volume while retaining conservative batch capacity', () => {
     const result = marketCapacity(KEY, history(169, (index) => index >= 97 ? 120 : 100));
 

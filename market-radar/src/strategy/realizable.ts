@@ -345,6 +345,9 @@ export function evaluateRealizableStrategy(
   let operationRatio: number | null;
   if (riskCode === 'market-unavailable' || riskCode === 'no-ask' || riskCode === 'no-bid') {
     operationRatio = 0;
+  } else if ((primaryCapacity && !primaryCapacity.volume24hSufficient)
+    || inputEvaluated.some((item) => !item.capacity.volume24hSufficient)) {
+    operationRatio = null;
   } else if (primaryOutputMode === 'market' && primaryHistoryMissing) {
     operationRatio = null;
   } else if (bottleneck?.safeRatio !== null && bottleneck?.safeRatio !== undefined) {

@@ -28,6 +28,11 @@ function series(
 }
 
 describe('explainable strategy trend signals', () => {
+  it('keeps low profit momentum candidates below top priority', () => {
+    const signal = strategyTrendSignal(series(8, () => ({cost: 100, income: 200, capacity: 100, spread: 1})),
+      {currentProfitRatio: 0.5, classification: 'long-run'});
+    expect(signal.priority).toBe('medium');
+  });
   it('recommends execute when margin is stable or rising (3D >= -2%)', () => {
     const signal = strategyTrendSignal(series(31, (ratio) => ({
       cost: 100,
@@ -102,7 +107,7 @@ describe('explainable strategy trend signals', () => {
     expect(signal.reasons.join(' ')).toContain('承接容量下降');
   });
 
-  it('refuses to claim a trend before seven full days of evidence', () => {
+  it('shows available one and three day changes without inventing seven days', () => {
     const signal = strategyTrendSignal(series(6, (ratio) => ({
       cost: 100,
       income: 200 + 100 * ratio,
@@ -110,10 +115,10 @@ describe('explainable strategy trend signals', () => {
       spread: 1,
     })));
 
-    expect(signal.action).toBe('wait');
-    expect(signal.priority).toBe('medium');
     expect(signal.confidence).toBe('none');
-    expect(signal.reasons.join(' ')).toContain('不足 7 天');
+    expect(signal.metrics.margin1dPct).not.toBeNull();
+    expect(signal.metrics.margin3dPct).not.toBeNull();
+    expect(signal.metrics.margin7dPct).toBeNull();
   });
 
   it('does not force priority to low only because capacity evidence is incomplete', () => {

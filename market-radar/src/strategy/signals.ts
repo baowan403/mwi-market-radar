@@ -56,9 +56,10 @@ function profitOf(point: StrategyMarginPoint | null | undefined): number | null 
 function nearestPoint(
   points: readonly StrategyMarginPoint[],
   targetTimestamp: number,
-  maxOffsetMs = 24 * 3600_000,
+  maxOffsetMs = 6 * 3600_000,
 ): StrategyMarginPoint | null {
   return points.reduce<StrategyMarginPoint | null>((nearest, point) => {
+    if (targetTimestamp < points[0]!.timestamp) return nearest;
     if (profitOf(point) === null) return nearest;
     const distance = Math.abs(point.timestamp - targetTimestamp);
     if (distance > maxOffsetMs) return nearest;
@@ -87,6 +88,7 @@ export function strategyTrendSignal(
     backtest?: StrategySignalBacktest;
     classification?: LiquidityClassification;
     latestSnapshotAgeMs?: number;
+    currentProfitRatio?: number;
   } = {},
 ): StrategySignal {
   const ordered = [...series].sort((left, right) => left.timestamp - right.timestamp);
@@ -110,9 +112,9 @@ export function strategyTrendSignal(
   }
   const spanDays = (latest.timestamp - earliest.timestamp) / DAY_MS;
   let confidence = confidenceFor(spanDays, options.backtest);
-  if (spanDays < 7) {
+  if (spanDays < 1) {
     return {
-      action: 'wait', priority: 'medium', confidence, reasons: ['有效歷史不足 7 天，暫以中性優先級呈現'],
+      action: 'wait', priority: 'medium', confidence, reasons: ['有效歷史不足 1 天，暫以中性優先級呈現'],
       invalidation: ['累積滿 7 天有效資料後重新判斷'], metrics: emptyMetrics,
     };
   }
@@ -229,7 +231,7 @@ export function strategyTrendSignal(
     }
 
     // ── ⚡ Alpha 突發短缺 / 暴利套利判定 ──
-    const isHealthy = risk !== 'insufficient' && risk !== 'reject';
+    const isHealthy = risk === 'long-run';
     const isSurge1d = m1 !== null && m1 >= 10;
     const isSurgeIncome = metrics.income3dPct !== null && metrics.income3dPct >= 15;
     const isAlpha = isHealthy && (isSurge1d || isSurgeIncome) && currentProfit > 0;
@@ -246,6 +248,11 @@ export function strategyTrendSignal(
     }
 
     const reasons = alphaReason ? [alphaReason, trendNote] : [trendNote];
+
+    if (options.currentProfitRatio !== undefined && options.currentProfitRatio < 0.9) {
+      if (priority === 'top' || priority === 'high') priority = 'medium';
+      reasons.push('目前日利低於榜首九成，動能先作觀察');
+    }
 
     return {
       action: 'execute', priority, confidence,

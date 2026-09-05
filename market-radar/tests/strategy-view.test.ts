@@ -466,7 +466,7 @@ describe('strategy recommendation view', () => {
     skillSelect.dispatchEvent(new Event('change'));
 
     // 目前平穩布匹無突發利潤爆發（m1=0），應展示平穩提示
-    expect(target.textContent).toContain('目前全市場暫無突發短缺或異常利差暴利機會');
+    expect(target.textContent).toContain('目前資料下沒有符合條件的短期動能候選');
 
     view.destroy();
   });
@@ -514,14 +514,9 @@ describe('strategy recommendation view', () => {
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual(['limited', 'long']);
     expect(target.querySelector('[data-strategy-row="limited"] .strategy-profit-main')?.textContent).toBe('120K');
     const sortButtons = target.querySelectorAll<HTMLButtonElement>('.strategy-sort-group button');
-    const currentBtn = Array.from(sortButtons).find((b) => b.textContent?.includes('當前日利'))!;
-    expect(currentBtn.classList.contains('active')).toBe(true);
-
-    // 容量參考仍可選用，但不會把資料不足的策略隱藏，日利欄也不會變成破折號。
-    const capacityBtn = Array.from(sortButtons).find((b) => b.textContent?.includes('容量參考'))!;
-    capacityBtn.click();
+    expect(sortButtons).toHaveLength(0);
     const rowsAfter = [...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow);
-    expect(rowsAfter).toEqual(['long', 'limited']);
+    expect(rowsAfter).toEqual(['limited', 'long']);
     expect(target.querySelector('[data-strategy-row="limited"] .strategy-profit-main')?.textContent).toBe('120K');
 
     view.destroy();

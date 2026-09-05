@@ -334,7 +334,13 @@ function strategyRow(
     shareCell.textContent = '衍生清算';
     shareCell.title = '主要產物以展開後的衍生清算流估值，沒有可直接比較的單一成品成交量';
   } else if (outputShare !== null) {
-    shareCell.textContent = sharePct(outputShare);
+    const coverage = liquidity.outputVolumeCoverageHours ?? 0;
+    shareCell.textContent = `${coverage < 24 ? '≈' : ''}${sharePct(outputShare)}`;
+    if (coverage < 24) {
+      const coverageNote = element('small');
+      coverageNote.textContent = ` ${coverage}/24H${coverage < 12 ? '・低信心' : ''}`;
+      shareCell.append(coverageNote);
+    }
     if (outputShare <= 3) shareCell.classList.add('share-safe');
     else if (outputShare <= 5) shareCell.classList.add('share-warning');
     else if (outputShare <= 10) shareCell.classList.add('share-danger');
@@ -690,39 +696,6 @@ function renderResults(
 
   modeGroup.append(steadyBtn, alphaBtn);
 
-  const sortGroup = element('div', 'strategy-sort-group filter-control');
-  const sortSafeBtn = element('button', 'toolbar-button');
-  sortSafeBtn.type = 'button';
-  sortSafeBtn.textContent = '📦 容量參考';
-  sortSafeBtn.title = '依市場容量估算值排序；日利欄仍顯示當前市場日利，不會因資料不足而歸零';
-  if ((filterState.sortMode ?? 'safe') === 'safe') sortSafeBtn.classList.add('active');
-
-  const sortTheoBtn = element('button', 'toolbar-button');
-  sortTheoBtn.type = 'button';
-  sortTheoBtn.textContent = '💰 當前日利';
-  sortTheoBtn.title = '依當前賣一買入、買一出售及稅後日利排序（主要推薦榜）';
-  if (filterState.sortMode === 'theoretical') sortTheoBtn.classList.add('active');
-
-  sortSafeBtn.addEventListener('click', () => {
-    if (filterState.sortMode !== 'safe') {
-      filterState.sortMode = 'safe';
-      sortSafeBtn.classList.add('active');
-      sortTheoBtn.classList.remove('active');
-      updateResults();
-    }
-  });
-
-  sortTheoBtn.addEventListener('click', () => {
-    if (filterState.sortMode !== 'theoretical') {
-      filterState.sortMode = 'theoretical';
-      sortTheoBtn.classList.add('active');
-      sortSafeBtn.classList.remove('active');
-      updateResults();
-    }
-  });
-
-  sortGroup.append(sortSafeBtn, sortTheoBtn);
-
   const skillGroup = element('div', 'strategy-filter-group filter-control');
   const skillLabel = element('label', 'strategy-label');
   skillLabel.htmlFor = 'strategy-skill-select';
@@ -748,7 +721,8 @@ function renderResults(
   searchInput.value = filterState.searchQuery;
   searchGroup.append(searchInput);
 
-  toolbar.append(modeGroup, sortGroup, skillGroup, searchGroup);
+  filterState.sortMode = 'theoretical';
+  toolbar.append(modeGroup, skillGroup, searchGroup);
   options.target.append(toolbar);
 
   const resultsContainer = element('div', 'strategy-results-container');
@@ -757,6 +731,7 @@ function renderResults(
   const baseAssessed = result.candidates
     .filter((candidate) => candidate.profitPerDay > 0)
     .map((candidate) => ({ candidate, liquidity: evaluateRealizableStrategy(candidate, snapshots) }));
+  const bestCurrentProfit = Math.max(0, ...baseAssessed.map(({ candidate }) => candidate.profitPerDay));
 
   function getAssessedSignal(item: AssessedStrategy): AssessedSignal {
     let assessedSignal = signalCache.get(item.candidate.id);
@@ -780,6 +755,7 @@ function renderResults(
         signal: strategyTrendSignal(series, {
           backtest: backtest.summary,
           classification: item.liquidity.classification,
+          currentProfitRatio: bestCurrentProfit > 0 ? item.candidate.profitPerDay / bestCurrentProfit : 0,
           latestSnapshotAgeMs,
         }),
         backtest,
@@ -942,7 +918,7 @@ function renderResults(
       if (filterState.selectedSkill === 'alpha') {
         radarBadge.textContent = '⚡ 模式：突發短缺暴利雷達（已剔除幽靈插針）';
       } else {
-        radarBadge.textContent = '⚡ 短缺雷達：全市場供需平穩（無異常暴利）';
+        radarBadge.textContent = '市場風險請見各列；短缺機會另行檢查';
       }
 
       summary.append(leftContainer, note, radarBadge);
@@ -961,7 +937,7 @@ function renderResults(
       if (isSearchActive) {
         empty.textContent = `找不到與「${filterState.searchQuery.trim()}」相關的策略。`;
       } else if (filterState.selectedSkill === 'alpha') {
-        empty.textContent = '目前全市場暫無突發短缺或異常利差暴利機會（各品類供需平穩健康）。';
+        empty.textContent = '目前資料下沒有符合條件的短期動能候選。';
       } else if (filterState.selectedSkill !== 'all') {
         const skillName = STRATEGY_SKILL_OPTIONS.find((s) => s.value === filterState.selectedSkill)?.label ?? '';
         empty.textContent = `在「${skillName}」技能下沒有符合條件的策略。`;
@@ -1029,6 +1005,7 @@ function renderResults(
           signal: strategyTrendSignal(series, {
             backtest: backtest.summary,
             classification: assessedCandidate.liquidity.classification,
+            currentProfitRatio: bestCurrentProfit > 0 ? assessedCandidate.candidate.profitPerDay / bestCurrentProfit : 0,
             latestSnapshotAgeMs,
           }),
           backtest,
