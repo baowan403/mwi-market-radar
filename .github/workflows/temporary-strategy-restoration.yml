@@ -26,6 +26,27 @@ jobs:
       - name: Apply strategy restoration patch
         run: python .github/strategy-restore-patch.py
 
+      - name: Align transmute fixture with level efficiency
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('market-radar/tests/strategy-transmute.test.ts')
+          text = path.read_text(encoding='utf-8')
+          replacements = {
+              "expect(result.actionsPerHour).toBeCloseTo(360);": "expect(result.actionsPerHour).toBeCloseTo(684);",
+              "// net purchased input = 2 * (1 - 0.125) * 360 = 630/h.\n    expect(result.inputs.find((flow) => flow.itemHrid === inputHrid)?.unitsPerHour).toBeCloseTo(630);": "// Net purchased input keeps the self-return accounting while level efficiency scales actions/h.\n    expect(result.inputs.find((flow) => flow.itemHrid === inputHrid)?.unitsPerHour).toBeCloseTo(\n      result.actionsPerHour * 2 * (1 - 0.125),\n    );",
+              "// Coin cost = bulk 2 * max(floor(100 / 5), 50) * 360 = 36,000/h.\n    expect(result.inputs.find((flow) => flow.itemHrid === '/items/coin')?.unitsPerHour).toBeCloseTo(36_000);": "// Coin cost = bulk 2 * max(floor(100 / 5), 50) for every attempted action.\n    expect(result.inputs.find((flow) => flow.itemHrid === '/items/coin')?.unitsPerHour).toBeCloseTo(\n      result.actionsPerHour * 100,\n    );",
+              "// Main output = maxCount 2 * bulk 2 * dropRate 0.5 * 180 successes/h = 360/h.\n    expect(result.outputs.find((flow) => flow.itemHrid === outputHrid)?.unitsPerHour).toBeCloseTo(360);\n    expect(result.costPerHour).toBeCloseTo(666_000);": "// Main output = expected 2 units per success, then scaled by successful actions/h.\n    expect(result.outputs.find((flow) => flow.itemHrid === outputHrid)?.unitsPerHour).toBeCloseTo(\n      result.actionsPerHour * result.successRate * 2,\n    );\n    expect(result.costPerHour).toBeCloseTo(\n      result.actionsPerHour * 2 * (1 - 0.125) * 1_000 + result.actionsPerHour * 100,\n    );",
+              "expect(result.outputs.find((flow) => flow.itemHrid === outputHrid)?.unitsPerHour).toBeCloseTo(414);": "expect(result.outputs.find((flow) => flow.itemHrid === outputHrid)?.unitsPerHour).toBeCloseTo(\n      result.actionsPerHour * result.successRate * 2,\n    );",
+          }
+          for old, new in replacements.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f'Expected one fixture pattern, found {text.count(old)}: {old[:80]}')
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
       - name: Install dependencies
         working-directory: market-radar
         run: npm ci
@@ -43,7 +64,7 @@ jobs:
           BRANCH_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          rm -f .github/strategy-restore-patch.py .github/strategy-restore-trigger.txt .github/workflows/temporary-strategy-restoration.yml
+          rm -f .github/strategy-restore-patch.py .github/strategy-restore-trigger*.txt .github/workflows/temporary-strategy-restoration.yml
           git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
