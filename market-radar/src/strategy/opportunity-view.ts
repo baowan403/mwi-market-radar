@@ -99,10 +99,17 @@ export function createOpportunityPanel(options:Options):{element:HTMLElement;inv
           for(const record of records){
             const item=node('div','','opportunity-history-item');
             item.append(node('strong',`${new Date(record.issuedAt).toLocaleString()}・${record.candidate.path.map(options.itemName).join(' → ')}`));
-            for(const h of [6,24] as const)item.append(node('p',`${h}H：${outcomeText(evaluateOpportunityOutcome(record,options.snapshots,options.data,h))}`));
+            for(const h of [6,24] as const){
+              if(!active(id))return;
+              const cached=await options.journal.getOutcome(record.id,h);
+              const outcome=cached??evaluateOpportunityOutcome(record,options.snapshots,options.data,h);
+              if(!cached&&outcome.state==='evaluated')await options.journal.saveOutcome(record.id,outcome);
+              item.append(node('p',`${h}H：${outcomeText(outcome)}`));
+            }
+            if(!active(id))return;
             history.append(item);
           }
-          content.append(history);
+          if(active(id))content.append(history);
         }
       } catch {if(active(id))status.textContent='未能保存本機紀錄，以上觀察仍可閱讀。';}
     } catch {if(active(id))content.replaceChildren(node('p','機會資料暫時無法計算，請稍後重試。'));}

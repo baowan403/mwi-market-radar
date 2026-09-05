@@ -9,8 +9,9 @@ import type { NormalizedStrategyGameData } from './game-data';
 import type { StrategyFlow, StrategyStepResult } from './types';
 
 export const OPPORTUNITY_DATABASE_NAME = 'mwi-market-radar-opportunities';
-export const OPPORTUNITY_DATABASE_VERSION = 1;
+export const OPPORTUNITY_DATABASE_VERSION = 2;
 export const OPPORTUNITY_STORE_NAME = 'opportunities';
+export const OPPORTUNITY_OUTCOME_STORE_NAME = 'outcomes';
 export const MAX_OPPORTUNITY_RECORDS = 120;
 export const MAX_OPPORTUNITY_RECORD_BYTES = 512 * 1024;
 
@@ -23,6 +24,9 @@ const MAX_STEPS = 64;
 const MAX_FLOWS_PER_STEP = 256;
 const OPPORTUNITY_KEYS = [
   'id', 'profileId', 'issuedAt', 'savedAt', 'sourceTimestamp', 'plannedHours', 'action', 'candidate', 'baseline',
+] as const;
+const OPPORTUNITY_OUTCOME_KEYS = [
+  'state', 'horizonHours', 'observedAt', 'candidateProfit', 'baselineProfit', 'extraProfit', 'maxRelativeShortfall',
 ] as const;
 const CANDIDATE_KINDS = new Set<StrategyCandidate['kind']>([
   'manufacture', 'workflow', 'transmute', 'decompose', 'coinify', 'decompose-coinify', 'gather',
@@ -53,6 +57,8 @@ export type OpportunityObservationInput = Omit<OpportunityObservation, 'id' | 's
 export interface OpportunityJournal {
   list(profileId: string): Promise<OpportunityObservation[]>;
   add(record: OpportunityObservation): Promise<void>;
+  getOutcome(recordId: string, horizonHours: 6 | 24): Promise<OpportunityOutcome | null>;
+  saveOutcome(recordId: string, outcome: OpportunityOutcome): Promise<void>;
   close(): void;
 }
 
@@ -74,6 +80,13 @@ export interface OpportunityOutcome {
   baselineProfit: number | null;
   extraProfit: number | null;
   maxRelativeShortfall: number | null;
+}
+
+interface StoredOpportunityOutcome {
+  key: string;
+  recordId: string;
+  horizonHours: 6 | 24;
+  outcome: OpportunityOutcome;
 }
 
 function storageError(): OpportunityJournalError {
@@ -119,6 +132,52 @@ function validNullableNumber(value: unknown): value is number | null {
   return value === null || validFiniteNumber(value);
 }
 
+function validHorizon(value: unknown): value is 6 | 24 {
+  return value === 6 || value === 24;
+}
+
+function outcomeKey(recordId: string, horizonHours: 6 | 24): string {
+  return `${recordId}|${horizonHours}`;
+}
+
+function validateOutcome(value: unknown, expectedHorizon?: 6 | 24): OpportunityOutcome {
+  if (!isRecord(value) || !hasExactKeys(value, OPPORTUNITY_OUTCOME_KEYS)
+    || value.state !== 'evaluated'
+    || !validHorizon(value.horizonHours)
+    || (expectedHorizon !== undefined && value.horizonHours !== expectedHorizon)
+    || !validDate(value.observedAt)
+    || !validFiniteNumber(value.candidateProfit)
+    || !validFiniteNumber(value.baselineProfit)
+    || !validFiniteNumber(value.extraProfit)
+    || !validFiniteNumber(value.maxRelativeShortfall)
+    || value.maxRelativeShortfall < 0) {
+    throw storageError();
+  }
+  return clone({
+    state: 'evaluated',
+    horizonHours: value.horizonHours,
+    observedAt: value.observedAt,
+    candidateProfit: value.candidateProfit,
+    baselineProfit: value.baselineProfit,
+    extraProfit: value.extraProfit,
+    maxRelativeShortfall: value.maxRelativeShortfall,
+  });
+}
+
+function validateStoredOutcome(value: unknown): StoredOpportunityOutcome {
+  if (!isRecord(value) || !hasExactKeys(value, ['key', 'recordId', 'horizonHours', 'outcome'])
+    || !validString(value.recordId, 128)
+    || !validHorizon(value.horizonHours)
+    || value.key !== outcomeKey(value.recordId, value.horizonHours)) throw storageError();
+  const outcome = validateOutcome(value.outcome, value.horizonHours);
+  return clone({
+    key: value.key,
+    recordId: value.recordId,
+    horizonHours: value.horizonHours,
+    outcome,
+  });
+}
+
 function validFlow(value: unknown): value is StrategyFlow {
   if (!isRecord(value) || !hasExactKeys(value, ['itemHrid', 'enhancementLevel', 'unitsPerHour', 'unitPrice', 'market'])) return false;
   return validString(value.itemHrid)
@@ -135,6 +194,7 @@ function validStep(value: unknown): value is StrategyStepResult {
   if (keys.some((key) => key !== 'ledger' && ![
     'id', 'action', 'actionHrid', 'outputHrid', 'valid', 'actionsPerHour', 'costPerHour',
     'incomePerHour', 'profitPerHour', 'experiencePerHour', 'inputs', 'outputs',
+    'successRate', 'catalystRank', 'workFraction',
   ].includes(key))) return false;
   if (![
     'id', 'action', 'actionHrid', 'outputHrid', 'valid', 'actionsPerHour', 'costPerHour',
@@ -155,7 +215,13 @@ function validStep(value: unknown): value is StrategyStepResult {
     && value.inputs.every(validFlow)
     && Array.isArray(value.outputs)
     && value.outputs.length <= MAX_FLOWS_PER_STEP
-    && value.outputs.every(validFlow);
+    && value.outputs.every(validFlow)
+    && (!Object.hasOwn(value, 'successRate')
+      || (validFiniteNumber(value.successRate) && value.successRate >= 0 && value.successRate <= 1))
+    && (!Object.hasOwn(value, 'catalystRank')
+      || (Number.isSafeInteger(value.catalystRank) && (value.catalystRank as number) >= 0 && (value.catalystRank as number) <= 2))
+    && (!Object.hasOwn(value, 'workFraction')
+      || (validFiniteNumber(value.workFraction) && value.workFraction >= 0 && value.workFraction <= 1));
 }
 
 function validCandidate(value: unknown): value is StrategyCandidate {
@@ -336,6 +402,7 @@ function oldestObservation(values: OpportunityObservation[]): OpportunityObserva
 
 export function createMemoryOpportunityJournal(): OpportunityJournal {
   const records = new Map<string, OpportunityObservation>();
+  const outcomes = new Map<string, OpportunityOutcome>();
   let closed = false;
   const ensureOpen = (): void => {
     if (closed) throw storageError();
@@ -356,8 +423,26 @@ export function createMemoryOpportunityJournal(): OpportunityJournal {
         const oldest = oldestObservation([...records.values()]);
         if (!oldest) throw storageError();
         records.delete(oldest.id);
+        outcomes.delete(outcomeKey(oldest.id, 6));
+        outcomes.delete(outcomeKey(oldest.id, 24));
       }
       records.set(valid.id, valid);
+    },
+    async getOutcome(recordId: string, horizonHours: 6 | 24): Promise<OpportunityOutcome | null> {
+      ensureOpen();
+      if (!validString(recordId, 128) || !validHorizon(horizonHours)) throw storageError();
+      if (!records.has(recordId)) return null;
+      const value = outcomes.get(outcomeKey(recordId, horizonHours));
+      return value === undefined ? null : clone(value);
+    },
+    async saveOutcome(recordId: string, outcome: OpportunityOutcome): Promise<void> {
+      ensureOpen();
+      if (!validString(recordId, 128) || !records.has(recordId)) throw storageError();
+      const valid = validateOutcome(outcome);
+      if (valid.horizonHours !== outcome.horizonHours) throw storageError();
+      const key = outcomeKey(recordId, valid.horizonHours);
+      if (outcomes.has(key)) return;
+      outcomes.set(key, valid);
     },
     close(): void {
       closed = true;
@@ -378,6 +463,9 @@ function openDatabase(factory: IDBFactory): Promise<IDBDatabase> {
       const database = request.result;
       if (!database.objectStoreNames.contains(OPPORTUNITY_STORE_NAME)) {
         database.createObjectStore(OPPORTUNITY_STORE_NAME, { keyPath: 'id' });
+      }
+      if (!database.objectStoreNames.contains(OPPORTUNITY_OUTCOME_STORE_NAME)) {
+        database.createObjectStore(OPPORTUNITY_OUTCOME_STORE_NAME, { keyPath: 'key' });
       }
     };
     request.onerror = (): void => reject(storageError());
@@ -427,12 +515,16 @@ function addRecord(database: IDBDatabase, record: OpportunityObservation): Promi
   return new Promise((resolve, reject) => {
     let transaction: IDBTransaction;
     try {
-      transaction = database.transaction(OPPORTUNITY_STORE_NAME, 'readwrite');
+      transaction = database.transaction(
+        [OPPORTUNITY_STORE_NAME, OPPORTUNITY_OUTCOME_STORE_NAME],
+        'readwrite',
+      );
     } catch {
       reject(storageError());
       return;
     }
     const store = transaction.objectStore(OPPORTUNITY_STORE_NAME);
+    const outcomeStore = transaction.objectStore(OPPORTUNITY_OUTCOME_STORE_NAME);
     let failure: OpportunityJournalError | null = null;
     let addStarted = false;
     transaction.oncomplete = (): void => {
@@ -511,8 +603,168 @@ function addRecord(database: IDBDatabase, record: OpportunityObservation): Promi
             || left.issuedAt - right.issuedAt
             || left.id.localeCompare(right.id)
           ));
-          for (const value of oldest.slice(0, removeCount)) store.delete(value.id);
+          for (const value of oldest.slice(0, removeCount)) {
+            store.delete(value.id);
+            outcomeStore.delete(outcomeKey(value.id, 6));
+            outcomeStore.delete(outcomeKey(value.id, 24));
+          }
           queueAdd();
+        };
+      };
+    };
+  });
+}
+
+function readOutcome(
+  database: IDBDatabase,
+  recordId: string,
+  horizonHours: 6 | 24,
+): Promise<OpportunityOutcome | null> {
+  return new Promise((resolve, reject) => {
+    let transaction: IDBTransaction;
+    try {
+      transaction = database.transaction(
+        [OPPORTUNITY_STORE_NAME, OPPORTUNITY_OUTCOME_STORE_NAME],
+        'readonly',
+      );
+    } catch {
+      reject(storageError());
+      return;
+    }
+    let recordValue: unknown;
+    let outcomeValue: unknown;
+    let recordRead = false;
+    let outcomeRead = false;
+    let failed = false;
+    transaction.oncomplete = (): void => {
+      if (failed || !recordRead || !outcomeRead) return;
+      try {
+        if (recordValue === undefined) {
+          if (outcomeValue !== undefined) throw storageError();
+          resolve(null);
+          return;
+        }
+        validateRecord(recordValue);
+        if (outcomeValue === undefined) {
+          resolve(null);
+          return;
+        }
+        resolve(validateStoredOutcome(outcomeValue).outcome);
+      } catch {
+        reject(storageError());
+      }
+    };
+    transaction.onerror = (): void => {
+      failed = true;
+      reject(storageError());
+    };
+    transaction.onabort = (): void => {
+      failed = true;
+      reject(storageError());
+    };
+    const recordRequest = transaction.objectStore(OPPORTUNITY_STORE_NAME).get(recordId);
+    recordRequest.onsuccess = (): void => {
+      recordValue = recordRequest.result;
+      recordRead = true;
+    };
+    recordRequest.onerror = (): void => {
+      failed = true;
+      transaction.abort();
+    };
+    const outcomeRequest = transaction.objectStore(OPPORTUNITY_OUTCOME_STORE_NAME)
+      .get(outcomeKey(recordId, horizonHours));
+    outcomeRequest.onsuccess = (): void => {
+      outcomeValue = outcomeRequest.result;
+      outcomeRead = true;
+    };
+    outcomeRequest.onerror = (): void => {
+      failed = true;
+      transaction.abort();
+    };
+  });
+}
+
+function saveOutcomeRecord(
+  database: IDBDatabase,
+  recordId: string,
+  outcome: OpportunityOutcome,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let transaction: IDBTransaction;
+    try {
+      transaction = database.transaction(
+        [OPPORTUNITY_STORE_NAME, OPPORTUNITY_OUTCOME_STORE_NAME],
+        'readwrite',
+      );
+    } catch {
+      reject(storageError());
+      return;
+    }
+    const recordStore = transaction.objectStore(OPPORTUNITY_STORE_NAME);
+    const outcomeStore = transaction.objectStore(OPPORTUNITY_OUTCOME_STORE_NAME);
+    let failure: OpportunityJournalError | null = null;
+    let outcomeWriteStarted = false;
+    transaction.oncomplete = (): void => {
+      if (failure) reject(failure);
+      else resolve();
+    };
+    transaction.onerror = (): void => {
+      if (!failure) failure = storageError();
+      reject(failure);
+    };
+    transaction.onabort = (): void => {
+      reject(failure ?? storageError());
+    };
+
+    const recordRequest = recordStore.get(recordId);
+    recordRequest.onerror = (): void => {
+      failure = storageError();
+      transaction.abort();
+    };
+    recordRequest.onsuccess = (): void => {
+      if (recordRequest.result === undefined) {
+        failure = storageError();
+        transaction.abort();
+        return;
+      }
+      try {
+        validateRecord(recordRequest.result);
+      } catch {
+        failure = storageError();
+        transaction.abort();
+        return;
+      }
+      const key = outcomeKey(recordId, outcome.horizonHours);
+      const existingRequest = outcomeStore.get(key);
+      existingRequest.onerror = (): void => {
+        failure = storageError();
+        transaction.abort();
+      };
+      existingRequest.onsuccess = (): void => {
+        if (existingRequest.result !== undefined) {
+          try {
+            validateStoredOutcome(existingRequest.result);
+          } catch {
+            failure = storageError();
+            transaction.abort();
+          }
+          return;
+        }
+        if (outcomeWriteStarted) return;
+        outcomeWriteStarted = true;
+        const request = outcomeStore.add({
+          key,
+          recordId,
+          horizonHours: outcome.horizonHours,
+          outcome: clone(outcome),
+        } satisfies StoredOpportunityOutcome);
+        request.onerror = (event): void => {
+          if (request.error?.name === 'ConstraintError') {
+            event.preventDefault();
+            return;
+          }
+          failure = storageError();
+          transaction.abort();
         };
       };
     };
@@ -559,6 +811,15 @@ export function createOpportunityJournal(options: { indexedDB?: IDBFactory } = {
     async add(record: OpportunityObservation): Promise<void> {
       const valid = validateRecord(record);
       await addRecord(await open(), valid);
+    },
+    async getOutcome(recordId: string, horizonHours: 6 | 24): Promise<OpportunityOutcome | null> {
+      if (!validString(recordId, 128) || !validHorizon(horizonHours)) throw storageError();
+      return readOutcome(await open(), recordId, horizonHours);
+    },
+    async saveOutcome(recordId: string, outcome: OpportunityOutcome): Promise<void> {
+      if (!validString(recordId, 128)) throw storageError();
+      const valid = validateOutcome(outcome);
+      await saveOutcomeRecord(await open(), recordId, valid);
     },
     close(): void {
       closed = true;

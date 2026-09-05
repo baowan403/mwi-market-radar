@@ -40,7 +40,7 @@ describe('opportunity observation panel',()=>{
     const analysis={issuedAt:0,baseline:null,opportunities:[],considered:0,reason:'目前没有機會'} as OpportunityAnalysis;
     const panel=createOpportunityPanel({candidates:[],snapshots:[],data:{} as never,profile:{id:'test'} as PlayerProfile,
       getHours:()=>24,itemName:h=>h,now:()=>1000,analyze:()=>analysis,
-      journal:{list:async()=>{throw Error('storage');},add:async()=>{},close(){}}});
+      journal:{list:async()=>{throw Error('storage');},add:async()=>{},getOutcome:async()=>null,saveOutcome:async()=>{},close(){}}});
     (panel.element.querySelector('button') as HTMLButtonElement).click();
     await vi.waitFor(()=>expect(panel.element.textContent).toContain('未能保存'));
     expect(panel.element.textContent).toContain('目前没有機會');

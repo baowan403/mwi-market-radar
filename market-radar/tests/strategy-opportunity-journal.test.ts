@@ -7,6 +7,8 @@ import { normalizeStrategyGameData } from '../src/strategy/game-data';
 import {
   MAX_OPPORTUNITY_RECORDS,
   OPPORTUNITY_DATABASE_NAME,
+  OPPORTUNITY_DATABASE_VERSION,
+  OPPORTUNITY_OUTCOME_STORE_NAME,
   OPPORTUNITY_STORE_NAME,
   createMemoryOpportunityJournal,
   createOpportunityJournal,
@@ -14,6 +16,7 @@ import {
   makeOpportunityObservation,
   type OpportunityJournal,
   type OpportunityObservation,
+  type OpportunityOutcome,
 } from '../src/strategy/opportunity-journal';
 
 const HOUR = 3_600_000;
@@ -101,7 +104,7 @@ async function deleteDatabase(): Promise<void> {
 
 async function putRaw(value: unknown): Promise<void> {
   const database = await new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(OPPORTUNITY_DATABASE_NAME, 1);
+    const request = indexedDB.open(OPPORTUNITY_DATABASE_NAME, OPPORTUNITY_DATABASE_VERSION);
     request.onerror = () => reject(request.error ?? new Error('open failed'));
     request.onsuccess = () => resolve(request.result);
   });
@@ -117,6 +120,18 @@ async function putRaw(value: unknown): Promise<void> {
 }
 
 const stores: OpportunityJournal[] = [];
+
+function evaluatedOutcome(horizonHours: 6 | 24 = 6): OpportunityOutcome {
+  return {
+    state: 'evaluated',
+    horizonHours,
+    observedAt: ISSUED_AT + horizonHours * HOUR,
+    candidateProfit: 120,
+    baselineProfit: 100,
+    extraProfit: 20,
+    maxRelativeShortfall: 30,
+  };
+}
 
 beforeEach(deleteDatabase);
 afterEach(async () => {
@@ -164,6 +179,19 @@ describe('opportunity observation identity and memory journal', () => {
     await expect(journal.list('profile-a')).rejects.toMatchObject({ code: 'opportunity_storage' });
     await expect(journal.add(await observation())).rejects.toMatchObject({ code: 'opportunity_storage' });
   });
+
+  it('round-trips alchemy and workflow step extensions without dropping physical fields', async () => {
+    const extended = candidate('extended');
+    Object.assign(extended.steps[0]!, { successRate: 0.75, catalystRank: 2, workFraction: 0.4 });
+    const journal = createMemoryOpportunityJournal();
+    stores.push(journal);
+    const record = await observation({ candidate: extended });
+    await journal.add(record);
+    const restored = (await journal.list('profile-a'))[0]!;
+    expect(restored.candidate.steps[0]).toMatchObject({ successRate: 0.75, catalystRank: 2, workFraction: 0.4 });
+    expect(restored.candidate.steps[0]!.inputs[0]!.unitsPerHour).toBe(1);
+    expect(restored.candidate.steps[0]!.outputs[0]!.unitsPerHour).toBe(1);
+  });
 });
 
 describe('indexed opportunity journal', () => {
@@ -206,6 +234,61 @@ describe('indexed opportunity journal', () => {
     stores.push(journal);
     await expect(journal.list('profile-a')).rejects.toMatchObject({ code: 'opportunity_storage' });
   });
+});
+
+describe('opportunity outcome cache', () => {
+  it('stores only evaluated finite outcomes, keeps the first write, and clones results', async () => {
+    const journal = createMemoryOpportunityJournal();
+    stores.push(journal);
+    const record = await observation();
+    await journal.add(record);
+    const outcome = evaluatedOutcome();
+    await journal.saveOutcome(record.id, outcome);
+    const loaded = await journal.getOutcome(record.id, 6);
+    expect(loaded).toEqual(outcome);
+    loaded!.candidateProfit = 999;
+    await journal.saveOutcome(record.id, { ...outcome, candidateProfit: 999 });
+    expect(await journal.getOutcome(record.id, 6)).toEqual(outcome);
+    await expect(journal.saveOutcome('missing', outcome)).rejects.toMatchObject({ code: 'opportunity_storage' });
+    await expect(journal.saveOutcome(record.id, { ...outcome, state: 'pending' })).rejects.toMatchObject({ code: 'opportunity_storage' });
+    await expect(journal.saveOutcome(record.id, { ...outcome, candidateProfit: Number.NaN })).rejects.toMatchObject({ code: 'opportunity_storage' });
+    expect(await journal.getOutcome(record.id, 24)).toBeNull();
+  });
+
+  it('persists cached outcomes across IndexedDB restarts in the version-two outcomes store', async () => {
+    const record = await observation();
+    const first = createOpportunityJournal();
+    stores.push(first);
+    await first.add(record);
+    await first.saveOutcome(record.id, evaluatedOutcome(24));
+    first.close();
+
+    const second = createOpportunityJournal();
+    stores.push(second);
+    await expect(second.getOutcome(record.id, 24)).resolves.toEqual(evaluatedOutcome(24));
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(OPPORTUNITY_DATABASE_NAME, OPPORTUNITY_DATABASE_VERSION);
+      request.onerror = () => reject(request.error ?? new Error('open failed'));
+      request.onsuccess = () => resolve(request.result);
+    });
+    expect(database.version).toBe(2);
+    expect([...database.objectStoreNames]).toEqual([OPPORTUNITY_STORE_NAME, OPPORTUNITY_OUTCOME_STORE_NAME]);
+    database.close();
+  });
+
+  it('evicts cached outcomes together with the oldest observation', async () => {
+    const journal = createMemoryOpportunityJournal();
+    stores.push(journal);
+    const records: OpportunityObservation[] = [];
+    for (let index = 0; index < MAX_OPPORTUNITY_RECORDS; index += 1) {
+      const record = await observation({ profileId: `profile-${index}`, issuedAt: ISSUED_AT + index * HOUR });
+      records.push(record);
+      await journal.add(record);
+    }
+    await journal.saveOutcome(records[0]!.id, evaluatedOutcome());
+    await journal.add(await observation({ profileId: 'new-profile', issuedAt: ISSUED_AT + MAX_OPPORTUNITY_RECORDS * HOUR }));
+    expect(await journal.getOutcome(records[0]!.id, 6)).toBeNull();
+  }, 30_000);
 });
 
 describe('opportunity outcomes', () => {

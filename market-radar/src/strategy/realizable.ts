@@ -96,7 +96,7 @@ export function externalStrategyFlows(candidate: StrategyCandidate): ExternalFlo
   ];
 }
 
-function isAuxiliaryInput(external: ExternalFlow, candidate: StrategyCandidate): boolean {
+export function isAuxiliaryInput(external: ExternalFlow, candidate: StrategyCandidate): boolean {
   if (candidate.steps.some((step) => step.action === 'alchemy'
     && step.inputs[0]?.itemHrid === external.flow.itemHrid)) return false;
   return external.side === 'input'

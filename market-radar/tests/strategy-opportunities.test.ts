@@ -55,6 +55,13 @@ describe('opportunity observations',()=>{
     const item=analyzeOpportunities({candidates:[candidate('a'),b],snapshots,data,profile,plannedHours:24,budget:100000,now:48*H}).opportunities[0]!;
     expect(item.action).toBe('watch');expect(item.metrics.inputVolumeChangePct).toBe(-90);
   });
+  it('does not confuse a tiny routine tea purchase with contraction of the main raw material',()=>{
+    const snapshots=history(); const b=candidate('b');
+    b.steps[0]!.inputs.push({itemHrid:'/items/efficiency_tea',enhancementLevel:0,unitsPerHour:.01,unitPrice:10,market:true});
+    for(const s of snapshots)s.quotes['/items/efficiency_tea::0']={a:10,b:9,p:10,v:s.timestamp>24*H?10000:100000};
+    const item=analyzeOpportunities({candidates:[candidate('a'),b],snapshots,data,profile,plannedHours:24,budget:100000,now:48*H}).opportunities[0]!;
+    expect(item.action).toBe('prepare');expect(item.metrics.inputVolumeChangePct).toBe(0);
+  });
   it('does not mistake rising profit for catching a faster improving baseline',()=>{
     expect(analyze(history(false,true)).opportunities).toHaveLength(0);
   });

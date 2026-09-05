@@ -4,7 +4,7 @@ import type { StrategyCandidate } from './candidates';
 import type { NormalizedStrategyGameData } from './game-data';
 import { repriceFixedCandidate } from './margin-series';
 import { createStrategyPriceBook } from './price-book';
-import { evaluateRealizableStrategy, externalStrategyFlows } from './realizable';
+import { evaluateRealizableStrategy, externalStrategyFlows, isAuxiliaryInput } from './realizable';
 import { estimateStrategySession, type StrategySession } from './session';
 import { marketCapacity } from './liquidity';
 import type { StrategyFlow } from './types';
@@ -116,7 +116,7 @@ export function analyzeOpportunities(options: {
       return change(current.volume24h,previous.volume24h??undefined);
     };
     const external=externalStrategyFlows(candidate);
-    const inputVolumes=external.filter(f=>f.side==='input').map(f=>volumeChange(f.flow));
+    const inputVolumes=external.filter(f=>f.side==='input'&&!isAuxiliaryInput(f,candidate)).map(f=>volumeChange(f.flow));
     const inputVolumesKnown=inputVolumes.every(v=>v!==null);
     const metrics: OpportunityMetrics={
       profit6hPct:change(candidate.profitPerHour,b6?.value.profitPerHour), profit24hPct:change(candidate.profitPerHour,b24?.value.profitPerHour),
