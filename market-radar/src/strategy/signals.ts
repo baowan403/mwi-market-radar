@@ -46,8 +46,10 @@ function percentage(current: number | null, base: number | null): number | null 
 
 function profitOf(point: StrategyMarginPoint | null | undefined): number | null {
   if (!point) return null;
-  if (finite(point.realizableProfitPerDay)) return point.realizableProfitPerDay;
+  // Trend columns describe the current Ask/Bid strategy margin. Capacity is a
+  // separate risk signal and must not rewrite the profit history itself.
   if (finite(point.theoreticalProfitPerHour)) return point.theoreticalProfitPerHour * 24;
+  if (finite(point.realizableProfitPerDay)) return point.realizableProfitPerDay;
   return null;
 }
 
@@ -110,7 +112,7 @@ export function strategyTrendSignal(
   let confidence = confidenceFor(spanDays, options.backtest);
   if (spanDays < 7) {
     return {
-      action: 'wait', priority: 'low', confidence, reasons: ['有效歷史不足 7 天，不宣稱趨勢'],
+      action: 'wait', priority: 'medium', confidence, reasons: ['有效歷史不足 7 天，暫以中性優先級呈現'],
       invalidation: ['累積滿 7 天有效資料後重新判斷'], metrics: emptyMetrics,
     };
   }
@@ -132,34 +134,34 @@ export function strategyTrendSignal(
       : null,
   };
   if (!latest.complete || !finite(latest.realizableProfitPerDay)) {
-    return {
-      action: 'wait', priority: 'low', confidence, reasons: ['最新市場承接資料仍不完整'],
-      invalidation: ['補齊 3D／7D 成交量樣本後重新判斷'], metrics,
-    };
-  }
-
-  if (options.latestSnapshotAgeMs !== undefined && options.latestSnapshotAgeMs > 60 * 60_000) {
-    return {
-      action: 'wait', priority: 'low', confidence: 'none',
-      reasons: ['市場快照已超過 60 分鐘，暫停產生可執行建議'],
-      invalidation: ['取得 60 分鐘內的新市場快照後重新判斷'], metrics,
-    };
-  }
-  if (options.latestSnapshotAgeMs !== undefined && options.latestSnapshotAgeMs > 15 * 60_000) {
+    // Keep the trend/priority usable. Missing capacity evidence lowers confidence
+    // but no longer acts as a one-vote veto that forces every strategy to low.
     confidence = confidence === 'none' ? 'none' : 'low';
   }
 
-  const recentPeak = ordered
-    .filter((point) => point.timestamp >= latest.timestamp - 7 * DAY_MS && finite(point.realizableProfitPerDay))
-    .reduce((peak, point) => Math.max(peak, point.realizableProfitPerDay!), latest.realizableProfitPerDay);
+  if (options.latestSnapshotAgeMs !== undefined && options.latestSnapshotAgeMs > 180 * 60_000) {
+    return {
+      action: 'wait', priority: 'low', confidence: 'none',
+      reasons: ['市場快照已超過 180 分鐘，暫停產生可執行建議'],
+      invalidation: ['取得 180 分鐘內的新市場快照後重新判斷'], metrics,
+    };
+  }
+  if (options.latestSnapshotAgeMs !== undefined && options.latestSnapshotAgeMs > 60 * 60_000) {
+    confidence = confidence === 'none' ? 'none' : 'low';
+  }
 
-  // ── 紅燈：利潤歸零或暴跌 → 停止 ──
+  const currentProfit = latestProfit ?? 0;
+  const recentPeak = ordered
+    .filter((point) => point.timestamp >= latest.timestamp - 7 * DAY_MS && finite(profitOf(point)))
+    .reduce((peak, point) => Math.max(peak, profitOf(point)!), currentProfit);
+
+  // ── 紅燈：當前利潤歸零或暴跌 → 停止 ──
   if (
-    latest.realizableProfitPerDay <= 0
-    || (metrics.margin3dPct !== null && metrics.margin3dPct <= -30 && recentPeak > latest.realizableProfitPerDay * 1.5)
+    currentProfit <= 0
+    || (metrics.margin3dPct !== null && metrics.margin3dPct <= -30 && recentPeak > currentProfit * 1.5)
   ) {
-    const reason = latest.realizableProfitPerDay <= 0
-      ? '目前可實現利潤歸零或為負'
+    const reason = currentProfit <= 0
+      ? '目前日利歸零或為負'
       : `3D 利潤暴跌 ${formatted(metrics.margin3dPct)}，且已自波段高點大幅滑落`;
     return {
       action: 'stop', priority: 'low', confidence, reasons: [reason],
@@ -211,25 +213,30 @@ export function strategyTrendSignal(
 
     // ── 風險懲罰（Risk-adjusted Priority）──
     const risk = options.classification ?? latest.classification;
-    if (risk === 'limited') {
-      if (priority === 'top' || priority === 'high') {
-        priority = 'medium';
-        trendNote += '；市場深度受限（高風險），降為中等優先';
-      }
-    } else if (risk === 'reject' || risk === 'insufficient') {
+    if (risk === 'small-test') {
+      if (priority === 'top') priority = 'high';
+      trendNote += '；市場占比需留意，優先級小幅降一級';
+    } else if (risk === 'limited') {
+      if (priority === 'top' || priority === 'high') priority = 'medium';
+      trendNote += '；成品承接或原料供給偏緊，降為中等優先';
+    } else if (risk === 'reject') {
       priority = 'low';
-      trendNote += '；市場深度嚴重不足或缺資料，降為低優先';
+      trendNote += '；存在明顯滯銷、進貨或報價風險，降為低優先';
+    } else if (risk === 'insufficient') {
+      if (priority === 'top' || priority === 'high') priority = 'medium';
+      confidence = confidence === 'none' ? 'none' : 'low';
+      trendNote += '；主要市場量資料不完整，保留中性優先而非直接判低';
     }
 
     // ── ⚡ Alpha 突發短缺 / 暴利套利判定 ──
     const isHealthy = risk !== 'insufficient' && risk !== 'reject';
     const isSurge1d = m1 !== null && m1 >= 10;
     const isSurgeIncome = metrics.income3dPct !== null && metrics.income3dPct >= 15;
-    const isAlpha = isHealthy && (isSurge1d || isSurgeIncome) && (latest.realizableProfitPerDay ?? 0) > 0;
+    const isAlpha = isHealthy && (isSurge1d || isSurgeIncome) && currentProfit > 0;
     let alphaScore: number | null = null;
     let alphaReason: string | null = null;
     if (isAlpha) {
-      const profitWeight = Math.min(50, (latest.realizableProfitPerDay ?? 0) / 1_000_000);
+      const profitWeight = Math.min(50, currentProfit / 1_000_000);
       const growthWeight = (m1 ?? 0) * 1.5 + (m3 ?? 0);
       alphaScore = Math.round((growthWeight + profitWeight) * 10) / 10;
       alphaReason = isSurge1d

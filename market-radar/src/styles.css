@@ -2209,3 +2209,25 @@ dialog::backdrop {
   color: var(--color-accent);
 }
 
+
+
+/* simplified-market-assessment */
+.strategy-classification[data-risk-severity='low'] {
+  color: #34d399;
+}
+
+.strategy-classification[data-risk-severity='medium'] {
+  color: #facc15;
+}
+
+.strategy-classification[data-risk-severity='high'] {
+  color: #fb923c;
+}
+
+.strategy-classification[data-risk-severity='critical'] {
+  color: #fb7185;
+}
+
+.strategy-classification[data-risk-severity='unknown'] {
+  color: var(--color-muted);
+}

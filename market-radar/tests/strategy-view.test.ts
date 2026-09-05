@@ -210,10 +210,10 @@ describe('strategy recommendation view', () => {
     const renderedRowIds = [...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow);
     expect(renderedRowIds).toEqual(['insufficient', 'reject', 'limited', 'long']);
     expect(target.querySelector('[data-strategy-row="insufficient"]')?.textContent).toContain('96K');
-    expect(target.querySelector('[data-strategy-row="insufficient"] .strategy-classification')?.textContent).toBe('資料不足');
+    expect(target.querySelector('[data-strategy-row="insufficient"] .strategy-classification')?.textContent).toBe('市場無報價');
     expect(target.querySelector('[data-strategy-row="reject"]')?.textContent).toContain('72K');
     expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('低');
-    expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('高');
+    expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('雙向壓力');
     expect(target.querySelector('[data-strategy-row="long"] [data-strategy-priority]')).not.toBeNull();
     expect(target.querySelector('[data-strategy-row="long"] .strategy-sparkline')).not.toBeNull();
     expect(target.querySelectorAll('[data-strategy-row="long"] .strategy-trend-cell')).toHaveLength(3);
@@ -224,7 +224,9 @@ describe('strategy recommendation view', () => {
     const detail = target.querySelector<HTMLTableRowElement>('[data-strategy-detail-for="long"]')!;
     expect(detail.hidden).toBe(false);
     expect(detail.querySelector('td')?.colSpan).toBe(12);
-    expect(detail.textContent).toContain('安全執行');
+    expect(detail.textContent).toContain('成品日產占比');
+    expect(detail.textContent).toContain('最大原料需求占比');
+    expect(detail.textContent).toContain('容量參考');
     expect(detail.textContent).toContain('所需啟動現金');
     expect(detail.textContent).toContain('瓶頸');
     expect(detail.textContent).toContain('掛機排程與原料採購規劃');
@@ -363,7 +365,7 @@ describe('strategy recommendation view', () => {
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
       'goblin_staff',
     ]);
-    expect(target.querySelector('[data-strategy-row="goblin_staff"] .strategy-classification')?.textContent).toBe('資料不足');
+    expect(target.querySelector('[data-strategy-row="goblin_staff"] .strategy-classification')?.textContent).toBe('原料無賣單');
 
     view.destroy();
   });

@@ -61,15 +61,17 @@ describe('auxiliary tea procurement liquidity', () => {
     expect(result.warnings).toContainEqual({
       itemHrid: '/items/alchemy_tea',
       side: 'input',
-      code: 'history-incomplete',
+      code: 'auxiliary-high-share',
     });
   });
 
   it('still fails when the tea has no current ask at all', () => {
     const result = evaluateRealizableStrategy(candidate(), history(null));
 
-    expect(result.classification).toBe('insufficient');
-    expect(result.realizableProfitPerDay).toBeNull();
+    expect(result.classification).toBe('reject');
+    expect(result.riskCode).toBe('no-ask');
+    expect(result.riskLabel).toBe('原料無賣單');
+    expect(result.realizableProfitPerDay).toBe(0);
     expect(result.bottleneckHrid).toBe('/items/alchemy_tea');
     expect(result.bottleneckSide).toBe('input');
   });

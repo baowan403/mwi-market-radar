@@ -228,6 +228,12 @@ function trendPct(value: number | null): string {
   return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
 }
 
+function sharePct(value: number | null): string {
+  if (value === null) return '—';
+  if (!Number.isFinite(value)) return '∞';
+  return `${value.toFixed(1)}%`;
+}
+
 function strategyRow(
   assessed: AssessedStrategy,
   assessedSignal: AssessedSignal,
@@ -319,16 +325,31 @@ function strategyRow(
   row.append(sparkCell);
 
   const shareCell = element('td', 'strategy-market-share');
-  if (liquidity.marketSharePct !== null && Number.isFinite(liquidity.marketSharePct)) {
-    const pct = liquidity.marketSharePct;
-    shareCell.textContent = `${pct.toFixed(1)}%`;
-    if (pct <= 5) shareCell.classList.add('share-safe');
-    else if (pct <= 10) shareCell.classList.add('share-warning');
-    else if (pct <= 25) shareCell.classList.add('share-danger');
+  const outputShare = liquidity.outputShare24hPct;
+  if (liquidity.primaryOutputMode === 'non-market') {
+    shareCell.textContent = '免出售';
+    shareCell.classList.add('share-safe');
+    shareCell.title = '主要產物不需要經市場出售，因此沒有成品滯銷占比';
+  } else if (liquidity.primaryOutputMode === 'derived') {
+    shareCell.textContent = '衍生清算';
+    shareCell.title = '主要產物以展開後的衍生清算流估值，沒有可直接比較的單一成品成交量';
+  } else if (outputShare !== null) {
+    shareCell.textContent = sharePct(outputShare);
+    if (outputShare <= 3) shareCell.classList.add('share-safe');
+    else if (outputShare <= 5) shareCell.classList.add('share-warning');
+    else if (outputShare <= 10) shareCell.classList.add('share-danger');
     else shareCell.classList.add('share-critical');
-    shareCell.title = `做滿 24 小時產量占市場日成交量約 ${pct.toFixed(1)}%`;
+    const outputName = liquidity.primaryOutputHrid
+      ? options.itemName(liquidity.primaryOutputHrid)
+      : '主要成品';
+    shareCell.title = `${outputName}：24H 產量 ${metric(liquidity.outputUnitsPerDay)} ÷ 24H 成交量 ${metric(liquidity.outputVolume24h)} = ${sharePct(outputShare)}（覆蓋 ${liquidity.outputVolumeCoverageHours ?? 0} 小時）`;
+  } else if (liquidity.riskCode === 'no-bid' || liquidity.riskCode === 'market-unavailable') {
+    shareCell.textContent = '無買單';
+    shareCell.classList.add('share-critical');
+    shareCell.title = '主要成品目前沒有可用買一價';
   } else {
-    shareCell.textContent = '—';
+    shareCell.textContent = '資料不足';
+    shareCell.title = `主要成品最近 24H 僅覆蓋 ${liquidity.outputVolumeCoverageHours ?? 0} 小時，尚不足以估算日產占比`;
   }
   row.append(shareCell);
 
@@ -339,12 +360,23 @@ function strategyRow(
   const classificationCell = element('td', 'strategy-classification-cell');
   const classification = element('span', 'strategy-classification');
   classification.dataset.classification = liquidity.classification;
-  classification.textContent = CLASSIFICATION_LABELS[liquidity.classification];
-  classification.title = liquidity.classification === 'insufficient'
-    ? '缺少足夠的 3D／7D 成交量資料；當前日利仍依即時市場價格正常顯示'
-    : liquidity.bottleneckHrid
-      ? `瓶頸：${options.itemName(liquidity.bottleneckHrid)}（${liquidity.bottleneckSide === 'input' ? '買入' : '賣出'}端）`
-      : '未發現外部市場瓶頸';
+  classification.dataset.riskCode = liquidity.riskCode;
+  classification.dataset.riskSeverity = liquidity.riskSeverity;
+  classification.textContent = liquidity.riskLabel;
+  const riskDetails = [liquidity.riskLabel];
+  if (liquidity.outputShare24hPct !== null) {
+    riskDetails.push(`成品日產占比 ${sharePct(liquidity.outputShare24hPct)}`);
+  }
+  if (liquidity.maxInputShare24hPct !== null) {
+    const inputName = liquidity.inputBottleneckHrid
+      ? options.itemName(liquidity.inputBottleneckHrid)
+      : '主要原料';
+    riskDetails.push(`${inputName} 24H 需求占成交量 ${sharePct(liquidity.maxInputShare24hPct)}`);
+  }
+  if (liquidity.bottleneckHrid) {
+    riskDetails.push(`瓶頸：${options.itemName(liquidity.bottleneckHrid)}（${liquidity.bottleneckSide === 'input' ? '買入' : '賣出'}端）`);
+  }
+  classification.title = riskDetails.join('｜');
   classificationCell.append(classification);
   row.append(classificationCell);
 
@@ -385,8 +417,17 @@ function detailRow(
   const bottleneck = liquidity.bottleneckHrid
     ? `${liquidity.bottleneckSide === 'input' ? '買入' : '賣出'}瓶頸 ${options.itemName(liquidity.bottleneckHrid)}`
     : '無外部市場瓶頸';
+  const outputShareDetail = liquidity.primaryOutputMode === 'non-market'
+    ? '成品日產占比 免出售'
+    : liquidity.primaryOutputMode === 'derived'
+      ? '成品日產占比 衍生清算'
+      : `成品日產占比 ${sharePct(liquidity.outputShare24hPct)}`;
+  const inputShareDetail = `最大原料需求占比 ${sharePct(liquidity.maxInputShare24hPct)}`;
   const details = [
-    `安全執行 ${metric(liquidity.safeHoursPerDay, '小時')}`,
+    outputShareDetail,
+    inputShareDetail,
+    `市場風險 ${liquidity.riskLabel}`,
+    `容量參考 ${metric(liquidity.safeHoursPerDay, '小時')}`,
     bottleneck,
     `所需啟動現金 ${money(decision.funding.cashRequired)}`,
     `訊號 ${SIGNAL_LABELS[assessedSignal.signal.action]}｜${MOMENTUM_LABELS[assessedSignal.signal.priority]}動能`,

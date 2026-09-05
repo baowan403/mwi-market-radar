@@ -100,7 +100,7 @@ describe('real manufacturing recipe adapter', () => {
     expect(result.profitPerHour).toBeNull();
   });
 
-  it('makes every contained market leaf participate in realizable liquidity', () => {
+  it('keeps sparse secondary loot from erasing the main product assessment', () => {
     const step = calculateManufactureAction({
       actionHrid: '/actions/crafting/redwood_lumber', profile, data, prices: prices(),
     });
@@ -118,8 +118,13 @@ describe('real manufacturing recipe adapter', () => {
 
     expect(liquid.classification).toBe('long-run');
     expect(liquid.theoreticalProfitPerDay).toBe(candidate.profitPerDay);
-    expect(missingGem.classification).toBe('insufficient');
-    expect(missingGem.bottleneckHrid).toBe('/items/moonstone');
+    expect(missingGem.classification).toBe('long-run');
+    expect(missingGem.outputShare24hPct).not.toBeNull();
+    expect(missingGem.warnings).toContainEqual({
+      itemHrid: '/items/moonstone',
+      side: 'output',
+      code: 'secondary-history-incomplete',
+    });
   });
 
   it('keeps a nontradable coin recipe input outside market liquidity', () => {

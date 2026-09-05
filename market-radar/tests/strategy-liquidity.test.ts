@@ -15,9 +15,12 @@ function history(hours: number, volume: (index: number) => number | null = () =>
 }
 
 describe('daily traded-volume market capacity', () => {
-  it('compares 24h strategy demand with median daily traded volume', () => {
+  it('exposes the direct rolling 24h traded volume while retaining conservative batch capacity', () => {
     const result = marketCapacity(KEY, history(169, (index) => index >= 97 ? 120 : 100));
 
+    expect(result.volume24h).toBe(2_880);
+    expect(result.coverageHours24h).toBe(24);
+    expect(result.volume24hSufficient).toBe(true);
     expect(result.median3d).toBe(2_880);
     expect(result.median7d).toBe(2_400);
     expect(result.safeUnitsPerDay).toBe(120);
@@ -27,15 +30,21 @@ describe('daily traded-volume market capacity', () => {
     expect(result.sufficient).toBe(true);
   });
 
-  it('does not let one hourly spike inflate the multi-day capacity baseline', () => {
+  it('normalizes 12-23 covered hours instead of declaring all 24h volume unavailable', () => {
+    const result = marketCapacity(KEY, history(20));
+    expect(result.coverageHours24h).toBe(20);
+    expect(result.observedVolume24h).toBe(2_000);
+    expect(result.volume24h).toBe(2_400);
+    expect(result.safeUnitsPerDay).toBe(120);
+    expect(result.sufficient).toBe(false);
+  });
+
+  it('does not let one hourly spike inflate the conservative multi-day capacity baseline', () => {
     const result = marketCapacity(KEY, history(169, (index) => index === 168 ? 10_000 : 100));
+    expect(result.volume24h).toBe(12_300);
     expect(result.median3d).toBe(2_400);
     expect(result.median7d).toBe(2_400);
     expect(result.safeUnitsPerDay).toBe(120);
-
-    const insufficient = marketCapacity(KEY, history(20));
-    expect(insufficient.sufficient).toBe(false);
-    expect(insufficient.safeUnitsPerDay).toBeNull();
   });
 
   it('separates quote availability from traded-volume evidence', () => {
@@ -43,6 +52,7 @@ describe('daily traded-volume market capacity', () => {
     zero.at(-1)!.quotes[KEY] = { a: 110, b: null, p: null, v: null };
     const result = marketCapacity(KEY, zero);
 
+    expect(result.volume24h).toBe(0);
     expect(result.median3d).toBe(0);
     expect(result.safeUnitsPerDay).toBe(0);
     expect(result.askAvailable).toBe(true);
