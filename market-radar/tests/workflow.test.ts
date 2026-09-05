@@ -6,6 +6,15 @@ const workflowPath = fileURLToPath(new URL('../../.github/workflows/market-radar
 const workflow = readFileSync(workflowPath, 'utf8');
 
 describe('market radar Pages workflow', () => {
+  it('repairs gaps after official collection without blocking it when upstream fails', () => {
+    const step = workflow.match(/- name: Repair missing market hours[\s\S]*?(?=\n      - name:)/)?.[0] ?? '';
+    expect(step).toContain("if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'");
+    expect(step).toContain('if ! npm run cloud:backfill-stockmarket');
+    expect(step).toContain('--repair-gaps');
+    expect(step).toContain('::warning::');
+    expect(workflow.indexOf('Repair missing market hours')).toBeGreaterThan(workflow.indexOf('Collect the official snapshot'));
+    expect(workflow.indexOf('Repair missing market hours')).toBeLessThan(workflow.indexOf('Validate market-data history'));
+  });
   it('has the required triggers, least practical permissions, and fixed concurrency', () => {
     expect(workflow).toContain('push:');
     expect(workflow).toContain('branches: [main]');

@@ -98,6 +98,16 @@ jobs:
           DATA_WT: ${{ steps.data-worktree.outputs.path }}
         run: npm run cloud:backfill-stockmarket -- --data-dir "$DATA_WT/data"
 
+      - name: Repair missing market hours (at most once per six hours)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        working-directory: market-radar
+        env:
+          DATA_WT: ${{ steps.data-worktree.outputs.path }}
+        run: |
+          if ! npm run cloud:backfill-stockmarket -- --data-dir "$DATA_WT/data" --repair-gaps; then
+            echo "::warning::History repair unavailable; preserving official market collection."
+          fi
+
       - name: Validate market-data history
         working-directory: market-radar
         env:

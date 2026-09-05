@@ -204,6 +204,75 @@ async function dataBytes(dataDir: string): Promise<{
 }
 
 describe('stockmarket backfill command', () => {
+  it('accepts repair mode but rejects combining it with force', () => {
+    expect(parseBackfillArgs(['--data-dir', 'data', '--repair-gaps']))
+      .toEqual({ dataDir: 'data', force: false, repairGaps: true });
+    expect(() => parseBackfillArgs(['--data-dir', 'data', '--repair-gaps', '--force'])).toThrow();
+  });
+
+  it('repairs missing hours again after six hours without overwriting recorded snapshots', async () => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    await runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED,
+      client: { loadAll: async () => stockmarketRows() }, now: () => BACKFILL_NOW });
+    const next = BACKFILL_LATEST + 6 * HOUR;
+    const now = BACKFILL_NOW + 6 * HOUR;
+    await updateCloudHistory({ dataDir, snapshot: { ...officialBackfillLatest(), timestamp: next }, generatedAt: new Date(now).toISOString() });
+    const rows = new Map([...stockmarketRows(168)].map(([name, values]) => [name,
+      values.map(value => ({ ...value, timestamp: value.timestamp + 6 * HOUR,
+        ...(value.timestamp === BACKFILL_LATEST ? { p: 80, v: 70 } : {}) }))]));
+    const result = await runStockmarketBackfill({ dataDir, generatedAt: new Date(now).toISOString(), repairGaps: true,
+      client: { loadAll: async () => rows }, now: () => now });
+    expect(result).toMatchObject({ skipped: false, inserted: 17, snapshotCount: 168 });
+    const manifest = parseManifest(JSON.parse(await readFile(join(dataDir, 'manifest.json'), 'utf8')));
+    expect(new Set(manifest.snapshots.map(entry => entry.timestamp)).size).toBe(168);
+    const old = manifest.snapshots.find(entry => entry.timestamp === BACKFILL_LATEST)!;
+    expect((await decodeDayChunk(await readFile(join(dataDir, old.file), 'utf8')))[0]?.quotes['/items/item_0000::0']?.v).toBe(70);
+    const client = { loadAll: vi.fn(async () => rows) };
+    await expect(runStockmarketBackfill({ dataDir, generatedAt: new Date(now).toISOString(), repairGaps: true,
+      client, now: () => now })).resolves.toEqual({ skipped: true });
+    expect(client.loadAll).not.toHaveBeenCalled();
+  }, 30_000);
+
+  it('skips complete hourly history before creating a network client', async () => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    await runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED,
+      client: { loadAll: async () => stockmarketRows(168) }, now: () => BACKFILL_NOW });
+    const createClient = vi.fn(() => { throw new Error('must not fetch'); });
+    await expect(runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, repairGaps: true,
+      createClient, now: () => BACKFILL_NOW + 12 * HOUR })).resolves.toEqual({ skipped: true });
+    expect(createClient).not.toHaveBeenCalled();
+  }, 30_000);
+
+  it('throttles failed repairs for six hours while preserving market data', async () => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    const before = await dataBytes(dataDir);
+    const client = { loadAll: vi.fn(async () => { throw new Error('unavailable'); }) };
+    const args = { dataDir, generatedAt: BACKFILL_GENERATED, repairGaps: true, client, now: () => BACKFILL_NOW };
+    await expect(runStockmarketBackfill(args)).rejects.toThrow(/fetch failed/);
+    const after = await dataBytes(dataDir);
+    expect(after.manifest).toBe(before.manifest);
+    expect(after.snapshotFiles).toEqual(before.snapshotFiles);
+    expect(after.provenance).toBe(before.provenance);
+    await expect(runStockmarketBackfill({ ...args, now: () => BACKFILL_NOW + HOUR })).resolves.toEqual({ skipped: true });
+    expect(client.loadAll).toHaveBeenCalledTimes(1);
+    await expect(runStockmarketBackfill({ ...args, now: () => BACKFILL_NOW + 6 * HOUR })).rejects.toThrow(/fetch failed/);
+    expect(client.loadAll).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects repair volume disagreement against the latest official snapshot', async () => {
+    const dataDir = await backfillDataDir();
+    await seedBackfillLatest(dataDir);
+    const before = await dataBytes(dataDir);
+    await expect(runStockmarketBackfill({ dataDir, generatedAt: BACKFILL_GENERATED, repairGaps: true,
+      client: { loadAll: async () => stockmarketRows() }, now: () => BACKFILL_NOW })).rejects.toThrow(/validation/);
+    const after = await dataBytes(dataDir);
+    expect(after.manifest).toBe(before.manifest);
+    expect(after.snapshotFiles).toEqual(before.snapshotFiles);
+  }, 30_000);
+
   it('imports a fixed seven-day window, makes the existing latest official snapshot authoritative, and publishes provenance', async () => {
     const dataDir = await backfillDataDir();
     await seedBackfillLatest(dataDir);

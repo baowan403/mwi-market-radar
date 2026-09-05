@@ -34,6 +34,8 @@ const MINIMUM_LATEST_OVERLAP_COMPARISONS = 1_000;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1_000;
 const HOUR_MS = 60 * 60 * 1_000;
 const MAX_DATE_MS = 8_640_000_000_000_000;
+const REPAIR_ATTEMPT_FILE = 'stockmarket-repair-attempt.json';
+const REPAIR_INTERVAL_MS = 6 * HOUR_MS;
 
 export class StockmarketBackfillError extends Error {
   constructor(message: string) {
@@ -46,6 +48,7 @@ export class StockmarketBackfillError extends Error {
 export interface StockmarketBackfillArgs {
   dataDir: string;
   force: boolean;
+  repairGaps?: boolean;
 }
 
 export interface StockmarketBackfillOptions {
@@ -58,6 +61,7 @@ export interface StockmarketBackfillOptions {
   fs?: Partial<CloudFileSystem>;
   now?: () => number;
   force?: boolean;
+  repairGaps?: boolean;
 }
 
 export type StockmarketBackfillResult =
@@ -100,6 +104,7 @@ function safeError(message: string): StockmarketBackfillError {
 export function parseBackfillArgs(argv: readonly string[]): StockmarketBackfillArgs {
   let dataDir: string | null = null;
   let force = false;
+  let repairGaps = false;
   const seen = new Set<string>();
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
@@ -120,10 +125,42 @@ export function parseBackfillArgs(argv: readonly string[]): StockmarketBackfillA
       force = true;
       continue;
     }
+    if (value === '--repair-gaps') {
+      if (seen.has(value)) throw safeError('Invalid stockmarket backfill arguments');
+      seen.add(value);
+      repairGaps = true;
+      continue;
+    }
     throw safeError('Invalid stockmarket backfill arguments');
   }
-  if (dataDir === null) throw safeError('Invalid stockmarket backfill arguments');
-  return { dataDir, force };
+  if (dataDir === null || (force && repairGaps)) throw safeError('Invalid stockmarket backfill arguments');
+  return { dataDir, force, ...(repairGaps ? { repairGaps: true } : {}) };
+}
+
+/** Single-writer workflow persists attempts, including failed requests, to limit upstream load. */
+async function beginRepair(dataDir: string, existing: ExistingHistory, fetchedAt: string, fs: CloudFileSystem): Promise<boolean> {
+  const lastHour = Math.floor(existing.manifest.latestTimestamp! / HOUR_MS);
+  const hours = new Set(existing.manifest.snapshots.map(entry => Math.floor(entry.timestamp / HOUR_MS)));
+  if (Array.from({ length: MAXIMUM_SNAPSHOTS }, (_, index) => lastHour - index).every(hour => hours.has(hour))) return false;
+  let previous = existing.provenance ? Date.parse(existing.provenance.fetchedAt) : 0;
+  try {
+    const record = JSON.parse(await fs.readFile(join(dataDir, REPAIR_ATTEMPT_FILE), 'utf8')) as { attemptedAt: number };
+    if (!Number.isSafeInteger(record.attemptedAt) || record.attemptedAt < 0) throw new Error('invalid attempt');
+    previous = Math.max(previous, record.attemptedAt);
+  } catch (error) {
+    if (!isNodeError(error, 'ENOENT')) throw safeError('Stockmarket repair state invalid');
+  }
+  const now = Date.parse(fetchedAt);
+  if (previous > 0 && now - previous < REPAIR_INTERVAL_MS) return false;
+  const temp = join(dataDir, `.${REPAIR_ATTEMPT_FILE}.tmp-${randomUUID()}`);
+  try {
+    await fs.writeFile(temp, JSON.stringify({ attemptedAt: now }), { encoding: 'utf8', flag: 'wx' });
+    await fs.rename(temp, join(dataDir, REPAIR_ATTEMPT_FILE));
+  } catch {
+    await fs.unlink(temp).catch(() => undefined);
+    throw safeError('Stockmarket repair state could not be published');
+  }
+  return true;
 }
 
 interface ExistingHistory {
@@ -313,11 +350,15 @@ export async function runStockmarketBackfill(options: StockmarketBackfillOptions
   validateGeneratedAt(fetchedAt);
   const fileSystem = fileSystemFor(options);
   const existing = await validateExistingHistory(options.dataDir, fileSystem);
-  if (existing.provenance !== null && options.force !== true) return { skipped: true };
+  if (options.repairGaps) {
+    if (!(await beginRepair(options.dataDir, existing, fetchedAt, fileSystem))) return { skipped: true };
+  } else if (existing.provenance !== null && options.force !== true) return { skipped: true };
   const latestOfficialTimestamp = existing.manifest.latestTimestamp;
   if (latestOfficialTimestamp === null) throw safeError('Stockmarket backfill validation failed');
 
-  const client = options.client ?? (options.createClient ?? createStockmarketClient)();
+  const client = options.client ?? (options.createClient ?? (() => createStockmarketClient({
+    concurrency: options.repairGaps ? 1 : 4,
+  })))();
   let rows: Map<string, StockmarketHistoryPoint[]>;
   try {
     rows = await client.loadAll();
@@ -349,8 +390,24 @@ export async function runStockmarketBackfill(options: StockmarketBackfillOptions
     if (latestOverlapComparisons(candidates, existing.officialSnapshots, latestOfficialTimestamp) < MINIMUM_LATEST_OVERLAP_COMPARISONS) {
       throw new Error('insufficient latest official overlap');
     }
-    const overlap = validateOfficialOverlap(candidates, existing.officialSnapshots);
-    imported = overlap.snapshots;
+    const authorities = options.repairGaps
+      ? existing.officialSnapshots.filter(snapshot => snapshot.timestamp === latestOfficialTimestamp)
+      : existing.officialSnapshots;
+    const overlap = validateOfficialOverlap(candidates, authorities);
+    if (options.repairGaps) {
+      const latest = candidates.find(snapshot => snapshot.timestamp === latestOfficialTimestamp)!;
+      for (const [key, quote] of Object.entries(latest.quotes)) {
+        const official = authorities[0]!.quotes[key as keyof typeof latest.quotes];
+        if (!official) continue;
+        for (const field of ['p', 'v'] as const) {
+          if (quote[field] !== null && official[field] !== null && quote[field] !== official[field]) {
+            throw new Error('latest official volume or average mismatch');
+          }
+        }
+      }
+    }
+    const recorded = new Map(existing.officialSnapshots.map(snapshot => [snapshot.timestamp, snapshot]));
+    imported = overlap.snapshots.map(snapshot => recorded.get(snapshot.timestamp) ?? snapshot);
     overlapComparisons = overlap.comparisons;
   } catch {
     throw safeError('Stockmarket backfill validation failed');
@@ -409,6 +466,7 @@ export async function run(
       generatedAt: current,
       now: () => Date.parse(current),
       force: args.force,
+      repairGaps: args.repairGaps,
     });
     if (result.skipped) {
       console.log('Stockmarket backfill skipped');
