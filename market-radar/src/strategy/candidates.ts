@@ -1,5 +1,6 @@
 import type { PlayerProfile, SkillingAction } from '../profile/types';
 import { calculateCoinify, calculateDecompose, type CatalystRank } from './alchemy';
+import { calculateTransmute } from './transmute';
 import { actionBuffs, type ActionBuffs } from './buffs';
 import type { NormalizedStrategyGameData } from './game-data';
 import { calculateManufactureAction, calculateGatherAction } from './manufacture-adapter';
@@ -29,7 +30,7 @@ export type VerificationStatus = 'verified' | 'mk-parity' | 'disputed' | 'unveri
 
 export interface StrategyCandidate {
   id: string;
-  kind: 'manufacture' | 'workflow' | 'decompose' | 'coinify' | 'decompose-coinify' | 'gather';
+  kind: 'manufacture' | 'workflow' | 'transmute' | 'decompose' | 'coinify' | 'decompose-coinify' | 'gather';
   title: string;
   path: string[];
   profitPerHour: number;
@@ -268,6 +269,12 @@ export function buildStrategyCandidates(options: {
   for (const [itemHrid, rawItem] of data.itemsByHrid) {
     const detail = record(record(rawItem)?.alchemyDetail);
     if (!detail) continue;
+    const transmuteDrops = Array.isArray(detail.transmuteDropTable)
+      ? detail.transmuteDropTable
+      : [];
+    const hasTransmute = transmuteDrops.length > 0
+      && typeof detail.transmuteSuccessRate === 'number'
+      && Number.isFinite(detail.transmuteSuccessRate);
     const hasDecompose = detail.decomposeItems !== null && detail.decomposeItems !== undefined;
     const canCoinify = detail.isCoinifiable === true;
     const decompositions: StrategyStepResult[] = [];
@@ -276,6 +283,40 @@ export function buildStrategyCandidates(options: {
       && prices.ask(itemHrid) !== null
       && (detail.decomposeItems as Array<{ itemHrid?: string }> ?? []).some((out) => out.itemHrid && prices.bid(out.itemHrid) !== null);
     const hasCoinifyMarketPrices = canCoinify && prices.ask(itemHrid) !== null;
+    const hasTransmuteMarketPrices = hasTransmute
+      && prices.ask(itemHrid) !== null
+      && transmuteDrops.some((rawDrop) => {
+        const drop = record(rawDrop);
+        return typeof drop?.itemHrid === 'string'
+          && drop.itemHrid !== itemHrid
+          && prices.bid(drop.itemHrid) !== null;
+      });
+
+    if (hasTransmute) {
+      for (const catalystRank of CATALYST_RANKS) {
+        try {
+          let step = calculateTransmute({
+            itemHrid, catalystRank, profile, data, prices, buffs: alchemyBuffs,
+          });
+          if (!isManualTea && hasTransmuteMarketPrices) {
+            const opt = findOptimalTeasForAlchemy({
+              kind: 'transmute', itemHrid, catalystRank, enhancementLevel: 0, profile, data, prices,
+              calculateFn: calculateTransmute,
+            });
+            if (opt.profitPerHour !== null && opt.profitPerHour > (step.profitPerHour ?? -Infinity)) {
+              const stepProfile = {
+                ...profile,
+                actions: { ...profile.actions, alchemy: { ...profile.actions.alchemy, teas: opt.teas } },
+              };
+              step = calculateTransmute({
+                itemHrid, catalystRank, profile: stepProfile, data, prices, buffs: opt.buffs,
+              });
+            }
+          }
+          addCandidate(candidateFromStep(step, 'transmute', data));
+        } catch { diagnostics.push(`transmute:${itemHrid}:c${catalystRank}`); }
+      }
+    }
 
     if (hasDecompose) {
       for (const catalystRank of CATALYST_RANKS) {

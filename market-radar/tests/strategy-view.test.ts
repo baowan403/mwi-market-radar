@@ -150,7 +150,7 @@ describe('strategy recommendation view', () => {
     view.destroy();
   });
 
-  it('ranks actionable strategies by realizable profit and separates reject or insufficient rows', async () => {
+  it('defaults to current profit and keeps reject or insufficient rows visible as risk metadata', async () => {
     const target = document.createElement('section');
     const snapshots = history({
       '/items/long_input': 1_000,
@@ -206,12 +206,12 @@ describe('strategy recommendation view', () => {
     expect(target.querySelector('[data-strategy-mode]')).toBeNull();
     expect(target.querySelector('[data-strategy-hours]')).toBeNull();
     
-    // 嚴格排除缺少報價（insufficient）與異常（reject）項目，保留 long 與 limited 供使用者知情與降評評估
+    // 預設依當前日利排序；流動性不足與異常只標示風險，不再把高利策略隱藏或視為 0。
     const renderedRowIds = [...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow);
-    expect(renderedRowIds).toContain('long');
-    expect(renderedRowIds).toContain('limited');
-    expect(renderedRowIds).not.toContain('insufficient');
-    expect(renderedRowIds).not.toContain('reject');
+    expect(renderedRowIds).toEqual(['insufficient', 'reject', 'limited', 'long']);
+    expect(target.querySelector('[data-strategy-row="insufficient"]')?.textContent).toContain('96K');
+    expect(target.querySelector('[data-strategy-row="insufficient"] .strategy-classification')?.textContent).toBe('資料不足');
+    expect(target.querySelector('[data-strategy-row="reject"]')?.textContent).toContain('72K');
     expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('低');
     expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('高');
     expect(target.querySelector('[data-strategy-row="long"] [data-strategy-priority]')).not.toBeNull();
@@ -309,7 +309,7 @@ describe('strategy recommendation view', () => {
     view.destroy();
   });
 
-  it('searches strategies by item query and includes insufficient items when query is specified', async () => {
+  it('keeps insufficient strategies visible by default and still supports item search', async () => {
     const target = document.createElement('section');
     const snapshots = history({
       '/items/goblin_fire_staff': 1_000,
@@ -352,18 +352,18 @@ describe('strategy recommendation view', () => {
     const searchInput = target.querySelector<HTMLInputElement>('[data-strategy-search]')!;
     expect(searchInput).not.toBeNull();
 
-    // 預設無搜尋：排除不足項目，只出現普通布匹
+    // 預設無搜尋：所有正收益項目均依當前日利顯示，資料不足只作標記。
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
-      'cloth',
+      'cloth', 'goblin_staff',
     ]);
 
-    // 主動搜尋「哥布林」：破例列出被判定資料不足的哥布林火棍
+    // 主動搜尋「哥布林」：只保留符合查詢的候選
     searchInput.value = '哥布林';
     searchInput.dispatchEvent(new Event('input'));
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
       'goblin_staff',
     ]);
-    expect(target.querySelector('[data-strategy-row="goblin_staff"] .strategy-classification')?.textContent).toBe('極高');
+    expect(target.querySelector('[data-strategy-row="goblin_staff"] .strategy-classification')?.textContent).toBe('資料不足');
 
     view.destroy();
   });
@@ -469,7 +469,7 @@ describe('strategy recommendation view', () => {
     view.destroy();
   });
 
-  it('shows all positive profit strategies when switching to theoretical mode without 24h liquidity gating', async () => {
+  it('defaults to current-profit ranking and keeps capacity ranking as an optional secondary view', async () => {
     const target = document.createElement('section');
     const snapshots = history({
       '/items/long_input': 1_000,
@@ -508,18 +508,19 @@ describe('strategy recommendation view', () => {
     });
 
     await view.render();
-    // 預設安全日利模式下：佔比 5000% 之異常 reject 策略被安全過濾，僅顯示安全可實現之 long
-    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual(['long']);
-
-    // 點擊「⚡ 理論極值」
+    // 預設就是當前日利：高日利 limited 即使容量風險高，仍應排在第一並顯示完整 120K。
+    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual(['limited', 'long']);
+    expect(target.querySelector('[data-strategy-row="limited"] .strategy-profit-main')?.textContent).toBe('120K');
     const sortButtons = target.querySelectorAll<HTMLButtonElement>('.strategy-sort-group button');
-    const theoBtn = Array.from(sortButtons).find((b) => b.textContent?.includes('理論極值'))!;
-    expect(theoBtn).not.toBeNull();
-    theoBtn.click();
+    const currentBtn = Array.from(sortButtons).find((b) => b.textContent?.includes('當前日利'))!;
+    expect(currentBtn.classList.contains('active')).toBe(true);
 
-    // 在理論極值模式下：按未折算理論極值排序，limited (120,000) 躍升第一，long (24,000) 退居第二！
+    // 容量參考仍可選用，但不會把資料不足的策略隱藏，日利欄也不會變成破折號。
+    const capacityBtn = Array.from(sortButtons).find((b) => b.textContent?.includes('容量參考'))!;
+    capacityBtn.click();
     const rowsAfter = [...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow);
-    expect(rowsAfter).toEqual(['limited', 'long']);
+    expect(rowsAfter).toEqual(['long', 'limited']);
+    expect(target.querySelector('[data-strategy-row="limited"] .strategy-profit-main')?.textContent).toBe('120K');
 
     view.destroy();
   });

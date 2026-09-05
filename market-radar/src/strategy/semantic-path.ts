@@ -19,7 +19,7 @@ const ACTION_VERBS: Record<SkillingAction, string> = {
 const COIN_HRID = '/items/coin';
 
 export interface SemanticPathNode {
-  type: 'buy' | 'gather' | 'craft' | 'decompose' | 'coinify' | 'sell';
+  type: 'buy' | 'gather' | 'craft' | 'transmute' | 'decompose' | 'coinify' | 'sell';
   action?: string;
   itemHrid: string;
   label: string;
@@ -80,7 +80,9 @@ export function formatSemanticPath(
     const step = steps[i]!;
     const outputName = itemName(step.outputHrid);
 
-    if (step.actionHrid.includes('/decompose')) {
+    if (step.actionHrid.includes('/transmute')) {
+      parts.push(`轉化成 ${outputName}`);
+    } else if (step.actionHrid.includes('/decompose')) {
       parts.push(`分解成 ${outputName}`);
     } else if (step.actionHrid.includes('/coinify')) {
       parts.push('點金（金幣）');
