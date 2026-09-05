@@ -43,7 +43,7 @@ jobs:
           BRANCH_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          rm -f .github/strategy-restore-patch.py .github/workflows/temporary-strategy-restoration.yml
+          rm -f .github/strategy-restore-patch.py .github/strategy-restore-trigger.txt .github/workflows/temporary-strategy-restoration.yml
           git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
