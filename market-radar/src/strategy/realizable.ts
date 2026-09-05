@@ -161,6 +161,22 @@ function inputRisk(share: number): { code: MarketRiskCode; severity: MarketRiskS
   return { code: 'procurement-critical', severity: 'critical', label: '原料難買' };
 }
 
+/** Planned batch demand against a fixed 24h market window; no new liquidity is invented. */
+export function assessDurationRisk(liquidity: RealizableStrategy, hours: number): Pick<RealizableStrategy,
+  'riskCode' | 'riskSeverity' | 'riskLabel' | 'classification'> {
+  if (['market-unavailable', 'no-ask', 'no-bid', 'price-anomaly',
+    'insufficient-primary-data', 'insufficient-input-data'].includes(liquidity.riskCode)) return liquidity;
+  const output = liquidity.outputShare24hPct === null ? null : liquidity.outputShare24hPct * hours / 24;
+  const input = liquidity.maxInputShare24hPct === null ? null : liquidity.maxInputShare24hPct * hours / 24;
+  const a = outputRisk(output ?? 0);
+  const b = inputRisk(input ?? 0);
+  const worst = SEVERITY_RANK[a.severity] >= SEVERITY_RANK[b.severity] ? a : b;
+  const both = output !== null && output > 3 && input !== null && input > 3;
+  return { riskCode: both ? 'two-sided-pressure' : worst.code,
+    riskSeverity: worst.severity, riskLabel: both ? '雙向壓力' : worst.label,
+    classification: classificationForSeverity(worst.severity) };
+}
+
 function primaryOutputIdentity(candidate: StrategyCandidate): {
   itemHrid: string | null;
   declaredFlow: StrategyFlow | null;
