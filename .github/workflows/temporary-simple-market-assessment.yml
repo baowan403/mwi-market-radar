@@ -53,6 +53,10 @@ jobs:
                       "expect(signalLimited.reasons.join(' ')).toContain('市場深度受限');",
                       "expect(signalLimited.reasons.join(' ')).toContain('成品承接或原料供給偏緊');",
                   ),
+                  (
+                      "expect(signalReject.reasons.join(' ')).toContain('市場深度嚴重不足');",
+                      "expect(signalReject.reasons.join(' ')).toContain('明顯滯銷、進貨或報價風險');",
+                  ),
               ],
               'market-radar/tests/strategy-view.test.ts': [
                   (
