@@ -86,6 +86,13 @@ describe('strategy recommendation view', () => {
       now: () => snapshots.at(-1)!.timestamp });
     await view.render();
     const ids = () => [...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map(r => r.dataset.strategyRow);
+    const opportunity=target.querySelector<HTMLElement>('[data-opportunity-panel]')!;
+    const ranking=target.querySelector<HTMLElement>('.strategy-results-container')!;
+    expect(opportunity.hidden).toBe(true); expect(ranking.hidden).toBe(false);
+    (target.querySelector('[data-strategy-tab="opportunity"]') as HTMLButtonElement).click();
+    expect(opportunity.hidden).toBe(false); expect(ranking.hidden).toBe(true);
+    (target.querySelector('[data-strategy-tab="steady"]') as HTMLButtonElement).click();
+    expect(opportunity.hidden).toBe(true); expect(ranking.hidden).toBe(false);
     expect(ids()).toEqual(['steady', 'fast']);
     expect(target.querySelectorAll('thead th')).toHaveLength(12);
     expect(target.querySelector('thead')?.textContent).toContain('預估收益');

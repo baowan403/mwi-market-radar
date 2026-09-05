@@ -600,6 +600,7 @@ interface StrategyFilterContext {
   plannedHours?: number;
   customDuration?: boolean;
   showUnranked?: boolean;
+  opportunityMode?: boolean;
 }
 
 function renderResults(
@@ -674,7 +675,10 @@ function renderResults(
   alphaBtn.dataset.strategyTab = 'alpha';
   if (filterState.selectedSkill === 'alpha') alphaBtn.classList.add('active');
 
-  modeGroup.append(steadyBtn, alphaBtn);
+  const opportunityBtn=element('button','toolbar-button');
+  opportunityBtn.type='button'; opportunityBtn.textContent='機會雷達';
+  opportunityBtn.dataset.strategyTab='opportunity';
+  modeGroup.append(steadyBtn, opportunityBtn, alphaBtn);
 
   const skillGroup = element('div', 'strategy-filter-group');
   const skillLabel = element('label', 'strategy-label');
@@ -740,9 +744,14 @@ function renderResults(
   const baseAssessed = result.candidates
     .filter((candidate) => candidate.profitPerDay > 0)
     .map((candidate) => ({ candidate, liquidity: evaluateRealizableStrategy(candidate, snapshots) }));
+  const briefing=element('p','opportunity-brief');
+  briefing.textContent='機會尚未分析，可到「機會雷達」查看。';
+  briefing.dataset.tone='neutral';
+  options.target.insertBefore(briefing,resultsContainer);
   const opportunityPanel = createOpportunityPanel({ candidates: result.candidates, snapshots, data, profile,
     getHours: () => filterState.plannedHours ?? 24, itemName: options.itemName,
-    journal: options.opportunityJournal!, now: options.now, signal: options.opportunitySignal });
+    journal: options.opportunityJournal!, now: options.now, signal: options.opportunitySignal,
+    onSummary:(text,tone)=>{briefing.textContent=text;briefing.dataset.tone=tone;} });
   options.target.insertBefore(opportunityPanel.element, resultsContainer);
   let bestEstimatedProfit = 0;
 
@@ -809,31 +818,40 @@ function renderResults(
   }
 
   function syncModeButtons(): void {
-    if (filterState.selectedSkill === 'alpha') {
-      alphaBtn.classList.add('active');
-      steadyBtn.classList.remove('active');
-    } else {
-      steadyBtn.classList.add('active');
-      alphaBtn.classList.remove('active');
+    const isOpportunity=filterState.opportunityMode===true;
+    opportunityPanel.element.hidden=!isOpportunity;
+    resultsContainer.hidden=isOpportunity;
+    briefing.hidden=isOpportunity;
+    skillGroup.hidden=isOpportunity;searchGroup.hidden=isOpportunity;unrankedLabel.hidden=isOpportunity;
+    for(const [button,active] of [[opportunityBtn,isOpportunity],
+      [alphaBtn,!isOpportunity&&filterState.selectedSkill==='alpha'],
+      [steadyBtn,!isOpportunity&&filterState.selectedSkill!=='alpha']] as const){
+      button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
     }
   }
 
+  opportunityBtn.addEventListener('click',()=>{filterState.opportunityMode=true;syncModeButtons();});
+
   steadyBtn.addEventListener('click', () => {
+    filterState.opportunityMode=false;
     if (filterState.selectedSkill === 'alpha') {
       filterState.selectedSkill = 'all';
       skillSelect.value = 'all';
       syncModeButtons();
       updateResults();
     }
+    syncModeButtons();
   });
 
   alphaBtn.addEventListener('click', () => {
+    filterState.opportunityMode=false;
     if (filterState.selectedSkill !== 'alpha') {
       filterState.selectedSkill = 'alpha';
       skillSelect.value = 'alpha';
       syncModeButtons();
       updateResults();
     }
+    syncModeButtons();
   });
 
   function updateResults(): void {
