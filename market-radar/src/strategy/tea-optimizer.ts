@@ -321,7 +321,7 @@ export function findOptimalTeasForGathering(options: {
 }
 
 export function findOptimalTeasForAlchemy(options: {
-  kind: 'decompose' | 'coinify';
+  kind: 'transmute' | 'decompose' | 'coinify';
   itemHrid: string;
   catalystRank: 0 | 1 | 2;
   enhancementLevel: number;

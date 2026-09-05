@@ -1,4 +1,4 @@
-import type { MarketKey, Snapshot } from '../core/types';
+import type { Snapshot } from '../core/types';
 import { formatCompactNumber } from '../core/format-number';
 import type { PlayerProfile, SkillingAction } from '../profile/types';
 import { backtestStrategySignals, type StrategyBacktestResult } from './backtest';
@@ -13,7 +13,6 @@ import {
   type StrategyDecisionMode,
 } from './decision';
 import { formatSemanticPath } from './semantic-path';
-import { marketCapacity } from './liquidity';
 import {
   evaluateRealizableStrategy,
   externalStrategyFlows,
@@ -92,7 +91,7 @@ const CLASSIFICATION_LABELS: Record<LiquidityClassification, string> = {
   'small-test': '中',
   limited: '高',
   reject: '極高',
-  insufficient: '極高',
+  insufficient: '資料不足',
 };
 
 const CLASSIFICATION_OBSERVE_ORDER: Record<LiquidityClassification, number> = {
@@ -275,34 +274,21 @@ function strategyRow(
   const mainProfit = element('div', 'strategy-profit-main');
   const hasRealizable = liquidity.realizableProfitPerDay !== null && Number.isFinite(liquidity.realizableProfitPerDay);
 
-  if (sortMode === 'safe') {
-    if (hasRealizable) {
-      mainProfit.textContent = money(liquidity.realizableProfitPerDay!);
-      profitCell.append(mainProfit);
-      if (liquidity.realizableProfitPerDay! < candidate.profitPerDay * 0.98) {
-        const subProfit = element('div', 'strategy-profit-sub');
-        subProfit.textContent = `理論 ~${money(candidate.profitPerDay)}`;
-        subProfit.title = `理論極值為 ${money(candidate.profitPerDay)}，已受市場容量限制折算`;
-        profitCell.append(subProfit);
-      }
-    } else {
-      mainProfit.textContent = '—';
-      mainProfit.title = '市場成交量樣本不足，無法確認安全容量';
-      profitCell.append(mainProfit);
-      const subProfit = element('div', 'strategy-profit-sub');
-      subProfit.textContent = `理論 ~${money(candidate.profitPerDay)}`;
-      subProfit.title = '市場成交量樣本不足，未經安全容量折算';
-      profitCell.append(subProfit);
-    }
-  } else {
-    mainProfit.textContent = money(candidate.profitPerDay);
-    profitCell.append(mainProfit);
-    if (hasRealizable && liquidity.realizableProfitPerDay! < candidate.profitPerDay * 0.98) {
-      const subProfit = element('div', 'strategy-profit-sub');
-      subProfit.textContent = `安全 ~${money(liquidity.realizableProfitPerDay!)}`;
-      subProfit.title = `依市場容量限制，每日安全折算為 ${money(liquidity.realizableProfitPerDay!)}`;
-      profitCell.append(subProfit);
-    }
+  mainProfit.textContent = money(candidate.profitPerDay);
+  mainProfit.title = sortMode === 'safe'
+    ? '當前市場日利（目前列表依容量參考值排序）'
+    : '依當前賣一買入、買一出售與稅率計算的 24 小時日利';
+  profitCell.append(mainProfit);
+  if (hasRealizable && liquidity.realizableProfitPerDay! < candidate.profitPerDay * 0.98) {
+    const subProfit = element('div', 'strategy-profit-sub');
+    subProfit.textContent = `容量參考 ~${money(liquidity.realizableProfitPerDay!)}`;
+    subProfit.title = `依歷史成交量估算可實現日利約 ${money(liquidity.realizableProfitPerDay!)}；不改寫上方當前日利`;
+    profitCell.append(subProfit);
+  } else if (!hasRealizable) {
+    const subProfit = element('div', 'strategy-profit-sub');
+    subProfit.textContent = '容量資料不足';
+    subProfit.title = '缺少足夠成交量歷史；當前日利仍可依即時買賣價正常計算';
+    profitCell.append(subProfit);
   }
   row.append(profitCell);
 
@@ -355,7 +341,7 @@ function strategyRow(
   classification.dataset.classification = liquidity.classification;
   classification.textContent = CLASSIFICATION_LABELS[liquidity.classification];
   classification.title = liquidity.classification === 'insufficient'
-    ? '缺少足夠的 3D／7D 成交量資料，不列為可執行策略'
+    ? '缺少足夠的 3D／7D 成交量資料；當前日利仍依即時市場價格正常顯示'
     : liquidity.bottleneckHrid
       ? `瓶頸：${options.itemName(liquidity.bottleneckHrid)}（${liquidity.bottleneckSide === 'input' ? '買入' : '賣出'}端）`
       : '未發現外部市場瓶頸';
@@ -598,7 +584,7 @@ function renderResults(
   profile: PlayerProfile,
   latestSnapshotAgeMs: number,
   initialFilter: StrategyFilterContext = {
-    selectedSkill: 'all', searchQuery: '', sortMode: 'safe',
+    selectedSkill: 'all', searchQuery: '', sortMode: 'theoretical',
   },
   signalCache = new Map<string, AssessedSignal>(),
   priceBookCache = new Map<number, ReturnType<typeof createStrategyPriceBook>>(),
@@ -611,7 +597,7 @@ function renderResults(
   const warning = element('p', 'strategy-warning');
   warning.textContent = latestSnapshotAgeMs > 180 * 60_000
     ? '市場快照已超過 180 分鐘：資料嚴重過期，請留意價格變動。'
-    : '主排名採 3D／7D 成交量容量折算收益；買料用賣一、出售用買一並扣 5% 稅，點金免稅。Exporter v1 不含材料數量，因此目前不以裝備 inventoryMap 抵扣原料成本。';
+    : '主排名依當前市場賣一買入、買一出售與稅後日利排序；成交量、日產佔比與風險只作執行參考，不會隱藏或改寫當前日利。Exporter v1 不含材料數量，因此目前不以裝備 inventoryMap 抵扣原料成本。';
   header.append(heading, warning);
 
   // ── 機制完整度門禁 (Mechanics Completeness Gate) ──
@@ -637,7 +623,7 @@ function renderResults(
     estBanner.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
     estBanner.style.border = '1px solid rgba(59, 130, 246, 0.3)';
     estBanner.style.borderRadius = '6px';
-    estBanner.innerHTML = '<strong>ℹ️ 估算模式（Estimated）</strong>：目前配裝或茶飲包含理論自動推論，日利為理論極值/容量折算估算值。';
+    estBanner.innerHTML = '<strong>ℹ️ 估算模式（Estimated）</strong>：目前配裝或茶飲包含自動推論；日利仍按當前市場價格計算，容量與風險另列供參考。';
     header.append(estBanner);
   }
 
@@ -666,14 +652,14 @@ function renderResults(
   const sortGroup = element('div', 'strategy-sort-group filter-control');
   const sortSafeBtn = element('button', 'toolbar-button');
   sortSafeBtn.type = 'button';
-  sortSafeBtn.textContent = '🛡️ 安全日利';
-  sortSafeBtn.title = '依市場容量折算後之安全日利排序（防止過量滯銷）';
+  sortSafeBtn.textContent = '📦 容量參考';
+  sortSafeBtn.title = '依市場容量估算值排序；日利欄仍顯示當前市場日利，不會因資料不足而歸零';
   if ((filterState.sortMode ?? 'safe') === 'safe') sortSafeBtn.classList.add('active');
 
   const sortTheoBtn = element('button', 'toolbar-button');
   sortTheoBtn.type = 'button';
-  sortTheoBtn.textContent = '⚡ 理論極值';
-  sortTheoBtn.title = '依未折算理論最高日利排序（對標 Milkonomy，假定無限買盤）';
+  sortTheoBtn.textContent = '💰 當前日利';
+  sortTheoBtn.title = '依當前賣一買入、買一出售及稅後日利排序（主要推薦榜）';
   if (filterState.sortMode === 'theoretical') sortTheoBtn.classList.add('active');
 
   sortSafeBtn.addEventListener('click', () => {
@@ -767,9 +753,8 @@ function renderResults(
     if (filterState.sortMode === 'theoretical') {
       return item.candidate.profitPerDay;
     }
-    // 安全日利模式：嚴格依可實現日利（realizableProfitPerDay）排序
-    // 若為 null（資料不足/未經驗證），安全排序價值為 0，不可用未折算的理論日利充數！
-    return item.liquidity.realizableProfitPerDay ?? 0;
+    // 容量參考是次要視角；資料不足時退回當前日利，絕不能把 50M 策略當成 0。
+    return item.liquidity.realizableProfitPerDay ?? item.candidate.profitPerDay;
   }
 
   function priorityWeight(priority: StrategyPriority): number {
@@ -863,26 +848,10 @@ function renderResults(
         if (isSearchActive) {
           return matchesSearchQuery(candidate, filterState.searchQuery, options.itemName);
         }
-        // 理論日利 <= 0 者不顯示
+        // Current-profit discovery is the primary product. A valid positive candidate stays visible;
+        // liquidity, history completeness and anomaly flags are metadata, not hidden gates.
         if (candidate.profitPerDay <= 0) return false;
-
-        // 理論極值模式：放行所有正收益策略
-        if (filterState.sortMode === 'theoretical') return true;
-
-        // 常態模式：排除異常情形
-        // 1. reject: 成交量個位數之冷門裝備（如翠綠護手）、價格異常插針
-        if (liquidity.classification === 'reject') return false;
-
-        // 2. 市場只有掛買沒有掛賣或相反（單邊無掛單，原料買不到或產品賣不掉）
-        const flows = externalStrategyFlows(candidate);
-        const hasMissingSide = flows.some((external) => {
-          const cap = marketCapacity(`${external.flow.itemHrid}::${external.flow.enhancementLevel}` as MarketKey, snapshots);
-          return external.side === 'input' ? !cap.askAvailable : !cap.bidAvailable;
-        });
-        if (hasMissingSide) return false;
-
-        // 正常的原物料、大宗商品，即使吞吐佔比 > 5% 或歷史樣本未滿 72h，均正常顯示，
-        // 由日產佔比顏色示警（黃/橘/紅）與優先級降評，絕不無故隱藏。
+        void liquidity;
         return true;
       });
 
@@ -915,7 +884,7 @@ function renderResults(
       const label = element('strong');
       label.textContent = filterState.selectedSkill === 'alpha'
         ? '⚡ 短缺套利首選'
-        : (filterState.sortMode === 'theoretical' ? '⚡ 目前理論極值最佳' : '🛡️ 目前安全推薦最佳');
+        : (filterState.sortMode === 'theoretical' ? '💰 目前日利最高' : '📦 容量參考排序第一');
       const value = element('span', 'strategy-decision-summary-title');
       const bestPathName = formatSemanticPath(best.candidate, data, options.itemName);
       value.textContent = `${bestPathName}・預估日利 ${metric(effectiveProfit(best))}`;
@@ -925,8 +894,8 @@ function renderResults(
       note.textContent = filterState.selectedSkill === 'alpha'
         ? '依突發利潤爆發動能與 Alpha 評分排序，已嚴格過濾幽靈插針'
         : (filterState.sortMode === 'theoretical'
-          ? '依理論最大日利（無窮大市場消化量）極值排序，對標 Milkonomy'
-          : '依市場容量折算後安全日利、優先級與風險綜合排序');
+          ? '依當前 Ask/Bid、角色產能與稅後日利排序；容量與風險僅作附加提示'
+          : '依市場容量參考值排序；日利欄仍保留當前市場完整日利');
 
       const radarBadge = element('span', 'strategy-radar-badge');
       if (filterState.selectedSkill === 'alpha') {
@@ -964,14 +933,14 @@ function renderResults(
 
     const meta = element('p', 'strategy-meta');
     if (isSearchActive) {
-      meta.textContent = `搜尋「${filterState.searchQuery.trim()}」：顯示前 ${chosen.length} 條（依折算後日利排序）`;
+      meta.textContent = `搜尋「${filterState.searchQuery.trim()}」：顯示前 ${chosen.length} 條（依目前選定排序）`;
     } else if (filterState.selectedSkill === 'alpha') {
       meta.textContent = `⚡ 突發短缺／暴利專區：顯示前 ${chosen.length} 條；依短期動能（AlphaScore）排序，已剔除幽靈插針`;
     } else if (filterState.selectedSkill !== 'all') {
       const skillName = STRATEGY_SKILL_OPTIONS.find((s) => s.value === filterState.selectedSkill)?.label ?? '';
-      meta.textContent = `技能「${skillName}」：顯示前 ${chosen.length} 條；依折算後日利、優先級與風險排序`;
+      meta.textContent = `技能「${skillName}」：顯示前 ${chosen.length} 條；預設依當前市場日利排序`;
     } else {
-      meta.textContent = `顯示前 ${chosen.length} 條；依折算後日利、優先級與風險綜合排序，★ 不影響名次`;
+      meta.textContent = `顯示前 ${chosen.length} 條；預設依當前市場日利排序，成交量與風險不隱藏候選，★ 不影響名次`;
     }
     resultsContainer.append(meta);
     const scroll = element('div', 'strategy-table-scroll');
