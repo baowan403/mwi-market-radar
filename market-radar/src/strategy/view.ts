@@ -9,6 +9,7 @@ import { generateSparklineSvg } from './sparkline';
 import { createStrategyPriceBook } from './price-book';
 import { estimateStrategySession, compareSessionRanking, type StrategySession } from './session';
 import { createOpportunityPanel } from './opportunity-view';
+import { createUpgradePanel } from './upgrade-view';
 import { createOpportunityJournal, type OpportunityJournal } from './opportunity-journal';
 import { formatSemanticPath } from './semantic-path';
 import {
@@ -601,6 +602,7 @@ interface StrategyFilterContext {
   customDuration?: boolean;
   showUnranked?: boolean;
   opportunityMode?: boolean;
+  upgradeMode?: boolean;
 }
 
 function renderResults(
@@ -678,7 +680,9 @@ function renderResults(
   const opportunityBtn=element('button','toolbar-button');
   opportunityBtn.type='button'; opportunityBtn.textContent='機會雷達';
   opportunityBtn.dataset.strategyTab='opportunity';
-  modeGroup.append(steadyBtn, opportunityBtn, alphaBtn);
+  const upgradeBtn=element('button','toolbar-button');upgradeBtn.type='button';
+  upgradeBtn.textContent='升級目標';upgradeBtn.dataset.strategyTab='upgrades';
+  modeGroup.append(steadyBtn, opportunityBtn, upgradeBtn, alphaBtn);
 
   const skillGroup = element('div', 'strategy-filter-group');
   const skillLabel = element('label', 'strategy-label');
@@ -753,6 +757,8 @@ function renderResults(
     journal: options.opportunityJournal!, now: options.now, signal: options.opportunitySignal,
     onSummary:(text,tone)=>{briefing.textContent=text;briefing.dataset.tone=tone;} });
   options.target.insertBefore(opportunityPanel.element, resultsContainer);
+  const upgradePanel=createUpgradePanel({profile,data,snapshots,itemName:options.itemName,now:options.now,signal:options.opportunitySignal});
+  options.target.insertBefore(upgradePanel.element,resultsContainer);
   let bestEstimatedProfit = 0;
 
   function getAssessedSignal(item: AssessedStrategy): AssessedSignal {
@@ -818,21 +824,27 @@ function renderResults(
   }
 
   function syncModeButtons(): void {
-    const isOpportunity=filterState.opportunityMode===true;
+    const isUpgrade=filterState.upgradeMode===true;
+    const isOpportunity=!isUpgrade&&filterState.opportunityMode===true;
+    const toolPage=isOpportunity||isUpgrade;
     opportunityPanel.element.hidden=!isOpportunity;
-    resultsContainer.hidden=isOpportunity;
-    briefing.hidden=isOpportunity;
-    skillGroup.hidden=isOpportunity;searchGroup.hidden=isOpportunity;unrankedLabel.hidden=isOpportunity;
-    for(const [button,active] of [[opportunityBtn,isOpportunity],
-      [alphaBtn,!isOpportunity&&filterState.selectedSkill==='alpha'],
-      [steadyBtn,!isOpportunity&&filterState.selectedSkill!=='alpha']] as const){
+    upgradePanel.element.hidden=!isUpgrade;
+    resultsContainer.hidden=toolPage;
+    briefing.hidden=toolPage;
+    durationGroup.hidden=isUpgrade;
+    skillGroup.hidden=toolPage;searchGroup.hidden=toolPage;unrankedLabel.hidden=toolPage;
+    for(const [button,active] of [[opportunityBtn,isOpportunity],[upgradeBtn,isUpgrade],
+      [alphaBtn,!toolPage&&filterState.selectedSkill==='alpha'],
+      [steadyBtn,!toolPage&&filterState.selectedSkill!=='alpha']] as const){
       button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
     }
   }
 
-  opportunityBtn.addEventListener('click',()=>{filterState.opportunityMode=true;syncModeButtons();});
+  opportunityBtn.addEventListener('click',()=>{filterState.upgradeMode=false;filterState.opportunityMode=true;syncModeButtons();});
+  upgradeBtn.addEventListener('click',()=>{filterState.upgradeMode=true;filterState.opportunityMode=false;syncModeButtons();});
 
   steadyBtn.addEventListener('click', () => {
+    filterState.upgradeMode=false;
     filterState.opportunityMode=false;
     if (filterState.selectedSkill === 'alpha') {
       filterState.selectedSkill = 'all';
@@ -844,6 +856,7 @@ function renderResults(
   });
 
   alphaBtn.addEventListener('click', () => {
+    filterState.upgradeMode=false;
     filterState.opportunityMode=false;
     if (filterState.selectedSkill !== 'alpha') {
       filterState.selectedSkill = 'alpha';

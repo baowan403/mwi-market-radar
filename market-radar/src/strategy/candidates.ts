@@ -188,8 +188,11 @@ export function buildStrategyCandidates(options: {
   profile: PlayerProfile;
   data: NormalizedStrategyGameData;
   prices: MarketPriceBook;
+  /** Optional single-skill scope for repeated equipment counterfactuals. Default stays all skills. */
+  actions?: readonly SkillingAction[];
 }): StrategyCandidateResult {
   const { data, prices } = options;
+  const allowed = (action: SkillingAction) => !options.actions || options.actions.includes(action);
   const profile = enrichProfileWithBestLoadout(options.profile, data);
   const candidateMap = new Map<string, StrategyCandidate>();
   const diagnostics: string[] = [];
@@ -205,7 +208,7 @@ export function buildStrategyCandidates(options: {
   const manufactureStep = (actionHrid: string): StrategyStepResult | null => {
     if (stepCache.has(actionHrid)) return stepCache.get(actionHrid) ?? null;
     const action = manufacturingAction(actionHrid);
-    if (!action) return null;
+    if (!action || !allowed(action)) return null;
     try {
       const step = calculateManufactureAction({
         actionHrid, profile, data, prices,
@@ -233,7 +236,7 @@ export function buildStrategyCandidates(options: {
   const gatherStep = (actionHrid: string): StrategyStepResult | null => {
     if (stepCache.has(actionHrid)) return stepCache.get(actionHrid) ?? null;
     const action = gatheringAction(actionHrid);
-    if (!action) return null;
+    if (!action || !allowed(action)) return null;
     try {
       const step = calculateGatherAction({
         actionHrid, profile, data, prices, buffs: buffsFor(action),
@@ -270,6 +273,7 @@ export function buildStrategyCandidates(options: {
     if (step) walk([step], new Set([step.outputHrid]));
   }
 
+  if (allowed('alchemy')) {
   const alchemyBuffs = buffsFor('alchemy');
   for (const [itemHrid, rawItem] of data.itemsByHrid) {
     const detail = record(record(rawItem)?.alchemyDetail);
@@ -384,6 +388,7 @@ export function buildStrategyCandidates(options: {
     }
   }
 
+  }
   return {
     candidates: selectParetoStrategyVariants([...candidateMap.values()]).sort((left, right) => (
       right.profitPerDay - left.profitPerDay || left.id.localeCompare(right.id)

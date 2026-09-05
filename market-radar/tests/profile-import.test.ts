@@ -4,6 +4,13 @@ import { describe, expect, it } from 'vitest';
 import { ProfileImportError, importPlayerProfile } from '../src/profile/import';
 
 describe('Milkonomy profile import', () => {
+  it('retains known skill levels for equipment requirements, but not arbitrary fields', () => {
+    const value={...exporter,skills:{...exporter.skills,'/skills/total_level':1250,'/skills/intelligence':80,private_value:999}};
+    const profile=importPlayerProfile(JSON.stringify(value),0);
+    expect(profile.skillLevels?.['/skills/total_level']).toBe(1250);
+    expect(profile.skillLevels?.['/skills/intelligence']).toBe(80);
+    expect(profile.skillLevels).not.toHaveProperty('private_value');
+  });
   it('normalizes version-one exporter data without retaining unknown private fields', () => {
     const profile = importPlayerProfile(JSON.stringify(exporter), 1_788_220_800_000);
 

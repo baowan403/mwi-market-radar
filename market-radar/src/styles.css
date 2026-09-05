@@ -2346,3 +2346,224 @@ dialog::backdrop {
 .strategy-classification[data-risk-severity='unknown'] {
   color: var(--color-muted);
 }
+
+/* ── 升級目標榜：局部樣式，不影響市場策略表 ── */
+.upgrade-panel {
+  margin: 12px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 2%);
+}
+
+.upgrade-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.upgrade-controls h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 0.95rem;
+}
+
+.upgrade-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.upgrade-controls select,
+.upgrade-controls input,
+.upgrade-controls button {
+  box-sizing: border-box;
+  height: 40px;
+  min-height: 40px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.upgrade-controls select,
+.upgrade-controls input {
+  min-width: 104px;
+  padding: 0 10px;
+}
+
+.upgrade-controls input {
+  width: 92px;
+}
+
+.upgrade-controls button {
+  padding: 0 14px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.upgrade-controls button:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.upgrade-controls select:focus-visible,
+.upgrade-controls input:focus-visible,
+.upgrade-controls button:focus-visible,
+.upgrade-detail summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.upgrade-status,
+.upgrade-disclaimer,
+.upgrade-baseline,
+.upgrade-warning {
+  margin: 8px 0;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.upgrade-warning {
+  color: var(--color-warning);
+}
+
+.upgrade-progress {
+  display: block;
+  width: min(100%, 360px);
+  height: 8px;
+  margin: 10px 0 6px;
+  accent-color: var(--color-accent);
+}
+
+.upgrade-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.upgrade-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.upgrade-table th,
+.upgrade-table td {
+  padding: 8px 7px;
+  border-bottom: 1px solid var(--color-line);
+  text-align: center;
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+.upgrade-table th {
+  color: var(--color-muted);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.upgrade-table td:first-child,
+.upgrade-table td:nth-child(2) {
+  text-align: left;
+}
+
+.upgrade-equipment strong,
+.upgrade-equipment small {
+  display: block;
+}
+
+.upgrade-equipment strong {
+  color: var(--color-text);
+}
+
+.upgrade-equipment small {
+  margin-top: 2px;
+  color: var(--color-muted);
+  font-size: 0.68rem;
+}
+
+.upgrade-price,
+.upgrade-payback {
+  white-space: nowrap;
+}
+.upgrade-panel[hidden], .upgrade-detail-row[hidden] { display: none; }
+.upgrade-table tr[data-upgrade-row] { cursor: pointer; }
+.upgrade-table tr[data-upgrade-row]:hover { background: rgb(114 167 255 / 5%); }
+.upgrade-table tr[data-upgrade-row]:focus-visible { outline: 2px solid var(--color-accent); }
+.upgrade-delta[data-sign="negative"] { color: #ee9c96; }
+.upgrade-delta[data-sign="neutral"] { color: var(--color-muted); }
+.upgrade-priority[data-upgrade-priority="提升優先"], .upgrade-priority[data-upgrade-priority="效率優先"], .upgrade-priority[data-upgrade-priority="已持有，可換上"] { color: #60d6aa; font-weight: 650; }
+.upgrade-priority[data-upgrade-priority="門檻待確認"], .upgrade-priority[data-upgrade-priority="需達標"], .upgrade-priority[data-upgrade-priority="待報價"] { color: #f2c16d; }
+
+.upgrade-delta {
+  color: #f2c16d;
+  font-weight: 700;
+}
+
+.upgrade-after {
+  color: #60d6aa;
+  font-weight: 650;
+}
+
+.upgrade-table tr[data-upgrade-eligibility="unknown"] .upgrade-slot,
+.upgrade-table tr[data-upgrade-eligibility="unmet"] .upgrade-slot {
+  color: var(--color-muted);
+}
+
+.upgrade-detail-row td {
+  padding: 0;
+  text-align: left;
+  background: rgb(114 167 255 / 4%);
+}
+
+.upgrade-detail {
+  padding: 8px 10px;
+}
+
+.upgrade-detail summary {
+  cursor: pointer;
+  color: var(--color-muted);
+  font-size: 0.74rem;
+  user-select: none;
+}
+
+.upgrade-detail-content {
+  padding: 8px 4px 2px;
+  color: var(--color-text);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.upgrade-detail-content p {
+  margin: 5px 0;
+}
+
+.upgrade-detail-note {
+  color: var(--color-muted);
+}
+
+@media (max-width: 640px) {
+  .upgrade-panel {
+    padding: 12px;
+  }
+
+  .upgrade-controls label,
+  .upgrade-controls h3,
+  .upgrade-controls button {
+    flex: 1 1 auto;
+  }
+
+  .upgrade-controls select,
+  .upgrade-controls input,
+  .upgrade-controls button {
+    width: 100%;
+  }
+}

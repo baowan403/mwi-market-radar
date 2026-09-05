@@ -93,6 +93,15 @@ function nameOf(data: Record<string, unknown>): string {
   return name;
 }
 
+function requirementSkills(raw: unknown): Record<string,number> {
+  const value=record(raw)??{};
+  const allowed=[...SKILLING_ACTIONS,'attack','melee','defense','ranged','magic','stamina','intelligence','total_level'];
+  return Object.fromEntries(allowed.flatMap(skill=>{
+    const key=`/skills/${skill}`,level=value[key];
+    return typeof level==='number'&&Number.isSafeInteger(level)&&level>=0?[[key,level]]:[];
+  }));
+}
+
 function teaList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.filter((item): item is string => (
@@ -237,6 +246,7 @@ function importExporter(data: Record<string, unknown>, importedAt: number): Play
     characterId: achievements.characterId,
     name,
     source: 'milkonomy-v1',
+    skillLevels: requirementSkills(data.skills),
     importedAt,
     completeness: missingFields.length === 0 ? 'full' : 'partial',
     mechanicsCompleteness,
@@ -329,6 +339,7 @@ function importPreset(data: Record<string, unknown>, importedAt: number): Player
     characterId: null,
     name,
     source: 'milkonomy-preset',
+    skillLevels: requirementSkills(data.skills),
     importedAt,
     completeness: 'partial',
     mechanicsCompleteness: 'estimated',
@@ -384,6 +395,7 @@ export function validatePlayerProfile(input: unknown): PlayerProfile {
     characterId: typeof data.characterId === 'number' ? data.characterId : null,
     name: data.name,
     source: data.source === 'milkonomy-preset' ? 'milkonomy-preset' : 'milkonomy-v1',
+    skillLevels: requirementSkills(data.skillLevels),
     importedAt: typeof data.importedAt === 'number' ? data.importedAt : Date.now(),
     completeness,
     mechanicsCompleteness,

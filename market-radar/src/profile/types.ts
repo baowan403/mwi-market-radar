@@ -41,6 +41,8 @@ export interface ActionProfile {
 }
 
 export interface PlayerProfile {
+  /** Optional raw skill levels for equipment gates; never a wallet field. */
+  skillLevels?: Record<string, number>;
   id: string;
   characterId: number | null;
   name: string;

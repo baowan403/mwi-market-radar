@@ -48,6 +48,11 @@ const snapshot: Snapshot = {
 };
 
 describe('personalized strategy candidate enumeration', () => {
+  it('can limit evaluation to one skill without leaking unrelated actions', () => {
+    const result = buildStrategyCandidates({profile,data,prices:createStrategyPriceBook(snapshot,data),actions:['crafting']});
+    expect(result.candidates.length).toBeGreaterThan(0);
+    expect(result.candidates.every(c=>c.steps.every(s=>s.action==='crafting'))).toBe(true);
+  });
   it('finds manufacturing, workflows, and decompose-to-coinify without duplicate ids', () => {
     const result = buildStrategyCandidates({
       profile,

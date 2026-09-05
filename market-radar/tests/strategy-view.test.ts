@@ -93,6 +93,12 @@ describe('strategy recommendation view', () => {
     expect(opportunity.hidden).toBe(false); expect(ranking.hidden).toBe(true);
     (target.querySelector('[data-strategy-tab="steady"]') as HTMLButtonElement).click();
     expect(opportunity.hidden).toBe(true); expect(ranking.hidden).toBe(false);
+    const upgrades=target.querySelector<HTMLElement>('[data-upgrade-panel]')!;
+    expect(upgrades.hidden).toBe(true);
+    (target.querySelector('[data-strategy-tab="upgrades"]') as HTMLButtonElement).click();
+    expect(upgrades.hidden).toBe(false);expect(ranking.hidden).toBe(true);
+    (target.querySelector('[data-strategy-tab="steady"]') as HTMLButtonElement).click();
+    expect(upgrades.hidden).toBe(true);expect(ranking.hidden).toBe(false);
     expect(ids()).toEqual(['steady', 'fast']);
     expect(target.querySelectorAll('thead th')).toHaveLength(12);
     expect(target.querySelector('thead')?.textContent).toContain('預估收益');
