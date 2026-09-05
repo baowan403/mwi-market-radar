@@ -26,6 +26,53 @@ jobs:
       - name: Apply simple market assessment patch
         run: python .github/simple-market-assessment-patch.py
 
+      - name: Align legacy assertions with the new field semantics
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              'market-radar/tests/strategy-manufacture-adapter.test.ts': [
+                  (
+                      "  it('makes every contained market leaf participate in realizable liquidity', () => {",
+                      "  it('keeps sparse secondary loot from erasing the main product assessment', () => {",
+                  ),
+                  (
+                      "    expect(missingGem.classification).toBe('insufficient');\n    expect(missingGem.bottleneckHrid).toBe('/items/moonstone');",
+                      "    expect(missingGem.classification).toBe('long-run');\n    expect(missingGem.outputShare24hPct).not.toBeNull();\n    expect(missingGem.warnings).toContainEqual({\n      itemHrid: '/items/moonstone',\n      side: 'output',\n      code: 'secondary-history-incomplete',\n    });",
+                  ),
+              ],
+              'market-radar/tests/strategy-realizable-tea.test.ts': [
+                  (
+                      "      code: 'history-incomplete',",
+                      "      code: 'auxiliary-high-share',",
+                  ),
+              ],
+              'market-radar/tests/strategy-signals.test.ts': [
+                  (
+                      "expect(signalLimited.reasons.join(' ')).toContain('市場深度受限');",
+                      "expect(signalLimited.reasons.join(' ')).toContain('成品承接或原料供給偏緊');",
+                  ),
+              ],
+              'market-radar/tests/strategy-view.test.ts': [
+                  (
+                      "expect(target.querySelector('[data-strategy-row=\"goblin_staff\"] .strategy-classification')?.textContent).toBe('市場無報價');",
+                      "expect(target.querySelector('[data-strategy-row=\"goblin_staff\"] .strategy-classification')?.textContent).toBe('原料無賣單');",
+                  ),
+              ],
+          }
+
+          for file_name, pairs in replacements.items():
+              path = Path(file_name)
+              text = path.read_text(encoding='utf-8')
+              for old, new in pairs:
+                  count = text.count(old)
+                  if count != 1:
+                      raise SystemExit(f'{file_name}: expected one match, found {count}: {old[:100]}')
+                  text = text.replace(old, new, 1)
+              path.write_text(text, encoding='utf-8')
+          PY
+
       - name: Install dependencies
         working-directory: market-radar
         run: npm ci
