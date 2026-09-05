@@ -28,7 +28,7 @@ jobs:
     outputs:
       data_changed: ${{ steps.publish-data.outputs.data_changed }}
       data_commit_sha: ${{ steps.publish-data.outputs.data_commit_sha }}
-      previous_data_sha: ${{ steps.data-worktree.outputs.previous_data_sha }}
+      previous_data_sha: ${{ steps.repair-attempt.outputs.rollback_sha || steps.data-worktree.outputs.previous_data_sha }}
       data_branch_created: ${{ steps.data-worktree.outputs.data_branch_created }}
     steps:
       - name: Checkout source and data history
@@ -99,6 +99,7 @@ jobs:
         run: npm run cloud:backfill-stockmarket -- --data-dir "$DATA_WT/data"
 
       - name: Repair missing market hours (at most once per six hours)
+        id: repair-history
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         working-directory: market-radar
         env:
@@ -106,6 +107,24 @@ jobs:
         run: |
           if ! npm run cloud:backfill-stockmarket -- --data-dir "$DATA_WT/data" --repair-gaps; then
             echo "::warning::History repair unavailable; preserving official market collection."
+          fi
+
+      - name: Persist repair attempt independently of site deployment
+        id: repair-attempt
+        if: ${{ always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && steps.repair-history.outcome != 'skipped' }}
+        env:
+          DATA_WT: ${{ steps.data-worktree.outputs.path }}
+        run: |
+          set -euo pipefail
+          if [ -f "$DATA_WT/data/stockmarket-repair-attempt.json" ]; then
+            git -C "$DATA_WT" add -- data/stockmarket-repair-attempt.json
+            if ! git -C "$DATA_WT" diff --cached --quiet; then
+              git -C "$DATA_WT" config user.name 'github-actions[bot]'
+              git -C "$DATA_WT" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+              git -C "$DATA_WT" commit -m 'chore: record history repair attempt'
+              git -C "$DATA_WT" push origin HEAD:market-data
+            fi
+            echo "rollback_sha=$(git -C "$DATA_WT" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Validate market-data history

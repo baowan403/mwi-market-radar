@@ -15,6 +15,15 @@ describe('market radar Pages workflow', () => {
     expect(workflow.indexOf('Repair missing market hours')).toBeGreaterThan(workflow.indexOf('Collect the official snapshot'));
     expect(workflow.indexOf('Repair missing market hours')).toBeLessThan(workflow.indexOf('Validate market-data history'));
   });
+  it('persists cooldown separately before build and preserves it in the rollback baseline', () => {
+    const step = workflow.match(/- name: Persist repair attempt[\s\S]*?(?=\n      - name:)/)?.[0] ?? '';
+    expect(step).toContain('always()');
+    expect(step).toContain('add -- data/stockmarket-repair-attempt.json');
+    expect(step).not.toContain('add -- data\n');
+    expect(step).toContain('push origin HEAD:market-data');
+    expect(workflow.indexOf('Persist repair attempt')).toBeLessThan(workflow.indexOf('Validate market-data history'));
+    expect(workflow).toContain('steps.repair-attempt.outputs.rollback_sha || steps.data-worktree.outputs.previous_data_sha');
+  });
   it('has the required triggers, least practical permissions, and fixed concurrency', () => {
     expect(workflow).toContain('push:');
     expect(workflow).toContain('branches: [main]');
@@ -148,7 +157,7 @@ describe('market radar Pages workflow', () => {
   it('exposes data publication state and has guarded rollback for existing branches', () => {
     expect(workflow).toContain('data_changed: ${{ steps.publish-data.outputs.data_changed }}');
     expect(workflow).toContain('data_commit_sha: ${{ steps.publish-data.outputs.data_commit_sha }}');
-    expect(workflow).toContain('previous_data_sha: ${{ steps.data-worktree.outputs.previous_data_sha }}');
+    expect(workflow).toContain('previous_data_sha: ${{ steps.repair-attempt.outputs.rollback_sha || steps.data-worktree.outputs.previous_data_sha }}');
     expect(workflow).toContain('data_branch_created: ${{ steps.data-worktree.outputs.data_branch_created }}');
 
     const rollback = workflow.slice(workflow.indexOf('\n  rollback-data:'));
