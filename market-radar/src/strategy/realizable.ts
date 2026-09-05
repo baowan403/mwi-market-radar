@@ -96,7 +96,9 @@ export function externalStrategyFlows(candidate: StrategyCandidate): ExternalFlo
   ];
 }
 
-function isAuxiliaryInput(external: ExternalFlow): boolean {
+function isAuxiliaryInput(external: ExternalFlow, candidate: StrategyCandidate): boolean {
+  if (candidate.steps.some((step) => step.action === 'alchemy'
+    && step.inputs[0]?.itemHrid === external.flow.itemHrid)) return false;
   return external.side === 'input'
     && (external.flow.itemHrid.endsWith('_tea') || external.flow.itemHrid.endsWith('_coffee'));
 }
@@ -225,7 +227,7 @@ export function evaluateRealizableStrategy(
     const capacity = marketCapacity(key(external.flow), snapshots);
     if (!capacity.askAvailable) noAskHrids.push(external.flow.itemHrid);
 
-    if (isAuxiliaryInput(external)) {
+    if (isAuxiliaryInput(external, candidate)) {
       if (capacity.volume24h === null) {
         warnings.push({ itemHrid: external.flow.itemHrid, side: 'input', code: 'history-incomplete' });
       } else {
@@ -352,7 +354,7 @@ export function evaluateRealizableStrategy(
     operationRatio = null;
   } else if (bottleneck?.safeRatio !== null && bottleneck?.safeRatio !== undefined) {
     operationRatio = Math.max(0, Math.min(1, bottleneck.safeRatio));
-  } else if (missingInputHistory && flows.some((item) => item.side === 'input' && !isAuxiliaryInput(item))) {
+  } else if (missingInputHistory && flows.some((item) => item.side === 'input' && !isAuxiliaryInput(item, candidate))) {
     operationRatio = null;
   } else {
     operationRatio = 1;

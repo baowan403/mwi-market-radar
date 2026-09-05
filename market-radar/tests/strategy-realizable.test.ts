@@ -45,6 +45,17 @@ function candidate(inputUnits: number, outputUnits: number): StrategyCandidate {
 }
 
 describe('simple 24h market assessment', () => {
+  it('counts a tea used as alchemy feedstock as a primary procurement risk', () => {
+    const value = candidate(100, 1);
+    value.steps[0]!.action = 'alchemy';
+    value.steps[0]!.inputs[0]!.itemHrid = '/items/ultra_cooking_tea';
+    const result = evaluateRealizableStrategy(value, snapshots({
+      '/items/ultra_cooking_tea': 100,
+      '/items/output': 100,
+    }));
+    expect(result.inputBottleneckHrid).toBe('/items/ultra_cooking_tea');
+    expect(result.riskCode).toBe('procurement-critical');
+  });
   it('uses only the final output for the visible daily production share', () => {
     const result = evaluateRealizableStrategy(candidate(1, 10), snapshots({
       '/items/input': 100,

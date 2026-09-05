@@ -64,6 +64,13 @@ describe('personalized strategy candidate enumeration', () => {
     const voidTea = result.candidates.find((item) => item.kind === 'decompose'
       && item.steps[0]?.inputs.some((flow) => flow.itemHrid === '/items/emp_tea_leaf'));
     expect(voidTea?.path).toEqual(['/items/emp_tea_leaf', '/items/brewing_essence']);
+    const teaFeedstocks = result.candidates.filter((item) => item.steps.length === 1
+      && item.steps[0]?.action === 'alchemy'
+      && item.steps[0]?.inputs[0]?.itemHrid.endsWith('_tea'));
+    expect(teaFeedstocks.length).toBeGreaterThan(0);
+    for (const item of teaFeedstocks) {
+      expect(item.path[0]).toBe(item.steps[0]!.inputs[0]!.itemHrid);
+    }
     expect(new Set(result.candidates.map((item) => item.id)).size).toBe(result.candidates.length);
     const gatheringCandidates = result.candidates.filter((item) => item.kind === 'gather');
     expect(gatheringCandidates.length).toBeGreaterThan(0);

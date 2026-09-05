@@ -110,6 +110,9 @@ function isDrink(itemHrid: string, data: NormalizedStrategyGameData): boolean {
 }
 
 function stepPath(step: StrategyStepResult, data: NormalizedStrategyGameData): string[] {
+  if (step.action === 'alchemy' && step.inputs[0]) {
+    return [step.inputs[0].itemHrid, step.outputHrid];
+  }
   const input = step.inputs.find((flow) => flow.market && !isDrink(flow.itemHrid, data))?.itemHrid;
   return [...(input ? [input] : []), step.outputHrid];
 }
