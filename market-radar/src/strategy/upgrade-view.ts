@@ -7,6 +7,7 @@ import {
   type UpgradeAnalysis,
   type UpgradeRow,
 } from './upgrades';
+import {runUpgradeAnalysis} from './upgrade-runner';
 
 type UpgradeSkill = Exclude<SkillingAction, 'enhancing'>;
 type UpgradeSort = 'gain' | 'efficiency';
@@ -172,7 +173,7 @@ function renderRow(row: UpgradeRow, options: UpgradePanelOptions): HTMLTableRowE
   title.textContent = `${options.itemName(row.itemHrid)} +${row.enhancementLevel}`;
   equipment.append(title);
   const ownership = element('small');
-  ownership.textContent = row.owned ? '已持有，免購買' : '購買目標';
+  ownership.textContent = row.owned ? '已持有，免購買' : row.priority==='已有更高強化'?'已有同款更高強化':'購買目標';
   equipment.append(ownership);
   tableRow.append(equipment);
 
@@ -354,7 +355,7 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
     const tableScroll = element('div', 'upgrade-table-scroll');
     tableScroll.append(table);
     content.append(tableScroll);
-    status.textContent = `已完成：${SKILL_LABELS[analysis.action as UpgradeSkill] ?? analysis.action}、${analysis.hoursPerDay}H；測試 ${analysis.testedVariants} 個變體。`;
+    status.textContent = `已完成：${SKILL_LABELS[analysis.action as UpgradeSkill] ?? analysis.action}、${analysis.hoursPerDay}H；比較 ${analysis.testedVariants} 項裝備目標。`;
   };
 
   skillSelect.addEventListener('change', () => {
@@ -412,7 +413,7 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
 
     void (async () => {
       try {
-        const analysis = await (options.analyze ?? analyzeUpgradeTargets)({
+        const analysis = await (options.analyze ?? runUpgradeAnalysis)({
           profile: options.profile,
           data: options.data,
           snapshots: options.snapshots,

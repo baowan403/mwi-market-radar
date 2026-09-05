@@ -130,12 +130,13 @@ export async function analyzeUpgradeTargets(options:{
     await new Promise(resolve=>setTimeout(resolve,0));
   }
   cancelled();
-  const comparable=rows.filter(r=>r.eligibility==='met'&&r.price!==null&&(r.delta??0)>0);
+  const higherOwned=(row:UpgradeRow)=>isItemOwnedByPlayer(row.itemHrid,base)&&(base.inventoryMap[row.itemHrid]??-1)>row.enhancementLevel;
+  const comparable=rows.filter(r=>r.eligibility==='met'&&r.price!==null&&(r.delta??0)>0&&!higherOwned(r));
   const largest=Math.max(0,...comparable.map(r=>r.delta!));
   const fastest=Math.min(Infinity,...comparable.filter(r=>!r.owned).map(r=>r.paybackDays!));
   for(const row of rows){
     row.priority=row.eligibility==='unmet'?'需達標':row.eligibility==='unknown'?'門檻待確認':row.delta===null?'行情待確認'
-      :row.delta<=0?'無提升':row.owned?'已持有，可換上':row.price===null?'待報價'
+      :higherOwned(row)?'已有更高強化':row.delta<=0?'無提升':row.owned?'已持有，可換上':row.price===null?'待報價'
       :row.delta>=largest-.000001?'提升優先':row.paybackDays===fastest?'效率優先':'可考慮';
     const lower=rows.filter(r=>r.itemHrid===row.itemHrid&&r.enhancementLevel<row.enhancementLevel).sort((a,b)=>b.enhancementLevel-a.enhancementLevel)[0];
     if(lower){

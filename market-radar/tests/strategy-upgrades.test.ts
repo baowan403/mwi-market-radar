@@ -47,6 +47,11 @@ describe('upgrade goal board',()=>{
     const row=(await run(p)).rows.find(x=>x.itemHrid==='/items/alchemists_top'&&x.enhancementLevel===7)!;
     expect(row.owned).toBe(true);expect(row.price).toBe(0);
   });
+  it('does not recommend buying a weaker grade when a better same-item grade is already owned',async()=>{
+    const p=profile();p.inventoryMap['/items/celestial_alembic']=10;p.equipmentOwnership!['/items/celestial_alembic']='owned';
+    const rows=(await run(p)).rows;
+    expect(rows.find(r=>r.itemHrid==='/items/celestial_alembic'&&r.enhancementLevel===5)?.priority).toBe('已有更高強化');
+  });
   it('does not invent income uplift from speed when market capacity already limits sales',async()=>{
     const r=await run(profile(),1000);
     const row=r.rows.find(x=>x.itemHrid==='/items/celestial_alembic'&&x.enhancementLevel===7)!;
