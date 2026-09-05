@@ -657,7 +657,7 @@ function renderResults(
   // ── 工具列：模式切換 + 技能 + 物品搜尋 ──
   const toolbar = element('section', 'strategy-toolbar toolbar');
 
-  const modeGroup = element('div', 'strategy-mode-group filter-control');
+  const modeGroup = element('div', 'strategy-mode-group');
   const steadyBtn = element('button', 'toolbar-button');
   steadyBtn.type = 'button';
   steadyBtn.textContent = '策略推薦';
@@ -672,7 +672,7 @@ function renderResults(
 
   modeGroup.append(steadyBtn, alphaBtn);
 
-  const skillGroup = element('div', 'strategy-filter-group filter-control');
+  const skillGroup = element('div', 'strategy-filter-group');
   const skillLabel = element('label', 'strategy-label');
   skillLabel.htmlFor = 'strategy-skill-select';
   skillLabel.textContent = '技能：';
@@ -694,10 +694,18 @@ function renderResults(
   searchInput.id = 'strategy-search-input';
   searchInput.dataset.strategySearch = 'true';
   searchInput.placeholder = '搜尋物品（如：海盜精煉碎片、哥布林火棍）…';
-  searchInput.value = filterState.searchQuery;
-  searchGroup.append(searchInput);
+  let draftSearchQuery = filterState.searchQuery;
+  searchInput.value = draftSearchQuery;
+  const searchSubmit = element('button', 'strategy-search-submit');
+  searchSubmit.type = 'button';
+  searchSubmit.dataset.strategySearchSubmit = 'true';
+  searchSubmit.textContent = '查詢';
+  searchSubmit.title = '套用搜尋條件';
+  const searchForm = element('div', 'strategy-search-form');
+  searchForm.append(searchInput, searchSubmit);
+  searchGroup.append(searchForm);
 
-  const durationGroup = element('div', 'filter-control');
+  const durationGroup = element('div', 'strategy-duration-group');
   const durationLabel = element('label');
   durationLabel.textContent = '掛機時間：';
   durationLabel.htmlFor = 'strategy-duration';
@@ -715,7 +723,7 @@ function renderResults(
   customHours.dataset.strategyCustomHours = 'true';
   customHours.value = String(filterState.plannedHours ?? 24); customHours.hidden = !filterState.customDuration;
   durationGroup.append(durationLabel, durationSelect, customHours);
-  const unrankedLabel = element('label', 'filter-control');
+  const unrankedLabel = element('label', 'strategy-unranked-control');
   const unrankedInput = element('input'); unrankedInput.type = 'checkbox';
   unrankedInput.dataset.strategyUnranked = 'true'; unrankedInput.checked = filterState.showUnranked ?? false;
   unrankedLabel.append(unrankedInput, '顯示待確認候選');
@@ -993,8 +1001,17 @@ function renderResults(
   });
 
   searchInput.addEventListener('input', () => {
-    filterState.searchQuery = searchInput.value;
+    draftSearchQuery = searchInput.value;
+  });
+  const applySearch = () => {
+    filterState.searchQuery = draftSearchQuery;
     updateResults();
+  };
+  searchSubmit.addEventListener('click', applySearch);
+  searchInput.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' || event.isComposing || event.keyCode === 229) return;
+    event.preventDefault();
+    applySearch();
   });
 
   durationSelect.addEventListener('change', () => {

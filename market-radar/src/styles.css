@@ -1024,67 +1024,143 @@ summary:focus-visible {
   outline-offset: 2px;
 }
 
-/* ── 策略推薦：工具列（技能下拉選單 + 物品搜尋框）── */
-.strategy-toolbar {
+/* ── 策略推薦：工具列（技能、時長、物品搜尋與待確認切換）── */
+.strategy-toolbar.toolbar {
   display: flex;
+  flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: 10px 12px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--color-line);
   background: rgb(255 255 255 / 2%);
 }
 
-.strategy-filter-group {
+.strategy-toolbar .strategy-mode-group,
+.strategy-toolbar .strategy-filter-group,
+.strategy-toolbar .strategy-duration-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   white-space: nowrap;
 }
 
-.strategy-label {
+.strategy-toolbar .strategy-mode-group {
+  flex: 0 0 auto;
+}
+
+.strategy-toolbar .strategy-label,
+.strategy-toolbar .strategy-duration-group > label {
   font-size: 0.8rem;
   color: var(--color-muted);
   font-weight: 600;
 }
 
-.strategy-select {
-  padding: 7px 12px;
+.strategy-toolbar .strategy-select,
+.strategy-toolbar .strategy-search-input,
+.strategy-toolbar .strategy-search-submit {
+  box-sizing: border-box;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 12px;
   border: 1px solid var(--color-line);
   border-radius: 8px;
   outline: none;
   background: var(--color-bg);
   color: var(--color-text);
   font-size: 0.82rem;
+  line-height: 1.25;
+}
+
+.strategy-toolbar .strategy-select {
+  min-width: 104px;
   cursor: pointer;
-  min-height: 36px;
 }
 
-.strategy-select:focus {
+.strategy-toolbar .strategy-select:focus,
+.strategy-toolbar .strategy-search-input:focus {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 3px rgb(114 167 255 / 14%);
 }
 
-.strategy-search-group {
-  flex: 1;
-  min-width: 220px;
+.strategy-toolbar .strategy-mode-group .toolbar-button {
+  height: 40px;
+  min-height: 40px;
 }
 
-.strategy-search-input {
+.strategy-toolbar .strategy-search-group {
+  flex: 1 1 320px;
+  min-width: min(100%, 220px);
+}
+
+.strategy-toolbar .strategy-search-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
-  padding: 7px 12px;
-  border: 1px solid var(--color-line);
-  border-radius: 8px;
-  outline: none;
-  background: var(--color-bg);
-  color: var(--color-text);
-  font-size: 0.82rem;
-  min-height: 36px;
+  min-width: 0;
 }
 
-.strategy-search-input:focus {
+.strategy-toolbar .strategy-search-input {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+}
+
+.strategy-toolbar .strategy-search-submit {
+  flex: 0 0 auto;
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.strategy-toolbar .strategy-search-submit:hover {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgb(114 167 255 / 14%);
+  color: var(--color-accent);
+}
+
+.strategy-toolbar .strategy-unranked-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.strategy-toolbar .strategy-unranked-control input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--color-accent);
+}
+
+.strategy-toolbar .strategy-unranked-control input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .strategy-toolbar.toolbar {
+    gap: 8px;
+  }
+
+  .strategy-toolbar .strategy-mode-group,
+  .strategy-toolbar .strategy-filter-group,
+  .strategy-toolbar .strategy-duration-group,
+  .strategy-toolbar .strategy-unranked-control {
+    flex: 1 1 auto;
+  }
+
+  .strategy-toolbar .strategy-search-group {
+    flex-basis: 100%;
+    min-width: 0;
+  }
 }
 
 /* ── 策略推薦：表格容器與基礎 ── */

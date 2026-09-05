@@ -403,13 +403,30 @@ describe('strategy recommendation view', () => {
       'cloth',
     ]);
 
-    // 主動搜尋「哥布林」：只保留符合查詢的候選
+    // 輸入草稿不應立即重繪；只有按查詢按鈕才套用搜尋。
     searchInput.value = '哥布林';
     searchInput.dispatchEvent(new Event('input'));
+    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
+      'cloth',
+    ]);
+    const searchSubmit = target.querySelector<HTMLButtonElement>('[data-strategy-search-submit]');
+    expect(searchSubmit).not.toBeNull();
+    searchSubmit?.click();
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
       'goblin_staff',
     ]);
     expect(target.querySelector('[data-strategy-row="goblin_staff"] .strategy-classification')?.textContent).toBe('原料無賣單');
+
+    // 清空草稿仍不應立即清掉已套用結果；Enter 才套用空查詢。
+    searchInput.value = '';
+    searchInput.dispatchEvent(new Event('input'));
+    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
+      'goblin_staff',
+    ]);
+    searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
+      'cloth',
+    ]);
 
     view.destroy();
   });
