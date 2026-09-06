@@ -323,7 +323,6 @@ describe('optimal loadout engine', () => {
       shrines: {},
       achievements: {},
       inventoryMap: {
-        '/items/holy_alembic': 10,
         '/items/alchemists_top': 7,
         '/items/enchanted_gloves': 10,
       },

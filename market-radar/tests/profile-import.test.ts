@@ -14,6 +14,11 @@ describe('Milkonomy profile import', () => {
     expect(fixed.actions.alchemy.body?.itemHrid).toBe('/items/alchemists_top');
     expect(fixed.inventoryMap['/items/alchemists_bottoms']).toBe(7);
   });
+  it('treats a concrete inventory grade as owned when an old ownership flag is absent or stale',()=>{
+    const p=importPlayerProfile(JSON.stringify(exporter),0);
+    p.inventoryMap['/items/necklace_of_speed']=3;p.equipmentOwnership!['/items/necklace_of_speed']='not-owned';
+    expect(validatePlayerProfile(p).equipmentOwnership?.['/items/necklace_of_speed']).toBe('owned');
+  });
   it('repairs the legacy eye-watch hands slot without duplicating its buff or inventing ownership',()=>{
     const p=importPlayerProfile(JSON.stringify(exporter),0);
     p.specialEquipment={hands:{itemHrid:'/items/eye_watch',enhancementLevel:10}};

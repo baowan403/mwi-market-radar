@@ -398,6 +398,10 @@ export function repairLegacyAlchemyEquipment(profile: PlayerProfile): PlayerProf
     if(inventoryMap[oldId]!==undefined){inventoryMap[newId]=Math.max(inventoryMap[newId]??-1,inventoryMap[oldId]!);delete inventoryMap[oldId];}
     if(equipmentOwnership[oldId]){equipmentOwnership[newId]??=equipmentOwnership[oldId];delete equipmentOwnership[oldId];}
   }
+  // A concrete inventory enhancement level is stronger evidence than an old,
+  // missing or contradictory ownership flag. Current UI deletes inventory when
+  // the user explicitly marks an item absent.
+  for(const hrid of Object.keys(inventoryMap))equipmentOwnership[hrid]='owned';
   return {...profile,actions,inventoryMap,...(profile.equipmentOwnership?{equipmentOwnership}:{})};
 }
 
