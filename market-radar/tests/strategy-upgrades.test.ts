@@ -24,6 +24,14 @@ const calculate:typeof buildStrategyCandidates=({profile:p,actions})=>{
 };
 async function run(p=profile(),volume=1e9){return analyzeUpgradeTargets({profile:p,data,snapshots:history(volume),action:'alchemy',hoursPerDay:24,calculate,now:47*3600000});}
 describe('upgrade goal board',()=>{
+  it('counts equipped speed necklace +3 in baseline and excludes owned lower grades',async()=>{
+    const p=profile();p.specialEquipment.neck={itemHrid:'/items/necklace_of_speed',enhancementLevel:3};
+    p.inventoryMap['/items/necklace_of_speed']=3;p.equipmentOwnership!['/items/necklace_of_speed']='owned';
+    const noNeck=structuredClone(p);delete noNeck.specialEquipment.neck;
+    const withNeck=await run(p),without=await run(noNeck);
+    expect(withNeck.baseline!.profit).toBeGreaterThan(without.baseline!.profit);
+    expect(withNeck.rows.some(r=>r.itemHrid==='/items/necklace_of_speed'&&r.enhancementLevel===0)).toBe(false);
+  });
   it('never offers the exact equipped off-hand or body as a new income upgrade',async()=>{
     const p=profile();p.specialEquipment.off_hand={itemHrid:'/items/eye_watch',enhancementLevel:10};
     p.actions.alchemy.body={itemHrid:'/items/alchemists_top',enhancementLevel:7};

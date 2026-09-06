@@ -19,6 +19,24 @@ afterEach(() => {
 });
 
 describe('profile panel', () => {
+  it('offers neck, earrings, ring and pouch choices and keeps one equipped item per slot',async()=>{
+    const store=createMemoryProfileStore();
+    const panel=createProfilePanel({openButton:document.querySelector('#open')!,summary:document.querySelector('#summary')!,dialog:document.querySelector('#dialog')!,store});
+    await panel.importText(JSON.stringify(exporter));await panel.open();
+    for(const id of ['necklace_of_speed','necklace_of_efficiency','earrings_of_rare_find','ring_of_rare_find','guzzling_pouch']){
+      expect(document.querySelector(`#special--items-${id}`)).not.toBeNull();
+    }
+    const speed=document.querySelector<HTMLInputElement>('#special--items-necklace_of_speed')!;
+    const efficiency=document.querySelector<HTMLInputElement>('#special--items-necklace_of_efficiency')!;
+    speed.click();expect(panel.getActiveProfile()!.specialEquipment.neck).toMatchObject({itemHrid:'/items/necklace_of_speed'});
+    efficiency.click();
+    expect(speed.checked).toBe(false);expect(efficiency.checked).toBe(true);
+    expect(panel.getActiveProfile()!.specialEquipment.neck).toMatchObject({itemHrid:'/items/necklace_of_efficiency'});
+    efficiency.click();
+    expect(panel.getActiveProfile()!.loadoutMode).toBe('manual');
+    expect(panel.getActiveProfile()!.specialEquipment.neck).toBeUndefined();
+    panel.destroy();store.close();
+  });
   it('locks manual clothing changes including an empty slot instead of auto-refilling owned gear',async()=>{
     const store=createMemoryProfileStore();
     const panel=createProfilePanel({openButton:document.querySelector('#open')!,summary:document.querySelector('#summary')!,dialog:document.querySelector('#dialog')!,store});

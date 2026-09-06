@@ -210,7 +210,20 @@ const COMMON_SKILLING_GEAR: { hrid: string; name: string; slot: string }[] = [
   { hrid: '/items/enchanted_gloves', name: '附魔手套 (全生活效率)', slot: 'hands' },
   { hrid: '/items/gatherer_cape_refined', name: '採集者披風 (採集效率)', slot: 'back' },
   { hrid: '/items/artificer_cape', name: '巧匠披風 (生產效率)', slot: 'back' },
+  { hrid: '/items/necklace_of_speed', name: '速度項鍊', slot: 'neck' },
+  { hrid: '/items/necklace_of_efficiency', name: '效率項鍊', slot: 'neck' },
+  { hrid: '/items/necklace_of_wisdom', name: '智慧項鍊', slot: 'neck' },
   { hrid: '/items/philosophers_necklace', name: '哲學家項鍊 (煉金稀有)', slot: 'neck' },
+  { hrid: '/items/earrings_of_rare_find', name: '稀有發現耳環', slot: 'earrings' },
+  { hrid: '/items/earrings_of_essence_find', name: '精華發現耳環', slot: 'earrings' },
+  { hrid: '/items/earrings_of_gathering', name: '採集耳環', slot: 'earrings' },
+  { hrid: '/items/philosophers_earrings', name: '哲學家耳環', slot: 'earrings' },
+  { hrid: '/items/ring_of_rare_find', name: '稀有發現戒指', slot: 'ring' },
+  { hrid: '/items/ring_of_essence_find', name: '精華發現戒指', slot: 'ring' },
+  { hrid: '/items/ring_of_gathering', name: '採集戒指', slot: 'ring' },
+  { hrid: '/items/philosophers_ring', name: '哲學家戒指', slot: 'ring' },
+  { hrid: '/items/giant_pouch', name: '巨大口袋', slot: 'pouch' },
+  { hrid: '/items/gluttonous_pouch', name: '暴食之囊', slot: 'pouch' },
   { hrid: '/items/guzzling_pouch', name: '暴飲袋 (茶飲濃度)', slot: 'pouch' },
 ];
 
@@ -572,6 +585,7 @@ function renderProfileAssumptions(
     const check = element('input');
     check.type = 'checkbox';
     check.id = `special-${gear.hrid.replaceAll('/', '-')}`;
+    check.dataset.specialSlot = gear.slot;
     
     // Ownership is not activation: reflect the slot used by the calculator.
     const slotGear = profile.specialEquipment[gear.slot];
@@ -594,11 +608,20 @@ function renderProfileAssumptions(
     levelInput.setAttribute('aria-label', `${gear.name}強化等級`);
 
     const updateGear = () => {
+      // A direct special-slot edit is an explicit loadout decision, including empty.
+      profile.loadoutMode = 'manual';
       const level = Math.max(0, Math.min(20, Math.floor(Number(levelInput.value) || 0)));
       levelInput.value = String(level);
       levelInput.disabled = !check.checked;
       ownershipNote.textContent = '';
       if (check.checked) {
+        for (const other of specialsGrid.querySelectorAll<HTMLInputElement>(`input[data-special-slot="${gear.slot}"]`)) {
+          if (other === check) continue;
+          other.checked = false;
+          const otherRow = other.closest('.profile-special-row');
+          const otherLevel = otherRow?.querySelector<HTMLInputElement>('input[type="number"]');
+          if (otherLevel) otherLevel.disabled = true;
+        }
         profile.inventoryMap[gear.hrid] = level;
         profile.specialEquipment[gear.slot] = { itemHrid: gear.hrid, enhancementLevel: level };
         profile.equipmentOwnership = profile.equipmentOwnership ?? {};
