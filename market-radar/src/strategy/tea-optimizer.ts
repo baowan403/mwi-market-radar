@@ -7,6 +7,21 @@ import type { MarketPriceBook } from './price-book';
 import { calculateManufacture, type PricedCount } from './manufacture';
 
 const COIN_HRID = '/items/coin';
+export type TeaBuffLookup = (action: SkillingAction, teas: string[]) => ActionBuffs;
+
+/** Buffs depend on gear/tea, not the recipe. Scope to one candidate scan. */
+export function createTeaBuffLookup(profile: PlayerProfile, data: NormalizedStrategyGameData): TeaBuffLookup {
+  const cache = new Map<string, ActionBuffs>();
+  return (action, teas) => {
+    const key = JSON.stringify([action, teas]);
+    let buffs = cache.get(key);
+    if (!buffs) {
+      buffs = actionBuffs({...profile, actions: {...profile.actions, [action]: {...profile.actions[action], teas}}}, action, data);
+      cache.set(key, buffs);
+    }
+    return buffs;
+  };
+}
 
 function taxable(itemHrid: string, data: NormalizedStrategyGameData): boolean {
   if (itemHrid === COIN_HRID) return false;
@@ -113,6 +128,7 @@ export interface OptimalTeaResult {
  * 為具體的製造或煉金動作配方，枚舉合法茶飲組合，尋找「淨每小時利潤 (profitPerHour)」最高的最佳三茶。
  */
 export function findOptimalTeasForManufacture(options: {
+  teaBuffs?: TeaBuffLookup;
   action: SkillingAction;
   detail: StrategyActionDetail;
   profile: PlayerProfile;
@@ -177,7 +193,7 @@ export function findOptimalTeasForManufacture(options: {
       },
     };
 
-    const buffs = actionBuffs(tempProfile, action, data);
+    const buffs = options.teaBuffs?.(action, combo) ?? actionBuffs(tempProfile, action, data);
     if (buffs.Level < detail.levelRequirement.level) continue;
 
     const teaInputs: PricedCount[] = combo
@@ -226,6 +242,7 @@ export function findOptimalTeasForManufacture(options: {
 }
 
 export function findOptimalTeasForGathering(options: {
+  teaBuffs?: TeaBuffLookup;
   action: SkillingAction;
   detail: StrategyActionDetail;
   profile: PlayerProfile;
@@ -252,7 +269,7 @@ export function findOptimalTeasForGathering(options: {
       },
     };
 
-    const buffs = actionBuffs(tempProfile, action, data);
+    const buffs = options.teaBuffs?.(action, combo) ?? actionBuffs(tempProfile, action, data);
     if (buffs.Level < detail.levelRequirement.level) continue;
 
     const gatheringFactor = 1 + (buffs.Gathering ?? 0);
@@ -321,6 +338,7 @@ export function findOptimalTeasForGathering(options: {
 }
 
 export function findOptimalTeasForAlchemy(options: {
+  teaBuffs?: TeaBuffLookup;
   kind: 'transmute' | 'decompose' | 'coinify';
   itemHrid: string;
   catalystRank: 0 | 1 | 2;
@@ -349,7 +367,7 @@ export function findOptimalTeasForAlchemy(options: {
       },
     };
 
-    const buffs = actionBuffs(tempProfile, 'alchemy', data);
+    const buffs = options.teaBuffs?.('alchemy', combo) ?? actionBuffs(tempProfile, 'alchemy', data);
     const result = calculateFn({
       itemHrid,
       catalystRank,

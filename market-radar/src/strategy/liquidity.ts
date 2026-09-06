@@ -5,6 +5,28 @@ const DAY_MS = 24 * HOUR_MS;
 const SAFE_SHARE = 0.05;
 const MIN_DAILY_COVERAGE_HOURS = 12;
 const MIN_ROLLING_24H_COVERAGE_HOURS = 12;
+export type MarketCapacityLookup = (key: MarketKey) => MarketCapacity;
+
+/** One immutable market evaluation scope; never shared across refreshes. */
+export function createMarketCapacityLookup(snapshots: readonly Snapshot[]): MarketCapacityLookup {
+  const cache = new Map<MarketKey, MarketCapacity>();
+  return key => {
+    let result = cache.get(key);
+    if (!result) { result = marketCapacity(key, snapshots); cache.set(key, result); }
+    return result;
+  };
+}
+
+/** Each historical point sees only its own prefix, shared across strategies. */
+export function createMarketCapacityHistory(snapshots: readonly Snapshot[]): (timestamp: number) => MarketCapacityLookup {
+  const ordered = [...new Map(snapshots.map(s => [s.timestamp, s])).values()].sort((a,b) => a.timestamp-b.timestamp);
+  const cache = new Map<number, MarketCapacityLookup>();
+  return timestamp => {
+    let lookup = cache.get(timestamp);
+    if (!lookup) { lookup = createMarketCapacityLookup(ordered.filter(s => s.timestamp <= timestamp)); cache.set(timestamp, lookup); }
+    return lookup;
+  };
+}
 export const MIN_VOLUME_FLOOR = 5;
 export const MAX_PRICE_DEVIATION_RATIO = 2.5;
 

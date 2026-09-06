@@ -7,6 +7,7 @@ import type { StrategyCandidateResult } from '../src/strategy/candidates';
 import type { PlayerProfile } from '../src/profile/types';
 import type { MarketKey, Snapshot } from '../src/core/types';
 import type { StrategyStepResult } from '../src/strategy/types';
+import * as sessionModule from '../src/strategy/session';
 
 const profile = {
   id: 'character:1', name: '測試牛', actions: { alchemy: { playerLevel: 103 } },
@@ -70,6 +71,23 @@ const calculated: StrategyCandidateResult = {
 };
 
 describe('strategy recommendation view', () => {
+  it('search reuses session assessments and creates detail content only on expansion', async () => {
+    const target=document.createElement('section');
+    const snapshots=history({'/items/input':10000,'/items/output':10000});
+    const candidate={...calculated.candidates[0]!,id:'lazy',steps:[marketStep('lazy','/items/input','/items/output',10)]};
+    const estimate=vi.spyOn(sessionModule,'estimateStrategySession');
+    const view=createStrategyView({target,getProfile:()=>profile,getSnapshots:()=>snapshots,
+      loadGameData:async()=>({shopItemDetailMap:{},openableLootDropMap:{},itemsByHrid:new Map()}) as never,
+      calculate:()=>({candidates:[candidate],diagnostics:[]}),pinStore:createMemoryStrategyPinStore(),itemName:h=>h,onImportProfile:vi.fn(),now:()=>snapshots.at(-1)!.timestamp});
+    await view.render();
+    const count=estimate.mock.calls.length;
+    (target.querySelector('[data-strategy-search-submit]') as HTMLButtonElement).click();
+    expect(estimate.mock.calls.length).toBe(count);
+    expect(target.querySelector('.strategy-detail-content')).toBeNull();
+    (target.querySelector('[data-strategy-row]') as HTMLElement).click();
+    expect(target.querySelector('.strategy-detail-content')).not.toBeNull();
+    view.destroy();estimate.mockRestore();
+  });
   it('changes duration, ranking, funding and risk without recalculating production, and preserves selection', async () => {
     const target = document.createElement('section');
     const snapshots = history({ '/items/input': 10000, '/items/output': 1000 });
@@ -173,6 +191,7 @@ describe('strategy recommendation view', () => {
     });
 
     await view.render();
+    (target.querySelector('[data-strategy-row]') as HTMLElement).click();
     expect(target.textContent).toContain('成交量');
     expect(target.textContent).toContain('日利');
     expect(target.textContent).toContain('48M');
@@ -491,6 +510,7 @@ describe('strategy recommendation view', () => {
     });
 
     await view.render();
+    (target.querySelector('[data-strategy-row]') as HTMLElement).click();
     const detailRow = target.querySelector<HTMLElement>('.strategy-detail-row');
     expect(detailRow).not.toBeNull();
     const text = detailRow?.textContent ?? '';

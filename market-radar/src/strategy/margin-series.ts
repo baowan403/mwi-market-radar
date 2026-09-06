@@ -5,6 +5,7 @@ import type { MarketPriceBook } from './price-book';
 import { evaluateRealizableStrategy, type LiquidityClassification } from './realizable';
 import type { StrategyFlow } from './types';
 import { marketTaxFactor } from './tax';
+import type { MarketCapacityLookup } from './liquidity';
 
 const COIN_HRID = '/items/coin';
 
@@ -26,6 +27,7 @@ export interface StrategyMarginSeriesOptions {
   strategyId: string;
   snapshots: readonly Snapshot[];
   candidateAtSnapshot(snapshot: Snapshot): StrategyCandidate | null;
+  capacityAtSnapshot?: (timestamp: number) => MarketCapacityLookup;
 }
 
 function flowKey(flow: StrategyFlow): string {
@@ -130,7 +132,9 @@ export function buildStrategyMarginSeries(options: StrategyMarginSeriesOptions):
     if (!candidate || candidate.id !== options.strategyId) {
       return emptyPoint(snapshot.timestamp, options.strategyId);
     }
-    const liquidity = evaluateRealizableStrategy(candidate, ordered.slice(0, index + 1));
+    const liquidity = options.capacityAtSnapshot
+      ? evaluateRealizableStrategy(candidate, [], options.capacityAtSnapshot(snapshot.timestamp))
+      : evaluateRealizableStrategy(candidate, ordered.slice(0, index + 1));
     const safePerHour = liquidity.safeBatchUnits === null
       ? null
       : liquidity.safeBatchUnits / 24;

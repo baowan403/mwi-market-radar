@@ -4,7 +4,7 @@ import type { NormalizedStrategyGameData } from './game-data';
 import { expandStrategyLiquidation } from './liquidation';
 import { calculateManufacture, type PricedCount } from './manufacture';
 import type { MarketPriceBook } from './price-book';
-import { findOptimalTeasForManufacture, findOptimalTeasForGathering } from './tea-optimizer';
+import { findOptimalTeasForManufacture, findOptimalTeasForGathering, type TeaBuffLookup } from './tea-optimizer';
 import { optimalTeasForAction, isTeaManual } from './optimal-loadout';
 import type { DropItem, StrategyActionDetail, StrategyFlow, StrategyStepResult } from './types';
 
@@ -87,6 +87,7 @@ function liquidateOutputs(
 }
 
 export function calculateManufactureAction(options: {
+  teaBuffs?: TeaBuffLookup;
   actionHrid: string;
   profile: PlayerProfile;
   data: NormalizedStrategyGameData;
@@ -104,7 +105,7 @@ export function calculateManufactureAction(options: {
 
   let buffs: ActionBuffs;
   if (isAutoOptimal) {
-    const optimal = findOptimalTeasForManufacture({ action, detail, profile, data, prices });
+    const optimal = findOptimalTeasForManufacture({ action, detail, profile, data, prices, teaBuffs: options.teaBuffs });
     activeTeas = optimal.teas;
     buffs = optimal.buffs;
   } else if (options.buffs) {
@@ -189,6 +190,7 @@ const GATHERING_ACTIONS = new Set<SkillingAction>([
 ]);
 
 export function calculateGatherAction(options: {
+  teaBuffs?: TeaBuffLookup;
   actionHrid: string;
   profile: PlayerProfile;
   data: NormalizedStrategyGameData;
@@ -206,7 +208,7 @@ export function calculateGatherAction(options: {
   let buffs: ActionBuffs;
 
   if (isAutoOptimal) {
-    const optimal = findOptimalTeasForGathering({ action, detail, profile, data, prices });
+    const optimal = findOptimalTeasForGathering({ action, detail, profile, data, prices, teaBuffs: options.teaBuffs });
     activeTeas = optimal.teas;
     buffs = optimal.buffs;
   } else if (options.buffs) {

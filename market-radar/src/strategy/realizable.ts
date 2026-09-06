@@ -1,6 +1,6 @@
 import type { MarketKey, Snapshot } from '../core/types';
 import type { StrategyCandidate } from './candidates';
-import { marketCapacity, MAX_PRICE_DEVIATION_RATIO, type MarketCapacity } from './liquidity';
+import { marketCapacity, MAX_PRICE_DEVIATION_RATIO, type MarketCapacity, type MarketCapacityLookup } from './liquidity';
 import type { StrategyFlow } from './types';
 
 export type LiquidityClassification = 'long-run' | 'small-test' | 'limited' | 'reject' | 'insufficient';
@@ -199,6 +199,7 @@ function primaryOutputIdentity(candidate: StrategyCandidate): {
 export function evaluateRealizableStrategy(
   candidate: StrategyCandidate,
   snapshots: readonly Snapshot[],
+  capacityFor: MarketCapacityLookup = key => marketCapacity(key, snapshots),
 ): RealizableStrategy {
   const flows = externalStrategyFlows(candidate);
   const warnings: LiquidityWarning[] = [];
@@ -222,7 +223,7 @@ export function evaluateRealizableStrategy(
   let primaryHistoryMissing = false;
 
   if (primaryOutput) {
-    primaryCapacity = marketCapacity(key(primaryOutput.flow), snapshots);
+    primaryCapacity = capacityFor(key(primaryOutput.flow));
     outputUnitsPerDay = primaryOutput.flow.unitsPerHour * 24;
     noBid = !primaryCapacity.bidAvailable;
     outputShare24hPct = shareFor(primaryOutput.flow, primaryCapacity);
@@ -240,7 +241,7 @@ export function evaluateRealizableStrategy(
   let missingInputHistory = false;
   const noAskHrids: string[] = [];
   for (const external of flows.filter((item) => item.side === 'input')) {
-    const capacity = marketCapacity(key(external.flow), snapshots);
+    const capacity = capacityFor(key(external.flow));
     if (!capacity.askAvailable) noAskHrids.push(external.flow.itemHrid);
 
     if (isAuxiliaryInput(external, candidate)) {
@@ -274,7 +275,7 @@ export function evaluateRealizableStrategy(
   for (const external of flows.filter((item) => (
     item.side === 'output' && item !== primaryOutput
   ))) {
-    const capacity = marketCapacity(key(external.flow), snapshots);
+    const capacity = capacityFor(key(external.flow));
     if (!capacity.bidAvailable || capacity.volume24h === null) {
       warnings.push({
         itemHrid: external.flow.itemHrid,

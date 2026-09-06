@@ -7,6 +7,7 @@ import { enrichProfileWithBestLoadout, isItemOwnedByPlayer } from './optimal-loa
 import { createStrategyPriceBook } from './price-book';
 import { evaluateRealizableStrategy } from './realizable';
 import { estimateStrategySession } from './session';
+import { createMarketCapacityLookup } from './liquidity';
 
 export interface UpgradeEvaluation { profit:number; route:string[]; theoreticalProfit:number }
 export interface UpgradeRow {
@@ -92,6 +93,7 @@ export async function analyzeUpgradeTargets(options:{
     if(!Object.keys({...stats,...bonuses}).some(key=>relevant(key,action)&&(Number(stats[key])>0||Number(bonuses[key])>0)))continue;
     const current=equipmentAt(base,action,slot);
     const gate=requirementState(base,detail.levelRequirements,current?.itemHrid===itemHrid);
+    if(gate.eligibility==='unmet')continue;
     for(const enhancementLevel of GRADES){
       if(current?.itemHrid===itemHrid&&current.enhancementLevel===enhancementLevel)continue;
       const owned=isItemOwnedByPlayer(itemHrid,base)&&base.inventoryMap[itemHrid]===enhancementLevel;
@@ -101,14 +103,18 @@ export async function analyzeUpgradeTargets(options:{
     }
   }
   const cache=new Map<string,UpgradeEvaluation|null>();
+  const capacityFor=createMarketCapacityLookup(snapshots);
+  // Experience does not enter current profit. Keep concentration in the key:
+  // identical equipped-tea buffs alone must not conflate different auto-tea effects.
+  const signatureFor=(profile:PlayerProfile)=>JSON.stringify({...actionBuffs(profile,action,data),Experience:0});
   const evaluate=(profile:PlayerProfile):UpgradeEvaluation|null=>{
     if(!fresh)return null;
-    const signature=JSON.stringify(actionBuffs(profile,action,data));
+    const signature=signatureFor(profile);
     if(cache.has(signature))return cache.get(signature)!;
     const candidates=(options.calculate??buildStrategyCandidates)({profile,data,prices,actions:[action]}).candidates;
     let best:UpgradeEvaluation|null=null,hasComparable=false;
     for(const candidate of candidates){
-      const liquidity=evaluateRealizableStrategy(candidate,snapshots);
+      const liquidity=evaluateRealizableStrategy(candidate,snapshots,capacityFor);
       const session=estimateStrategySession({candidate,liquidity,profile,plannedHours:hoursPerDay,latestSnapshotAgeMs:now-latest!.timestamp});
       if(liquidity.safeHoursPerDay!==null&&liquidity.safeHoursPerDay>0&&!['market-unavailable','no-ask','no-bid','price-anomaly','insufficient-primary-data','insufficient-input-data'].includes(liquidity.riskCode))hasComparable=true;
       if(session.rankValue!==null&&(!best||session.rankValue>best.profit))best={profit:session.rankValue,route:[...candidate.path],theoreticalProfit:candidate.profitPerHour*hoursPerDay};
@@ -117,6 +123,7 @@ export async function analyzeUpgradeTargets(options:{
     cache.set(signature,best);return best;
   };
   const baseline=evaluate(base);
+  let lastYield=performance.now();
   for(let i=0;i<rows.length;i++){
     cancelled();const row=rows[i]!;
     if(row.eligibility!=='unmet'&&baseline!==null){
@@ -127,7 +134,8 @@ export async function analyzeUpgradeTargets(options:{
       if(row.delta!==null&&row.delta>0&&row.price!==null)row.paybackDays=row.price/row.delta;
     }
     options.onProgress?.({done:i+1,total:rows.length});
-    await new Promise(resolve=>setTimeout(resolve,0));
+    // Yield by time, not for each cheap/cache-hit target (Windows timer floor).
+    if(performance.now()-lastYield>40){await new Promise(resolve=>setTimeout(resolve,0));lastYield=performance.now();}
   }
   cancelled();
   const higherOwned=(row:UpgradeRow)=>isItemOwnedByPlayer(row.itemHrid,base)&&(base.inventoryMap[row.itemHrid]??-1)>row.enhancementLevel;
@@ -145,6 +153,7 @@ export async function analyzeUpgradeTargets(options:{
       row.marginal={lowerEnhancement:lower.enhancementLevel,extraCost,extraGain,paybackDays:extraCost!==null&&extraCost>=0&&extraGain!==null&&extraGain>0?extraCost/extraGain:null};
     }
   }
-  rows.sort((a,b)=>(b.delta??-Infinity)-(a.delta??-Infinity)||(a.price??Infinity)-(b.price??Infinity)||a.itemHrid.localeCompare(b.itemHrid)||a.enhancementLevel-b.enhancementLevel);
-  return {action,hoursPerDay,baseline,rows,testedVariants:rows.length,warnings};
+  const positiveRows=rows.filter(row=>row.delta===null||row.delta>0);
+  positiveRows.sort((a,b)=>(b.delta??-Infinity)-(a.delta??-Infinity)||(a.price??Infinity)-(b.price??Infinity)||a.itemHrid.localeCompare(b.itemHrid)||a.enhancementLevel-b.enhancementLevel);
+  return {action,hoursPerDay,baseline,rows:positiveRows,testedVariants:rows.length,warnings};
 }

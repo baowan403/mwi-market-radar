@@ -15,7 +15,8 @@ const history=(volume=1e9):Snapshot[]=>Array.from({length:48},(_,i)=>({timestamp
   '/items/celestial_alembic::7':{a:800000000,b:700000000,p:790000000,v:1},
 }}));
 const calculate:typeof buildStrategyCandidates=({profile:p,actions})=>{
-  const rate=100*(1+actionBuffs(p,'alchemy',data).Speed);
+  const buffs=actionBuffs(p,'alchemy',data);
+  const rate=100*(1+buffs.Speed)*(1+buffs.Efficiency)*(1+buffs.Success)*(1+buffs.EssenceFind)*(1+buffs.drinkConcentration);
   return {diagnostics:[],candidates:[{id:'test',kind:'decompose',title:'test',path:['/items/in','/items/out'],profitPerHour:rate*85,profitPerDay:rate*85*24,costPerHour:rate*10,incomePerHour:rate*95,workingCapital24h:rate*10*24,verificationStatus:'unverified',steps:[{
     id:'s',action:actions?.[0]??'alchemy',actionHrid:'s',outputHrid:'/items/out',valid:true,actionsPerHour:rate,costPerHour:rate*10,incomePerHour:rate*95,profitPerHour:rate*85,experiencePerHour:rate,
     inputs:[{itemHrid:'/items/in',enhancementLevel:0,unitsPerHour:rate,unitPrice:10,market:true}],outputs:[{itemHrid:'/items/out',enhancementLevel:0,unitsPerHour:rate,unitPrice:100,market:true}],
@@ -31,10 +32,11 @@ describe('upgrade goal board',()=>{
     expect(r.rows.some(x=>x.itemHrid==='/items/alchemists_bottoms')).toBe(true);
     expect((await run({...p,cash:0} as typeof p)).rows).toEqual((await run({...p,cash:1e15} as typeof p)).rows);
   });
-  it('does not treat missing prices as free and preserves known unmet equipment goals',async()=>{
+  it('skips known unmet goals before evaluating and keeps unknown prices distinct from free',async()=>{
     const p=profile();p.actions.alchemy.playerLevel=60;
-    const r=await run(p);const goal=r.rows.find(x=>x.itemHrid==='/items/celestial_alembic'&&x.enhancementLevel===5)!;
-    expect(goal.eligibility).toBe('unmet');expect(goal.after).toBeNull();expect(goal.price).toBe(500000000);
+    const r=await run(p);
+    expect(r.rows.some(x=>x.eligibility==='unmet')).toBe(false);
+    expect(r.rows.some(x=>x.itemHrid==='/items/celestial_alembic')).toBe(false);
     expect(r.rows.filter(x=>x.price===null).every(x=>x.paybackDays===null)).toBe(true);
   });
   it('treats unknown total level as unknown, not as a false pass or a wallet failure',async()=>{
@@ -54,8 +56,8 @@ describe('upgrade goal board',()=>{
   });
   it('does not invent income uplift from speed when market capacity already limits sales',async()=>{
     const r=await run(profile(),1000);
-    const row=r.rows.find(x=>x.itemHrid==='/items/celestial_alembic'&&x.enhancementLevel===7)!;
-    expect(Math.abs(row.delta!)).toBeLessThan(1e-6);
+    expect(r.rows.some(x=>x.itemHrid==='/items/celestial_alembic'&&x.enhancementLevel===7)).toBe(false);
+    expect(r.rows.every(x=>x.delta===null||x.delta>0)).toBe(true);
   });
   it('uses real recalculation, full purchase price for payback, and no automatic resale credit',async()=>{
     const r=await run(); const row=r.rows.find(x=>x.itemHrid==='/items/celestial_alembic'&&x.enhancementLevel===7)!;

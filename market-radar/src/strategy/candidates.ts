@@ -8,7 +8,7 @@ import type { MarketPriceBook } from './price-book';
 import type { StrategyStepResult } from './types';
 import { calculateWorkflow, type WorkflowResult } from './workflow';
 import { enrichProfileWithBestLoadout, isTeaManual } from './optimal-loadout';
-import { findOptimalTeasForAlchemy } from './tea-optimizer';
+import { findOptimalTeasForAlchemy, createTeaBuffLookup } from './tea-optimizer';
 
 const MANUFACTURING_ACTIONS = new Set<SkillingAction>([
   'cheesesmithing', 'crafting', 'tailoring', 'cooking', 'brewing',
@@ -194,6 +194,7 @@ export function buildStrategyCandidates(options: {
   const { data, prices } = options;
   const allowed = (action: SkillingAction) => !options.actions || options.actions.includes(action);
   const profile = enrichProfileWithBestLoadout(options.profile, data);
+  const teaBuffs = createTeaBuffLookup(profile, data);
   const candidateMap = new Map<string, StrategyCandidate>();
   const diagnostics: string[] = [];
   const buffCache = new Map<SkillingAction, ActionBuffs>();
@@ -211,7 +212,7 @@ export function buildStrategyCandidates(options: {
     if (!action || !allowed(action)) return null;
     try {
       const step = calculateManufactureAction({
-        actionHrid, profile, data, prices,
+        actionHrid, profile, data, prices, teaBuffs,
       });
       stepCache.set(actionHrid, step);
       return step;
@@ -239,7 +240,7 @@ export function buildStrategyCandidates(options: {
     if (!action || !allowed(action)) return null;
     try {
       const step = calculateGatherAction({
-        actionHrid, profile, data, prices, buffs: buffsFor(action),
+        actionHrid, profile, data, prices, buffs: buffsFor(action), teaBuffs,
       });
       stepCache.set(actionHrid, step);
       return step;
@@ -310,7 +311,7 @@ export function buildStrategyCandidates(options: {
           if (!isManualTea && hasTransmuteMarketPrices) {
             const opt = findOptimalTeasForAlchemy({
               kind: 'transmute', itemHrid, catalystRank, enhancementLevel: 0, profile, data, prices,
-              calculateFn: calculateTransmute,
+              calculateFn: calculateTransmute, teaBuffs,
             });
             if (opt.profitPerHour !== null && opt.profitPerHour > (step.profitPerHour ?? -Infinity)) {
               const stepProfile = {
@@ -336,7 +337,7 @@ export function buildStrategyCandidates(options: {
           if (!isManualTea && hasDecomposeMarketPrices) {
             const opt = findOptimalTeasForAlchemy({
               kind: 'decompose', itemHrid, catalystRank, enhancementLevel: 0, profile, data, prices,
-              calculateFn: calculateDecompose,
+              calculateFn: calculateDecompose, teaBuffs,
             });
             if (opt.profitPerHour !== null && opt.profitPerHour > (step.profitPerHour ?? -Infinity)) {
               const stepProfile = {
@@ -360,7 +361,7 @@ export function buildStrategyCandidates(options: {
           if (!isManualTea && hasCoinifyMarketPrices) {
             const opt = findOptimalTeasForAlchemy({
               kind: 'coinify', itemHrid, catalystRank, enhancementLevel: 0, profile, data, prices,
-              calculateFn: calculateCoinify,
+              calculateFn: calculateCoinify, teaBuffs,
             });
             if (opt.profitPerHour !== null && opt.profitPerHour > (step.profitPerHour ?? -Infinity)) {
               const stepProfile = {

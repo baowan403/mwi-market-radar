@@ -7,9 +7,11 @@ import type { NormalizedStrategyGameData } from './game-data';
 import { buildStrategyMarginSeries, repriceFixedCandidate, type StrategyMarginPoint } from './margin-series';
 import { generateSparklineSvg } from './sparkline';
 import { createStrategyPriceBook } from './price-book';
+import { createMarketCapacityLookup, createMarketCapacityHistory } from './liquidity';
 import { estimateStrategySession, compareSessionRanking, type StrategySession } from './session';
 import { createOpportunityPanel } from './opportunity-view';
 import { createUpgradePanel } from './upgrade-view';
+import { runCandidateScan } from './candidate-runner';
 import { createOpportunityJournal, type OpportunityJournal } from './opportunity-journal';
 import { formatSemanticPath } from './semantic-path';
 import {
@@ -745,9 +747,14 @@ function renderResults(
   const resultsContainer = element('div', 'strategy-results-container');
   options.target.append(resultsContainer);
 
+  const capacityFor = createMarketCapacityLookup(snapshots);
+  const capacityAtSnapshot = createMarketCapacityHistory(snapshots);
+  const displaySignals = new Map<string, AssessedSignal>();
+  let assessedHours: number | undefined;
+  let assessed: AssessedStrategy[] = [];
   const baseAssessed = result.candidates
     .filter((candidate) => candidate.profitPerDay > 0)
-    .map((candidate) => ({ candidate, liquidity: evaluateRealizableStrategy(candidate, snapshots) }));
+    .map((candidate) => ({ candidate, liquidity: evaluateRealizableStrategy(candidate, snapshots, capacityFor) }));
   const briefing=element('p','opportunity-brief');
   briefing.textContent='機會尚未分析，可到「機會雷達」查看。';
   briefing.dataset.tone='neutral';
@@ -762,11 +769,14 @@ function renderResults(
   let bestEstimatedProfit = 0;
 
   function getAssessedSignal(item: AssessedStrategy): AssessedSignal {
+    const existing = displaySignals.get(item.candidate.id);
+    if (existing) return existing;
     let assessedSignal = signalCache.get(item.candidate.id);
     if (!assessedSignal) {
       const series = buildStrategyMarginSeries({
         strategyId: item.candidate.id,
         snapshots,
+        capacityAtSnapshot,
         candidateAtSnapshot: (snapshot) => {
           let prices = priceBookCache.get(snapshot.timestamp);
           if (!prices) {
@@ -790,12 +800,14 @@ function renderResults(
       };
       signalCache.set(item.candidate.id, assessedSignal);
     }
-    return { ...assessedSignal, signal: strategyTrendSignal(assessedSignal.series, {
+    const displayed = { ...assessedSignal, signal: strategyTrendSignal(assessedSignal.series, {
       backtest: assessedSignal.backtest.summary,
       classification: item.decision.risk.classification,
       currentProfitRatio: bestEstimatedProfit > 0 ? (item.decision.rankValue ?? 0) / bestEstimatedProfit : 0,
       latestSnapshotAgeMs,
     }) };
+    displaySignals.set(item.candidate.id, displayed);
+    return displayed;
   }
 
   function effectiveProfit(item: AssessedStrategy): number {
@@ -871,7 +883,11 @@ function renderResults(
     syncModeButtons();
     const nextResults = document.createDocumentFragment();
     const isSearchActive = filterState.searchQuery.trim().length > 0;
-    const assessed: AssessedStrategy[] = baseAssessed.map(({ candidate, liquidity }) => ({
+    const hours = filterState.plannedHours ?? 24;
+    if (assessedHours !== hours) {
+      assessedHours = hours;
+      displaySignals.clear();
+      assessed = baseAssessed.map(({ candidate, liquidity }) => ({
       candidate,
       liquidity,
       decision: estimateStrategySession({
@@ -882,6 +898,7 @@ function renderResults(
         latestSnapshotAgeMs,
       }),
     }));
+    }
     bestEstimatedProfit = Math.max(0, ...assessed.map(item => item.decision.rankValue ?? 0));
 
     // ── 效能核心優化：未選擇 alpha 時，完全不對幾千個候選提前計算信號 ──
@@ -1017,11 +1034,13 @@ function renderResults(
     for (const assessedCandidate of chosen) {
       const assessedSignal = getAssessedSignal(assessedCandidate);
       const mainRow = strategyRow(assessedCandidate, assessedSignal, pinned, options, data);
-      const detail = detailRow(assessedCandidate, assessedSignal, options);
+      const detail = element('tr', 'strategy-detail-row');
+      detail.dataset.strategyDetailFor = assessedCandidate.candidate.id;
       detail.hidden = true;
       mainRow.addEventListener('click', (event) => {
         const target = event.target as HTMLElement;
         if (target.closest('button, a, summary')) return;
+        if (!detail.hasChildNodes()) detail.append(...detailRow(assessedCandidate, assessedSignal, options).childNodes);
         detail.hidden = !detail.hidden;
         mainRow.classList.toggle('strategy-row-expanded', !detail.hidden);
       });
@@ -1078,7 +1097,6 @@ function renderResults(
 }
 
 export function createStrategyView(options: StrategyViewOptions): StrategyView {
-  const calculate = options.calculate ?? buildStrategyCandidates;
   let generation = 0;
   let destroyed = false;
   let renderController = new AbortController();
@@ -1107,7 +1125,10 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
       try {
         const [data, pins] = await Promise.all([options.loadGameData(), options.pinStore.list()]);
         if (destroyed || current !== generation) return;
-        const result = calculate({ profile, data, prices: createStrategyPriceBook(snapshot, data) });
+        const result = options.calculate
+          ? options.calculate({ profile, data, prices: createStrategyPriceBook(snapshot, data) })
+          : await runCandidateScan({profile,data,snapshot,signal:renderController.signal});
+        if (destroyed || current !== generation) return;
         const now = options.now?.() ?? Date.now();
         renderResults(result, new Set(pins), { ...options, opportunityJournal: journal, opportunitySignal: renderController.signal }, snapshots, data, profile, Math.max(0, now - snapshot.timestamp), filterState);
       } catch {

@@ -356,7 +356,7 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
     const tableScroll = element('div', 'upgrade-table-scroll');
     tableScroll.append(table);
     content.append(tableScroll);
-    status.textContent = `已完成：${SKILL_LABELS[analysis.action as UpgradeSkill] ?? analysis.action}、${analysis.hoursPerDay}H；比較 ${analysis.testedVariants} 項裝備目標。`;
+    status.textContent = `已完成：${SKILL_LABELS[analysis.action as UpgradeSkill] ?? analysis.action}、${analysis.hoursPerDay}H；比較 ${analysis.testedVariants} 項，顯示 ${analysis.rows.length} 項。已排除確定不能穿及零／負提升。`;
   };
 
   skillSelect.addEventListener('change', () => {
