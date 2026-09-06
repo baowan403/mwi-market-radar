@@ -321,7 +321,7 @@ function calculate(kind: 'decompose' | 'coinify', options: AlchemyOptions & { en
     costPerHour,
     incomePerHour,
     profitPerHour,
-    experiencePerHour: baseExp * (1 + buffs.Experience) * actionsPerHour,
+    experiencePerHour: baseExp * (1 + buffs.Experience) * actionsPerHour * (rate + 0.1 * (1 - rate)),
     inputs: inputList,
     outputs: outputList,
     successRate: rate,

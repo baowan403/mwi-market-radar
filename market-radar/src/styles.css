@@ -2450,7 +2450,7 @@ dialog::backdrop {
 
 .upgrade-table {
   width: 100%;
-  min-width: 760px;
+  min-width: 1030px;
   border-collapse: collapse;
   font-size: 0.78rem;
 }
@@ -2491,9 +2491,15 @@ dialog::backdrop {
 }
 
 .upgrade-price,
+.upgrade-saving,
+.upgrade-delta,
+.upgrade-after,
 .upgrade-payback {
   white-space: nowrap;
 }
+.upgrade-notes { text-align: left !important; color: var(--color-muted); overflow-wrap: anywhere; }
+.upgrade-saving-reference { color: var(--color-muted); font-size: .78rem; }
+.upgrade-saving { color: #a9caff; }
 .upgrade-panel[hidden], .upgrade-detail-row[hidden] { display: none; }
 .upgrade-table tr[data-upgrade-row] { cursor: pointer; }
 .upgrade-table tr[data-upgrade-row]:hover { background: rgb(114 167 255 / 5%); }

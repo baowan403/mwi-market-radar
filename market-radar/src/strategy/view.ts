@@ -755,6 +755,9 @@ function renderResults(
   const baseAssessed = result.candidates
     .filter((candidate) => candidate.profitPerDay > 0)
     .map((candidate) => ({ candidate, liquidity: evaluateRealizableStrategy(candidate, snapshots, capacityFor) }));
+  const dailyAssessed: AssessedStrategy[] = baseAssessed.map(({candidate,liquidity})=>({candidate,liquidity,
+    decision:estimateStrategySession({candidate,liquidity,profile,plannedHours:24,latestSnapshotAgeMs})}));
+  const dailyProfit24h = Math.max(0,...dailyAssessed.map(item=>item.decision.rankValue??0));
   const briefing=element('p','opportunity-brief');
   briefing.textContent='機會尚未分析，可到「機會雷達」查看。';
   briefing.dataset.tone='neutral';
@@ -764,7 +767,7 @@ function renderResults(
     journal: options.opportunityJournal!, now: options.now, signal: options.opportunitySignal,
     onSummary:(text,tone)=>{briefing.textContent=text;briefing.dataset.tone=tone;} });
   options.target.insertBefore(opportunityPanel.element, resultsContainer);
-  const upgradePanel=createUpgradePanel({profile,data,snapshots,itemName:options.itemName,now:options.now,signal:options.opportunitySignal});
+  const upgradePanel=createUpgradePanel({profile,data,snapshots,dailyProfit24h:dailyProfit24h>0?dailyProfit24h:null,itemName:options.itemName,now:options.now,signal:options.opportunitySignal});
   options.target.insertBefore(upgradePanel.element,resultsContainer);
   let bestEstimatedProfit = 0;
 
@@ -887,7 +890,7 @@ function renderResults(
     if (assessedHours !== hours) {
       assessedHours = hours;
       displaySignals.clear();
-      assessed = baseAssessed.map(({ candidate, liquidity }) => ({
+      assessed = hours===24 ? dailyAssessed : baseAssessed.map(({ candidate, liquidity }) => ({
       candidate,
       liquidity,
       decision: estimateStrategySession({

@@ -30,6 +30,8 @@ const SKILL_LABELS: Record<UpgradeSkill, string> = {
 };
 
 export interface UpgradePanelOptions {
+  /** Highest current executable 24h return across all skills; never a wallet. */
+  dailyProfit24h?: number | null;
   profile: PlayerProfile;
   data: NormalizedStrategyGameData;
   snapshots: readonly Snapshot[];
@@ -117,7 +119,7 @@ function renderDetail(row: UpgradeRow, options: UpgradePanelOptions): HTMLTableR
   const detailRow = element('tr', 'upgrade-detail-row');
   detailRow.dataset.upgradeDetailFor = rowKey(row);
   const cell = element('td');
-  cell.colSpan = 7;
+  cell.colSpan = 9;
   const details = element('details', 'upgrade-detail');
   details.dataset.upgradeDetail = 'true';
   const summary = element('summary');
@@ -173,19 +175,22 @@ function renderRow(row: UpgradeRow, options: UpgradePanelOptions): HTMLTableRowE
   const title = element('strong');
   title.textContent = `${options.itemName(row.itemHrid)} +${row.enhancementLevel}`;
   equipment.append(title);
-  const ownership = element('small');
-  ownership.textContent = row.owned ? '已持有，免購買' : row.priority==='已有更高強化'?'已有同款更高強化':'購買目標';
-  equipment.append(ownership);
   tableRow.append(equipment);
 
   const slot = element('td', 'upgrade-slot');
   const slotNames:Record<string,string>={tool:'工具',body:'上衣',legs:'下裝',back:'背飾',charm:'護符',head:'帽子',hands:'手套',feet:'鞋子',off_hand:'副手',pouch:'袋子',neck:'項鍊',earrings:'耳環',ring:'戒指',trinket:'徽章'};
-  slot.textContent = `${slotNames[row.slot]??'裝備'} · ${eligibilityLabel(row)}`;
+  slot.textContent = slotNames[row.slot]??'裝備';
   tableRow.append(slot);
 
   const price = element('td', 'upgrade-price');
   price.textContent = money(row.price);
   tableRow.append(price);
+
+  const saving = element('td', 'upgrade-saving');
+  const daily = options.dailyProfit24h;
+  saving.textContent = row.owned ? '已持有' : row.price !== null && daily !== null && daily !== undefined && Number.isFinite(daily) && daily > 0
+    ? days(row.price / daily) : '—';
+  tableRow.append(saving);
 
   const delta = element('td', 'upgrade-delta');
   delta.textContent = signedMoney(row.delta);
@@ -206,6 +211,9 @@ function renderRow(row: UpgradeRow, options: UpgradePanelOptions): HTMLTableRowE
   priority.textContent = row.priority;
   priority.dataset.upgradePriority=row.priority;
   tableRow.append(priority);
+  const notes = element('td', 'upgrade-notes');
+  notes.textContent = [row.owned?'已持有，免購買':'', ...row.requirements.map(r=>r.split('（')[0]), row.eligibility==='unknown'?'門檻待確認':''].filter(Boolean).join('；');
+  tableRow.append(notes);
   return tableRow;
 }
 
@@ -327,6 +335,10 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
       : '目前沒有可用的基準收益，保留候選供確認。';
     content.append(baseline);
 
+    const savingReference = element('p', 'upgrade-saving-reference');
+    savingReference.textContent = `存錢參考：全技能最高24H預估收益 ${money(options.dailyProfit24h)}／日；從零存起，不扣現金。`;
+    content.append(savingReference);
+
     if (analysis.warnings.length > 0) {
       const warnings = element('p', 'upgrade-warning');
       warnings.textContent = analysis.warnings.join('；');
@@ -334,9 +346,14 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
     }
 
     const table = element('table', 'upgrade-table');
+    const columns = element('colgroup');
+    for (const width of [200,60,90,90,100,100,95,95,200]) {
+      const col = element('col');col.style.width=`${width}px`;columns.append(col);
+    }
+    table.append(columns);
     const head = element('thead');
     const headerRow = element('tr');
-    for (const label of ['裝備／強化', '部位／門檻', '價格', '每日增益', '換裝後收益', '回本天數', '優先級']) {
+    for (const label of ['裝備', '部位', '價格', '存錢天數', '每日增益', '換裝後收益', '回本天數', '優先級', '備註']) {
       const cell = element('th');
       cell.textContent = label;
       headerRow.append(cell);

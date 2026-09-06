@@ -58,6 +58,17 @@ function analysis(): UpgradeAnalysis {
 }
 
 describe('upgrade target panel', () => {
+  it('uses concise columns and global 24h income for saving days without a wallet',async()=>{
+    const panel=createUpgradePanel({profile,data,snapshots,itemName:h=>h,dailyProfit24h:50,analyze:vi.fn(async()=>analysis())});
+    (panel.element.querySelector('[data-upgrade-analyze]') as HTMLButtonElement).click();
+    await vi.waitFor(()=>expect(panel.element.querySelectorAll('[data-upgrade-row]')).toHaveLength(3));
+    expect([...panel.element.querySelectorAll('th')].map(e=>e.textContent)).toEqual(['裝備','部位','價格','存錢天數','每日增益','換裝後收益','回本天數','優先級','備註']);
+    expect(panel.element.textContent).not.toContain('購買目標');
+    expect(panel.element.querySelector('[data-upgrade-row="/items/beta_shears::6"] .upgrade-saving')?.textContent).toBe('2.0天');
+    expect(panel.element.querySelector('[data-upgrade-row="/items/alpha_shears::5"] .upgrade-saving')?.textContent).toBe('—');
+    expect(panel.element.querySelector('.upgrade-slot')?.textContent).toBe('工具');
+    expect(panel.element.querySelector('.upgrade-detail-row td')?.getAttribute('colspan')).toBe('9');
+  });
   it('does not put a redundant lower grade before useful purchases in efficiency order',async()=>{
     const result=analysis();result.rows[1]!.priority='已有更高強化';
     result.rows.push({...result.rows[1]!,itemHrid:'/items/useful',delta:30,priority:'可考慮'});
@@ -106,7 +117,7 @@ describe('upgrade target panel', () => {
     expect(panel.element.querySelector('[data-upgrade-row="/items/alpha_shears::5"]')?.textContent).toContain('—');
     expect(panel.element.querySelector('[data-upgrade-row="/items/alpha_shears::5"]')?.textContent).toContain('90');
     expect(panel.element.querySelector('[data-upgrade-row="/items/gamma_shears::7"]')?.textContent).toContain('已持有');
-    expect(panel.element.querySelectorAll('thead th')).toHaveLength(7);
+    expect(panel.element.querySelectorAll('thead th')).toHaveLength(9);
     expect(panel.element.querySelector('thead')?.textContent).toContain('每日增益');
     expect(panel.element.querySelector('thead')?.textContent).toContain('回本天數');
     expect(panel.element.querySelector('[data-upgrade-detail]')).not.toBeNull();

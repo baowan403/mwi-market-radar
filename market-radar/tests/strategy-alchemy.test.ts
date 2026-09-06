@@ -6,6 +6,7 @@ import { calculateCoinify, calculateDecompose } from '../src/strategy/alchemy';
 import { normalizeStrategyGameData } from '../src/strategy/game-data';
 import { createStrategyPriceBook } from '../src/strategy/price-book';
 import { calculateWorkflow } from '../src/strategy/workflow';
+import { actionBuffs } from '../src/strategy/buffs';
 import type { Snapshot } from '../src/core/types';
 
 const data = normalizeStrategyGameData(strategyDataJson);
@@ -39,6 +40,13 @@ function prices(missingPirateEssenceAsk = false, missingMoonstone = false) {
 }
 
 describe('Milkonomy-compatible alchemy', () => {
+  it.each(['decompose','coinify'] as const)('weights %s experience by success and 10 percent on failure',kind=>{
+    const itemHrid=kind==='decompose'?'/items/pirate_refinement_shard':'/items/pirate_essence';
+    const opts={itemHrid,catalystRank:0 as const,enhancementLevel:0,profile,data,prices:prices()};
+    const result=kind==='decompose'?calculateDecompose(opts):calculateCoinify(opts);
+    const base=(kind==='decompose'?1.4:1)*(10+data.itemsByHrid.get(itemHrid)!.itemLevel!);
+    expect(result.experiencePerHour).toBeCloseTo(base*(1+actionBuffs(profile,'alchemy',data).Experience)*result.actionsPerHour*(result.successRate+.1*(1-result.successRate)));
+  });
   it('increases decompose success with dedicated and prime catalysts', () => {
     const none = calculateDecompose({
       itemHrid: '/items/pirate_refinement_shard', catalystRank: 0, enhancementLevel: 0,
