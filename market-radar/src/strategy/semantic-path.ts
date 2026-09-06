@@ -44,6 +44,8 @@ export function formatSemanticPath(
   }
 
   const parts: string[] = [];
+  const describe=(step:StrategyStepResult,output:string)=>step.actionHrid.includes('/coinify')?'點金（金幣）':
+    step.actionHrid.includes('/decompose')?`分解成 ${output}`:step.actionHrid.includes('/transmute')?`轉化成 ${output}`:`${ACTION_VERBS[step.action]??'製作'} ${output}`;
   const firstStep = steps[0]!;
 
   // 1. 起點：判斷是「採集」還是「市場購買」原料
@@ -76,9 +78,16 @@ export function formatSemanticPath(
   // 若第一步不是採集，且有明確動作（例如第一步是製作或分解），需要把第一步的工序加進來
   const startIndex = isFirstGather ? 1 : 0;
 
+  if(candidate.connections?.some(c=>c.from!==c.to-1)){
+    if(!isFirstGather)parts.push(describe(firstStep,candidate.connections.filter(c=>c.from===0).map(c=>itemName(c.itemHrid)).join('、')));
+    parts.push(`分流【${candidate.connections.map(c=>`${itemName(c.itemHrid)} → ${describe(steps[c.to]!,itemName(steps[c.to]!.outputHrid))}`).join('｜')}】`);
+    if(candidate.primaryOutputHrids?.some(h=>h!==COIN_HRID))parts.push('販賣最終成品');
+    return parts.join(' → ');
+  }
+
   for (let i = startIndex; i < steps.length; i++) {
     const step = steps[i]!;
-    const outputName = itemName(step.outputHrid);
+    const outputName = itemName(candidate.connections?.find(c=>c.from===i)?.itemHrid??step.outputHrid);
 
     if (step.actionHrid.includes('/transmute')) {
       parts.push(`轉化成 ${outputName}`);

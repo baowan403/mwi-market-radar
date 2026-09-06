@@ -29,6 +29,8 @@ export interface LiquidityWarning {
 }
 
 export interface RealizableStrategy {
+  /** Multi-terminal branches: risk-only maximum, not a misleading single output share. */
+  maxPrimaryOutputShare24hPct?: number;
   theoreticalProfitPerDay: number;
   realizableProfitPerDay: number | null;
   safeHoursPerDay: number | null;
@@ -166,7 +168,8 @@ export function assessDurationRisk(liquidity: RealizableStrategy, hours: number)
   'riskCode' | 'riskSeverity' | 'riskLabel' | 'classification'> {
   if (['market-unavailable', 'no-ask', 'no-bid', 'price-anomaly',
     'insufficient-primary-data', 'insufficient-input-data'].includes(liquidity.riskCode)) return liquidity;
-  const output = liquidity.outputShare24hPct === null ? null : liquidity.outputShare24hPct * hours / 24;
+  const outputShare = liquidity.outputShare24hPct ?? liquidity.maxPrimaryOutputShare24hPct ?? null;
+  const output = outputShare === null ? null : outputShare * hours / 24;
   const input = liquidity.maxInputShare24hPct === null ? null : liquidity.maxInputShare24hPct * hours / 24;
   const a = outputRisk(output ?? 0);
   const b = inputRisk(input ?? 0);
@@ -182,10 +185,10 @@ function primaryOutputIdentity(candidate: StrategyCandidate): {
   declaredFlow: StrategyFlow | null;
 } {
   const lastStep = candidate.steps.at(-1);
-  const itemHrid = lastStep?.outputHrid ?? candidate.path.at(-1) ?? null;
+  const itemHrid = candidate.primaryOutputHrids?.[0] ?? lastStep?.outputHrid ?? candidate.path.at(-1) ?? null;
   const declaredFlow = itemHrid === null
     ? null
-    : lastStep?.outputs.find((flow) => flow.itemHrid === itemHrid) ?? null;
+    : candidate.steps.flatMap(s=>s.outputs).find((flow) => flow.itemHrid === itemHrid) ?? null;
   return { itemHrid, declaredFlow };
 }
 
@@ -201,6 +204,19 @@ export function evaluateRealizableStrategy(
   snapshots: readonly Snapshot[],
   capacityFor: MarketCapacityLookup = key => marketCapacity(key, snapshots),
 ): RealizableStrategy {
+  if((candidate.primaryOutputHrids?.length??0)>1){
+    const branches=candidate.primaryOutputHrids!.map(hrid=>evaluateRealizableStrategy({...candidate,primaryOutputHrids:[hrid]},snapshots,capacityFor));
+    const blocked=branches.find(b=>['no-bid','no-ask','market-unavailable','price-anomaly','insufficient-primary-data','insufficient-input-data'].includes(b.riskCode));
+    const worst=blocked??[...branches].sort((a,b)=>SEVERITY_RANK[b.riskSeverity]-SEVERITY_RANK[a.riskSeverity])[0]!;
+    const limited=[...branches].sort((a,b)=>(a.safeHoursPerDay??Infinity)-(b.safeHoursPerDay??Infinity))[0]!;
+    const safeHoursPerDay=limited.safeHoursPerDay===0?0:branches.some(b=>b.safeHoursPerDay===null)?null:limited.safeHoursPerDay;
+    return {...worst,primaryOutputMode:'derived',primaryOutputHrid:null,outputShare24hPct:null,marketSharePct:null,
+      maxPrimaryOutputShare24hPct:Math.max(0,...branches.map(b=>b.outputShare24hPct??0)),
+      outputUnitsPerDay:null,outputVolume24h:null,outputVolumeCoverageHours:null,safeHoursPerDay,safeBatchUnits:null,
+      realizableProfitPerDay:safeHoursPerDay===null?null:candidate.profitPerHour*safeHoursPerDay,
+      bottleneckHrid:limited.bottleneckHrid,bottleneckSide:limited.bottleneckSide,
+      warnings:branches.flatMap(b=>b.warnings??[])};
+  }
   const flows = externalStrategyFlows(candidate);
   const warnings: LiquidityWarning[] = [];
   const identity = primaryOutputIdentity(candidate);

@@ -631,6 +631,7 @@ function renderResults(
     ? '市場快照已超過 180 分鐘：資料嚴重過期，請留意價格變動。'
     : '依所選時長的預估收益排序；限量策略會標示建議製作時間。售出參考為完成後24H，非保證成交。';
   header.append(heading, warning);
+  if(result.coverageNote){const coverage=element('small','strategy-meta');coverage.textContent=result.coverageNote;header.append(coverage);}
 
   // ── 機制完整度門禁 (Mechanics Completeness Gate) ──
   if (profile.mechanicsCompleteness === 'incomplete') {

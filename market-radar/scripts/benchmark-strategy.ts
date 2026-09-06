@@ -18,6 +18,7 @@ const hash=(x:unknown)=>createHash('sha256').update(JSON.stringify(x)).digest('h
 let start=performance.now();
 const candidates=buildStrategyCandidates({profile,data,prices}).candidates;
 console.log(JSON.stringify({stage:'candidates',ms:performance.now()-start,count:candidates.length,hash:hash(candidates)}));
+if(process.argv.includes('--scan-only'))process.exit(0);
 start=performance.now();
 const capacityAtSnapshot=createMarketCapacityHistory(snapshots);
 const series=candidates.slice(0,12).map(candidate=>buildStrategyMarginSeries({strategyId:candidate.id,snapshots,

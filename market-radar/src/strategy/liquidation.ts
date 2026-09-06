@@ -14,6 +14,8 @@ export interface StrategyLiquidationResult {
 }
 
 interface LiquidationOptions {
+  /** Structural recovery for internal flows; final workflow must still price all net flows. */
+  allowUnpricedFlows?: boolean;
   itemHrid: string;
   unitsPerHour: number;
   data: NormalizedStrategyGameData;
@@ -61,7 +63,7 @@ function expand(
   if (!item) return incomplete();
   if (item.isTradable === true) {
     const unitPrice = prices.bid(itemHrid);
-    return finiteNonnegative(unitPrice)
+    return finiteNonnegative(unitPrice) || (options.allowUnpricedFlows === true && unitPrice === null)
       ? { complete: true, flows: [{ itemHrid, enhancementLevel: 0, unitsPerHour, unitPrice, market: true }] }
       : incomplete();
   }
@@ -83,6 +85,7 @@ function expand(
       unitsPerHour: unitsPerHour * expected.multiplier,
       data,
       prices,
+      allowUnpricedFlows: options.allowUnpricedFlows,
     }, nextVisiting);
     if (!expanded.complete) return incomplete();
     flows.push(...expanded.flows);

@@ -53,6 +53,10 @@ describe('personalized strategy candidate enumeration', () => {
     expect(result.candidates.length).toBeGreaterThan(0);
     expect(result.candidates.every(c=>c.steps.every(s=>s.action==='crafting'))).toBe(true);
   });
+  it('includes cross-skill manufacturing to alchemy rather than only existing manufacturing trains',()=>{
+    const result=buildStrategyCandidates({profile,data,prices:createStrategyPriceBook(snapshot,data)});
+    expect(result.candidates.some(c=>c.connections&&c.steps.some(s=>s.action==='crafting')&&c.steps.some(s=>s.action==='alchemy'))).toBe(true);
+  });
   it('finds manufacturing, workflows, and decompose-to-coinify without duplicate ids', () => {
     const result = buildStrategyCandidates({
       profile,

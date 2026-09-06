@@ -139,7 +139,6 @@ export function calculateManufactureAction(options: {
     taxable: taxable(item.itemHrid, data),
   }));
   const teas: PricedCount[] = activeTeas
-    .filter((itemHrid) => prices.ask(itemHrid) !== null)
     .map((itemHrid) => ({
       itemHrid,
       count: 1,
@@ -231,7 +230,6 @@ export function calculateGatherAction(options: {
   }));
 
   const teas: PricedCount[] = activeTeas
-    .filter((itemHrid) => prices.ask(itemHrid) !== null)
     .map((itemHrid) => ({
       itemHrid,
       count: 1,

@@ -22,6 +22,14 @@ const mockNames: Record<string, string> = {
 const itemName = (hrid: string) => mockNames[hrid] ?? hrid;
 
 describe('formatSemanticPath', () => {
+  it('labels sibling processing as branches instead of a false sequential chain',()=>{
+    const c={path:['/items/a'],steps:[{action:'crafting',actionHrid:'craft',outputHrid:'/items/b'},
+      {action:'alchemy',actionHrid:'/actions/alchemy/coinify',outputHrid:'/items/coin'},
+      {action:'alchemy',actionHrid:'/actions/alchemy/coinify',outputHrid:'/items/coin'}],
+      connections:[{from:0,to:1,itemHrid:'/items/b'},{from:0,to:2,itemHrid:'/items/c'}],primaryOutputHrids:['/items/coin']} as unknown as StrategyCandidate;
+    const text=formatSemanticPath(c,mockData,itemName);
+    expect(text).toContain('分流');expect(text).toContain('/items/b');expect(text).toContain('/items/c');
+  });
   it('formats single-step decompose: 購買 楊桃 → 分解成 採摘精華 → 販賣 採摘精華', () => {
     const candidate: StrategyCandidate = {
       id: 'decompose:starfruit',

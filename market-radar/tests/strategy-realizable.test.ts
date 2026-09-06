@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateRealizableStrategy } from '../src/strategy/realizable';
+import { evaluateRealizableStrategy, assessDurationRisk } from '../src/strategy/realizable';
 import type { StrategyCandidate } from '../src/strategy/candidates';
 import type { MarketKey, Snapshot } from '../src/core/types';
 
@@ -45,6 +45,16 @@ function candidate(inputUnits: number, outputUnits: number): StrategyCandidate {
 }
 
 describe('simple 24h market assessment', () => {
+  it('does not hide an unsellable branch behind a final coin output',()=>{
+    const c=candidate(1,10);c.steps[1]!.outputHrid='/items/coin';c.primaryOutputHrids=['/items/output','/items/coin'];
+    const history=snapshots({'/items/input':100,'/items/output':100});history.at(-1)!.quotes['/items/output::0']!.b=null;
+    const result=evaluateRealizableStrategy(c,history);
+    expect(result.primaryOutputMode).toBe('derived');expect(result.riskCode).toBe('no-bid');expect(result.safeHoursPerDay).toBe(0);
+    history.at(-1)!.quotes['/items/output::0']!.b=100;
+    const available=evaluateRealizableStrategy(c,history);
+    expect(available.safeHoursPerDay).toBe(12);
+    expect(assessDurationRisk(available,24).riskCode).toBe('sell-pressure');
+  });
   it('counts a tea used as alchemy feedstock as a primary procurement risk', () => {
     const value = candidate(100, 1);
     value.steps[0]!.action = 'alchemy';

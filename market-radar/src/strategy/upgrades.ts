@@ -79,6 +79,7 @@ export async function analyzeUpgradeTargets(options:{
   const base=structuredClone(enrichProfileWithBestLoadout(options.profile,data));
   base.loadoutMode='manual'; // Freeze all other equipment; never mutate real profile/ownership.
   const warnings=['比較單件換裝，不可把各列增益相加；購買後應重新評估。','只比較所選技能及同技能多步；未計跨技能流程、練級收益或舊裝轉售。'];
+  warnings.push('升級比較暫不納入新增深度組合搜尋。');
   warnings.push(base.teaMode==='manual'||base.actions[action].teaMode==='manual'?'兩邊皆使用快照指定的茶飲。':'兩邊皆依同一自動配茶政策重算。');
   if(latest)warnings.push(`行情時間：${new Date(latest.timestamp).toLocaleString()}`);
   if(!fresh)warnings.push('市場行情不足或超過3H，收益比較暫停；裝備目標仍保留。');
@@ -111,7 +112,7 @@ export async function analyzeUpgradeTargets(options:{
     if(!fresh)return null;
     const signature=signatureFor(profile);
     if(cache.has(signature))return cache.get(signature)!;
-    const candidates=(options.calculate??buildStrategyCandidates)({profile,data,prices,actions:[action]}).candidates;
+    const candidates=(options.calculate??buildStrategyCandidates)({profile,data,prices,actions:[action],includeCombinations:false}).candidates;
     let best:UpgradeEvaluation|null=null,hasComparable=false;
     for(const candidate of candidates){
       const liquidity=evaluateRealizableStrategy(candidate,snapshots,capacityFor);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateWorkflow } from '../src/strategy/workflow';
+import { calculateWorkflow, calculateConnectedWorkflow } from '../src/strategy/workflow';
 import type { StrategyStepResult } from '../src/strategy/types';
 
 function step(
@@ -27,6 +27,20 @@ function step(
 }
 
 describe('balanced multi-step workflows', () => {
+  it('balances two branches without selling the consumed co-products or charging missing internal quotes',()=>{
+    const root=step('split','/items/a','/items/b',2,10,20);
+    root.outputs[0]!.unitPrice=null;
+    root.outputs.push({itemHrid:'/items/c',enhancementLevel:0,unitsPerHour:3,unitPrice:null,market:true});
+    const b=step('b','/items/b','/items/d',1,1,100),c=step('c','/items/c','/items/e',1,1,200);
+    b.inputs[0]!.unitPrice=null;c.inputs[0]!.unitPrice=null;
+    const r=calculateConnectedWorkflow([root,b,c],[{from:0,to:1,itemHrid:'/items/b'},{from:0,to:2,itemHrid:'/items/c'}]);
+    expect(r.valid).toBe(true);
+    expect(r.steps.map(s=>s.workFraction)).toEqual([1/6,2/6,3/6]);
+    expect(r.inputs.map(f=>f.itemHrid)).toEqual(['/items/a']);
+    expect(r.outputs.map(f=>f.itemHrid)).toEqual(['/items/d','/items/e']);
+    expect(r.profitPerHour).toBeCloseTo((2*100*.95+3*200*.95-10)/6);
+    expect(()=>calculateConnectedWorkflow([root,b,b],[{from:0,to:1,itemHrid:'/items/b'},{from:0,to:2,itemHrid:'/items/b'}])).toThrow();
+  });
   it('balances stage time and removes internal intermediates', () => {
     const source = [
       step('a-to-b', '/items/a', '/items/b', 2, 10, 20),

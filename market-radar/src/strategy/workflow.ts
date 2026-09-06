@@ -2,6 +2,7 @@ import type { StrategyFlow, StrategyStepResult } from './types';
 import { marketTaxFactor } from './tax';
 
 const MAX_WORKFLOW_STEPS = 7;
+export interface WorkflowConnection { from:number; to:number; itemHrid:string }
 
 export interface WorkflowStepResult extends StrategyStepResult {
   workFraction: number;
@@ -109,6 +110,28 @@ export function calculateWorkflow(sourceSteps: readonly StrategyStepResult[]): W
     if (!Number.isFinite(ratio) || ratio <= 0) throw new StrategyWorkflowError();
     cumulative.push(cumulative[index]! * ratio);
   }
+  return assembleWorkflow(sourceSteps,cumulative,`workflow:${sourceSteps.map(step=>step.id).join('|')}`);
+}
+
+export function calculateConnectedWorkflow(sourceSteps:readonly StrategyStepResult[], connections:readonly WorkflowConnection[]):WorkflowResult {
+  if(sourceSteps.length<2||sourceSteps.length>MAX_WORKFLOW_STEPS||connections.length!==sourceSteps.length-1)throw new StrategyWorkflowError();
+  const cumulative=Array(sourceSteps.length).fill(0) as number[];cumulative[0]=1;
+  const allocated=new Set<string>();
+  for(let to=1;to<sourceSteps.length;to++){
+    const links=connections.filter(c=>c.to===to),link=links[0];
+    if(links.length!==1||!link||!Number.isInteger(link.from)||link.from<0||link.from>=to)throw new StrategyWorkflowError();
+    const allocation=`${link.from}:${link.itemHrid}`;
+    if(allocated.has(allocation))throw new StrategyWorkflowError();allocated.add(allocation);
+    const input=unitsFor(sourceSteps[to]!.inputs,link.itemHrid),output=unitsFor(sourceSteps[link.from]!.outputs,link.itemHrid);
+    if(!(input>0)||!(output>0)||!Number.isFinite(input)||!Number.isFinite(output))throw new StrategyWorkflowError();
+    // No recycling/circular execution in this bounded, acyclic search.
+    if(sourceSteps.slice(0,to).some(s=>s.id===sourceSteps[to]!.id||s.inputs.some(f=>f.market&&f.itemHrid===sourceSteps[to]!.outputHrid)))throw new StrategyWorkflowError();
+    cumulative[to]=cumulative[link.from]! * output/input;
+  }
+  return assembleWorkflow(sourceSteps,cumulative,`combination:${sourceSteps.map(s=>s.id).join('|')}:${connections.map(c=>`${c.from}>${c.to}:${c.itemHrid}`).join('|')}`);
+}
+
+function assembleWorkflow(sourceSteps:readonly StrategyStepResult[], cumulative:number[], id:string):WorkflowResult {
   const total = cumulative.reduce((sum, value) => sum + value, 0);
   if (!Number.isFinite(total) || total <= 0) throw new StrategyWorkflowError();
   const fractions = cumulative.map((value) => value / total);
@@ -140,7 +163,7 @@ export function calculateWorkflow(sourceSteps: readonly StrategyStepResult[]): W
     : null;
 
   return {
-    id: `workflow:${sourceSteps.map((step) => step.id).join('|')}`,
+    id,
     steps,
     valid,
     costPerHour,

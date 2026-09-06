@@ -353,7 +353,8 @@ describe('Dynamic Tea Optimizer & Guzzling Pouch', () => {
     const holyMilkDecomp = result.candidates.find((c) => c.kind === 'decompose' && c.steps[0]?.inputs.some((f) => f.itemHrid === '/items/holy_milk'));
     expect(holyMilkDecomp).toBeDefined();
     expect(holyMilkDecomp!.steps[0]!.ledger!.physical.teaUnitsPerHour).toEqual({});
-  });
+    expect(result.candidates.filter(c=>c.connections).every(c=>c.steps.every(s=>Object.keys(s.ledger?.physical.teaUnitsPerHour??{}).length===0))).toBe(true);
+  }, 20_000); // Broad synthetic market now includes bounded cross-skill discovery.
 
   it('production candidate path: selects [] when default teas yield negative profit but no-tea yields positive profit (Production Regression A)', () => {
     // 構造場景：茶飲極貴（50,000,000 / 杯），喝茶必負；但無茶 [] 分解 holy_milk 為正
@@ -524,4 +525,3 @@ describe('Dynamic Tea Optimizer & Guzzling Pouch', () => {
     expect(cappedEffScore).toBeGreaterThan(0);
   });
 });
-

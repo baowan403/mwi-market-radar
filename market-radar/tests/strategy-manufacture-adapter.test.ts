@@ -48,6 +48,19 @@ function history(step: ReturnType<typeof calculateManufactureAction>, omitHrid?:
 }
 
 describe('real manufacturing recipe adapter', () => {
+  it('never grants free manual tea buffs when the selected tea has no ask',()=>{
+    const p=structuredClone(profile);p.teaMode='manual';p.actions.crafting.teas=['/items/efficiency_tea'];
+    const result=calculateManufactureAction({actionHrid:'/actions/crafting/redwood_lumber',profile:p,data,prices:prices()});
+    expect(result.valid).toBe(false);
+    expect(result.inputs.find(f=>f.itemHrid==='/items/efficiency_tea')?.unitPrice).toBeNull();
+  });
+  it('keeps tea costs with fallback tea buffs when intermediate output has no price',()=>{
+    const p=structuredClone(profile);p.actions.crafting.teas=['/items/efficiency_tea'];
+    const book={...prices(null),ask:(h:string)=>h==='/items/efficiency_tea'?100:prices().ask(h)};
+    const result=calculateManufactureAction({actionHrid:'/actions/crafting/redwood_lumber',profile:p,data,prices:book});
+    expect(result.ledger?.physical.teaUnitsPerHour['/items/efficiency_tea']).toBeGreaterThan(0);
+    expect(result.inputs.some(f=>f.itemHrid==='/items/efficiency_tea'&&f.unitsPerHour>0)).toBe(true);
+  });
   it('calculates a real redwood lumber recipe with profile buffs and drop EV', () => {
     const result = calculateManufactureAction({
       actionHrid: '/actions/crafting/redwood_lumber',

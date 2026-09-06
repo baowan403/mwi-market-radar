@@ -197,7 +197,6 @@ export function findOptimalTeasForManufacture(options: {
     if (buffs.Level < detail.levelRequirement.level) continue;
 
     const teaInputs: PricedCount[] = combo
-      .filter((hrid) => prices.ask(hrid) !== null)
       .map((hrid) => ({
         itemHrid: hrid,
         count: 1,
@@ -226,9 +225,10 @@ export function findOptimalTeasForManufacture(options: {
   }
 
   if (bestBuffs === null) {
-    const defaultBuffs = actionBuffs(profile, action, data);
+    const teas=(profile.actions[action].teas??[]).filter(hrid=>prices.ask(hrid)!==null);
+    const defaultBuffs = actionBuffs({...profile,actions:{...profile.actions,[action]:{...profile.actions[action],teas}}}, action, data);
     return {
-      teas: [],
+      teas,
       profitPerHour: null,
       buffs: defaultBuffs,
     };
@@ -281,7 +281,6 @@ export function findOptimalTeasForGathering(options: {
     }));
 
     const teaInputs: PricedCount[] = combo
-      .filter((hrid) => prices.ask(hrid) !== null)
       .map((hrid) => ({
         itemHrid: hrid,
         count: 1,
@@ -322,9 +321,10 @@ export function findOptimalTeasForGathering(options: {
   }
 
   if (bestBuffs === null) {
-    const defaultBuffs = actionBuffs(profile, action, data);
+    const teas=(profile.actions[action].teas??[]).filter(hrid=>prices.ask(hrid)!==null);
+    const defaultBuffs = actionBuffs({...profile,actions:{...profile.actions,[action]:{...profile.actions[action],teas}}}, action, data);
     return {
-      teas: [],
+      teas,
       profitPerHour: null,
       buffs: defaultBuffs,
     };

@@ -9,6 +9,7 @@ import type { StrategyStepResult } from './types';
 import { calculateWorkflow, type WorkflowResult } from './workflow';
 import { enrichProfileWithBestLoadout, isTeaManual } from './optimal-loadout';
 import { findOptimalTeasForAlchemy, createTeaBuffLookup } from './tea-optimizer';
+import { discoverCombinations } from './combinations';
 
 const MANUFACTURING_ACTIONS = new Set<SkillingAction>([
   'cheesesmithing', 'crafting', 'tailoring', 'cooking', 'brewing',
@@ -29,6 +30,8 @@ const CATALYST_RANKS: CatalystRank[] = [0, 1, 2];
 export type VerificationStatus = 'verified' | 'mk-parity' | 'disputed' | 'unverified';
 
 export interface StrategyCandidate {
+  connections?: import('./workflow').WorkflowConnection[];
+  primaryOutputHrids?: string[];
   id: string;
   kind: 'manufacture' | 'workflow' | 'transmute' | 'decompose' | 'coinify' | 'decompose-coinify' | 'gather';
   title: string;
@@ -49,6 +52,7 @@ export interface StrategyCandidate {
 }
 
 export interface StrategyCandidateResult {
+  coverageNote?: string;
   candidates: StrategyCandidate[];
   diagnostics: string[];
 }
@@ -63,7 +67,7 @@ export function selectParetoStrategyVariants(
 ): StrategyCandidate[] {
   const groups = new Map<string, StrategyCandidate[]>();
   for (const candidate of candidates) {
-    const key = `${candidate.kind}:${candidate.path.join('->')}`;
+    const key = `${candidate.kind}:${candidate.path.join('->')}:${JSON.stringify(candidate.connections??[])}`;
     const group = groups.get(key) ?? [];
     group.push(candidate);
     groups.set(key, group);
@@ -190,12 +194,14 @@ export function buildStrategyCandidates(options: {
   prices: MarketPriceBook;
   /** Optional single-skill scope for repeated equipment counterfactuals. Default stays all skills. */
   actions?: readonly SkillingAction[];
+  includeCombinations?: boolean;
 }): StrategyCandidateResult {
   const { data, prices } = options;
   const allowed = (action: SkillingAction) => !options.actions || options.actions.includes(action);
   const profile = enrichProfileWithBestLoadout(options.profile, data);
   const teaBuffs = createTeaBuffLookup(profile, data);
   const candidateMap = new Map<string, StrategyCandidate>();
+  const alchemySteps: StrategyStepResult[] = [];
   const diagnostics: string[] = [];
   const buffCache = new Map<SkillingAction, ActionBuffs>();
   const buffsFor = (action: SkillingAction): ActionBuffs => {
@@ -323,6 +329,7 @@ export function buildStrategyCandidates(options: {
               });
             }
           }
+          alchemySteps.push(step);
           addCandidate(candidateFromStep(step, 'transmute', data));
         } catch { diagnostics.push(`transmute:${itemHrid}:c${catalystRank}`); }
       }
@@ -350,6 +357,7 @@ export function buildStrategyCandidates(options: {
             }
           }
           decompositions.push(step);
+          alchemySteps.push(step);
           addCandidate(candidateFromStep(step, 'decompose', data));
         } catch { diagnostics.push(`decompose:${itemHrid}:c${catalystRank}`); }
       }
@@ -371,6 +379,7 @@ export function buildStrategyCandidates(options: {
               step = calculateCoinify({ itemHrid, catalystRank, profile: stepProfile, data, prices, buffs: opt.buffs });
             }
           }
+          alchemySteps.push(step);
           addCandidate(candidateFromStep(step, 'coinify', data));
         } catch { diagnostics.push(`coinify:${itemHrid}:c${catalystRank}`); }
       }
@@ -390,7 +399,9 @@ export function buildStrategyCandidates(options: {
   }
 
   }
+  if(options.includeCombinations!==false)for(const combined of discoverCombinations([...stepCache.values()].filter((s):s is StrategyStepResult=>s!==null).concat(alchemySteps),data,prices))addCandidate(combined);
   return {
+    coverageNote:options.includeCombinations===false?undefined:'組合搜尋最多3步；每個起點保留8個候選，非完整窮舉。',
     candidates: selectParetoStrategyVariants([...candidateMap.values()]).sort((left, right) => (
       right.profitPerDay - left.profitPerDay || left.id.localeCompare(right.id)
     )),
