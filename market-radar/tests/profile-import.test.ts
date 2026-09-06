@@ -1,9 +1,21 @@
 import exporter from './fixtures/profile-export-v1.json';
 import preset from './fixtures/profile-preset.json';
 import { describe, expect, it } from 'vitest';
-import { ProfileImportError, importPlayerProfile } from '../src/profile/import';
+import { ProfileImportError, importPlayerProfile, validatePlayerProfile } from '../src/profile/import';
 
 describe('Milkonomy profile import', () => {
+  it('repairs the legacy eye-watch hands slot without duplicating its buff or inventing ownership',()=>{
+    const p=importPlayerProfile(JSON.stringify(exporter),0);
+    p.specialEquipment={hands:{itemHrid:'/items/eye_watch',enhancementLevel:10}};
+    const before=JSON.stringify(p);
+    const repaired=validatePlayerProfile(p);
+    expect(repaired.specialEquipment.off_hand).toEqual(p.specialEquipment.hands);
+    expect(repaired.specialEquipment.hands).toBeUndefined();
+    expect(JSON.stringify(p)).toBe(before);
+    expect(validatePlayerProfile(repaired)).toEqual(repaired);
+    p.specialEquipment.off_hand={itemHrid:'/items/eye_watch',enhancementLevel:7};
+    expect(validatePlayerProfile(p).specialEquipment).toEqual({off_hand:{itemHrid:'/items/eye_watch',enhancementLevel:7}});
+  });
   it('retains known skill levels for equipment requirements, but not arbitrary fields', () => {
     const value={...exporter,skills:{...exporter.skills,'/skills/total_level':1250,'/skills/intelligence':80,private_value:999}};
     const profile=importPlayerProfile(JSON.stringify(value),0);

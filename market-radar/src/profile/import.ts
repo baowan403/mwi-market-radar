@@ -376,6 +376,16 @@ export function importPlayerProfile(text: string, importedAt = Date.now()): Play
   throw new ProfileImportError();
 }
 
+/** One-time compatibility repair for the old panel's incorrect eye-watch slot. */
+export function repairLegacySpecialEquipment(input: unknown): Record<string, ProfileEquipment> {
+  const equipment = { ...(record(input) ?? {}) } as Record<string, ProfileEquipment>;
+  if (equipment.hands?.itemHrid === '/items/eye_watch') {
+    if (!equipment.off_hand) equipment.off_hand = { ...equipment.hands };
+    delete equipment.hands;
+  }
+  return equipment;
+}
+
 export function validatePlayerProfile(input: unknown): PlayerProfile {
   const data = record(input);
   if (!data) throw new ProfileImportError();
@@ -389,6 +399,8 @@ export function validatePlayerProfile(input: unknown): PlayerProfile {
     || data.mechanicsCompleteness === 'estimated'
     || data.mechanicsCompleteness === 'incomplete'
   ) ? data.mechanicsCompleteness : undefined;
+
+  const specialEquipment = repairLegacySpecialEquipment(data.specialEquipment);
 
   return {
     id: data.id,
@@ -405,7 +417,7 @@ export function validatePlayerProfile(input: unknown): PlayerProfile {
     provenanceMap: record(data.provenanceMap) as Record<string, import('./types').FieldProvenance> ?? {},
     equipmentOwnership: record(data.equipmentOwnership) as Record<string, import('./types').OwnershipState> ?? {},
     actions: data.actions as Record<SkillingAction, ActionProfile>,
-    specialEquipment: (record(data.specialEquipment) ?? {}) as Record<string, ProfileEquipment>,
+    specialEquipment,
     communityBuffs: numericRecord(data.communityBuffs, true),
     shrines: numericRecord(data.shrines, true),
     achievements: (record(data.achievements) ?? {}) as Record<string, boolean>,

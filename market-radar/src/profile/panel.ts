@@ -207,7 +207,7 @@ const ACTION_BOTTOMS: Record<SkillingAction, { hrid: string; name: string }[]> =
 
 const COMMON_SKILLING_GEAR: { hrid: string; name: string; slot: string }[] = [
   { hrid: '/items/red_culinary_hat', name: '紅廚師帽 (烹飪/沖泡)', slot: 'head' },
-  { hrid: '/items/eye_watch', name: '掌上監工/眼表 (鍛造/製作/裁縫)', slot: 'hands' },
+  { hrid: '/items/eye_watch', name: '掌上監工/眼表 (鍛造/製作/裁縫)', slot: 'off_hand' },
   { hrid: '/items/collectors_boots', name: '採集者靴子 (採摘/擠奶/伐木)', slot: 'feet' },
   { hrid: '/items/enchanted_gloves', name: '附魔手套 (全生活效率)', slot: 'hands' },
   { hrid: '/items/gatherer_cape_refined', name: '採集者披風 (採集效率)', slot: 'back' },
@@ -572,10 +572,13 @@ function renderProfileAssumptions(
     check.type = 'checkbox';
     check.id = `special-${gear.hrid.replaceAll('/', '-')}`;
     
-    // 判斷是否持有/啟用
+    // Ownership is not activation: reflect the slot used by the calculator.
     const slotGear = profile.specialEquipment[gear.slot];
-    const currentLevel = profile.inventoryMap[gear.hrid] ?? (slotGear?.itemHrid === gear.hrid ? slotGear.enhancementLevel : -1);
-    check.checked = currentLevel >= 0;
+    const equipped = slotGear?.itemHrid === gear.hrid;
+    const currentLevel = equipped ? slotGear.enhancementLevel : (profile.inventoryMap[gear.hrid] ?? -1);
+    check.checked = equipped;
+    const ownershipNote = element('span', 'profile-assumption-label');
+    ownershipNote.textContent = !equipped && currentLevel >= 0 ? `持有 +${currentLevel}，未啟用` : '';
 
     const lbl = element('label');
     lbl.htmlFor = check.id;
@@ -593,6 +596,7 @@ function renderProfileAssumptions(
       const level = Math.max(0, Math.min(20, Math.floor(Number(levelInput.value) || 0)));
       levelInput.value = String(level);
       levelInput.disabled = !check.checked;
+      ownershipNote.textContent = '';
       if (check.checked) {
         profile.inventoryMap[gear.hrid] = level;
         profile.specialEquipment[gear.slot] = { itemHrid: gear.hrid, enhancementLevel: level };
@@ -616,7 +620,7 @@ function renderProfileAssumptions(
     check.addEventListener('change', updateGear);
     levelInput.addEventListener('change', updateGear);
 
-    row.append(check, lbl, levelInput);
+    row.append(check, lbl, levelInput, ownershipNote);
     specialsGrid.append(row);
   }
   specials.append(specialsSummary, specialsGrid);

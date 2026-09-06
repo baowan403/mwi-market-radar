@@ -1,4 +1,5 @@
 import type { PlayerProfile } from './types';
+import { repairLegacySpecialEquipment } from './import';
 
 export const PROFILE_DATABASE_NAME = 'mwi-market-radar-profiles';
 export const PROFILE_DATABASE_VERSION = 1;
@@ -31,7 +32,11 @@ function storageError(): ProfileStoreError {
 }
 
 function cloneProfile(profile: PlayerProfile): PlayerProfile {
-  return structuredClone(profile);
+  const cloned = structuredClone(profile);
+  if (cloned.specialEquipment?.hands?.itemHrid === '/items/eye_watch') {
+    cloned.specialEquipment = repairLegacySpecialEquipment(cloned.specialEquipment);
+  }
+  return cloned;
 }
 
 function isProfile(value: unknown): value is PlayerProfile {

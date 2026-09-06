@@ -19,6 +19,24 @@ afterEach(() => {
 });
 
 describe('profile panel', () => {
+  it.each([null, 7])('does not present warehouse +10 as equipped when slot is %s', async (equippedLevel) => {
+    const store=createMemoryProfileStore();
+    const panel=createProfilePanel({openButton:document.querySelector('#open')!,summary:document.querySelector('#summary')!,dialog:document.querySelector('#dialog')!,store});
+    await panel.importText(JSON.stringify({...exporter,
+      equipment:equippedLevel===null?{}:{'/item_locations/off_hand':{hrid:'/items/eye_watch',enhanceLevel:equippedLevel}},
+      inventoryMap:{'/items/eye_watch':10}}));
+    await panel.open();
+    const check=document.querySelector<HTMLInputElement>('#special--items-eye_watch')!;
+    const level=document.querySelector<HTMLInputElement>('[aria-label="掌上監工/眼表 (鍛造/製作/裁縫)強化等級"]')!;
+    expect(check.checked).toBe(equippedLevel!==null);
+    expect(level.value).toBe(String(equippedLevel??10));
+    if(equippedLevel===null){
+      expect(document.querySelector('.profile-assumption-specials')!.textContent).toContain('持有 +10，未啟用');
+      check.click();
+      expect(panel.getActiveProfile()!.specialEquipment.off_hand).toEqual({itemHrid:'/items/eye_watch',enhancementLevel:10});
+    }
+    panel.destroy();store.close();
+  });
   it('imports, activates, and renders one local profile without network access', async () => {
     const store = createMemoryProfileStore();
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
@@ -317,4 +335,3 @@ describe('profile panel', () => {
     store.close();
   });
 });
-

@@ -24,6 +24,14 @@ const calculate:typeof buildStrategyCandidates=({profile:p,actions})=>{
 };
 async function run(p=profile(),volume=1e9){return analyzeUpgradeTargets({profile:p,data,snapshots:history(volume),action:'alchemy',hoursPerDay:24,calculate,now:47*3600000});}
 describe('upgrade goal board',()=>{
+  it('never offers the exact equipped off-hand or body as a new income upgrade',async()=>{
+    const p=profile();p.specialEquipment.off_hand={itemHrid:'/items/eye_watch',enhancementLevel:10};
+    p.actions.alchemy.body={itemHrid:'/items/alchemists_top',enhancementLevel:7};
+    p.inventoryMap['/items/eye_watch']=10;p.inventoryMap['/items/alchemists_top']=7;
+    const r=await run(p);
+    expect(r.rows.some(row=>row.itemHrid==='/items/eye_watch'&&row.enhancementLevel===10)).toBe(false);
+    expect(r.rows.some(row=>row.itemHrid==='/items/alchemists_top'&&row.enhancementLevel===7)).toBe(false);
+  });
   it('retains unaffordable and unquoted targets without reading a wallet or mutating the profile',async()=>{
     const p=profile();const before=JSON.stringify(p);const r=await run(p);
     expect(JSON.stringify(p)).toBe(before);

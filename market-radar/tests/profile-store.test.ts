@@ -34,6 +34,16 @@ describe.each([
   ['memory', () => createMemoryProfileStore()],
   ['indexeddb', () => createProfileStore()],
 ] as const)('%s profile store', (_name, create) => {
+  it('repairs old eye-watch slots at the real storage boundary',async()=>{
+    const store=create();stores.push(store);
+    const p=importPlayerProfile(JSON.stringify(exporter),100);
+    p.specialEquipment={hands:{itemHrid:'/items/eye_watch',enhancementLevel:10}};
+    await store.put(p);
+    const saved=await store.get(p.id);
+    expect(saved?.specialEquipment.off_hand).toEqual(p.specialEquipment.hands);
+    expect(saved?.specialEquipment.hands).toBeUndefined();
+    expect((await store.list())[0]?.specialEquipment).toEqual(saved?.specialEquipment);
+  });
   it('keeps multiple characters isolated and preserves one active id', async () => {
     const store = create();
     stores.push(store);
