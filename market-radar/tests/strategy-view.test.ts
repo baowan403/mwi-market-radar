@@ -71,6 +71,17 @@ const calculated: StrategyCandidateResult = {
 };
 
 describe('strategy recommendation view', () => {
+  it('always explains the tea decision when a strategy uses no tea',async()=>{
+    const target=document.createElement('section');
+    const manual={...profile,teaMode:'manual' as const};
+    const view=createStrategyView({target,getProfile:()=>manual,getSnapshots:()=>[snapshot],
+      loadGameData:async()=>({shopItemDetailMap:{},openableLootDropMap:{},itemsByHrid:new Map()}) as never,
+      calculate:()=>calculated,pinStore:createMemoryStrategyPinStore(),itemName:h=>h,onImportProfile:vi.fn(),now:()=>1});
+    await view.render();
+    (target.querySelector('[data-strategy-row]') as HTMLElement).click();
+    expect(target.querySelector('.strategy-detail-row')?.textContent).toContain('茶飲未設定（人物快照為手動模式）');
+    view.destroy();
+  });
   it('search reuses session assessments and creates detail content only on expansion', async () => {
     const target=document.createElement('section');
     const snapshots=history({'/items/input':10000,'/items/output':10000});

@@ -527,6 +527,16 @@ function buildScheduleCard(assessed: AssessedStrategy, options: StrategyViewOpti
       teaItem.style.borderBottom = '1px dashed var(--color-line)';
       teaItem.innerHTML = `🍵 <strong>建議飲用茶飲</strong>：${teaHrids.map((h) => options.itemName(h)).join('、')}`;
       procurementList.append(teaItem);
+    } else {
+      const profile = options.getProfile();
+      const manual = profile?.teaMode === 'manual'
+        || assessed.candidate.steps.some(step => profile?.actions[step.action]?.teaMode === 'manual');
+      const teaItem = element('li');
+      teaItem.className = 'strategy-tea-status';
+      teaItem.textContent = manual
+        ? '🍵 茶飲未設定（人物快照為手動模式）；切換為自動推薦後重算最佳三茶。'
+        : '🍵 建議飲用茶飲：無茶（目前收益計算結果）。';
+      procurementList.append(teaItem);
     }
 
     const inputTotals = new Map<string, { units: number; price: number | null }>();
