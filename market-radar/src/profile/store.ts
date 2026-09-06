@@ -1,5 +1,5 @@
 import type { PlayerProfile } from './types';
-import { repairLegacySpecialEquipment } from './import';
+import { repairLegacySpecialEquipment, repairLegacyAlchemyEquipment } from './import';
 
 export const PROFILE_DATABASE_NAME = 'mwi-market-radar-profiles';
 export const PROFILE_DATABASE_VERSION = 1;
@@ -36,7 +36,7 @@ function cloneProfile(profile: PlayerProfile): PlayerProfile {
   if (cloned.specialEquipment?.hands?.itemHrid === '/items/eye_watch') {
     cloned.specialEquipment = repairLegacySpecialEquipment(cloned.specialEquipment);
   }
-  return cloned;
+  return repairLegacyAlchemyEquipment(cloned);
 }
 
 function isProfile(value: unknown): value is PlayerProfile {

@@ -4,6 +4,16 @@ import { describe, expect, it } from 'vitest';
 import { ProfileImportError, importPlayerProfile, validatePlayerProfile } from '../src/profile/import';
 
 describe('Milkonomy profile import', () => {
+  it('migrates obsolete alchemist robe identifiers to real game equipment',()=>{
+    const p=importPlayerProfile(JSON.stringify(exporter),0);
+    p.actions.alchemy.body={itemHrid:'/items/alchemist_robe_top',enhancementLevel:7};
+    p.actions.alchemy.legs={itemHrid:'/items/alchemist_robe_bottoms',enhancementLevel:7};
+    p.inventoryMap['/items/alchemist_robe_bottoms']=7;
+    const fixed=validatePlayerProfile(p);
+    expect(fixed.actions.alchemy.legs?.itemHrid).toBe('/items/alchemists_bottoms');
+    expect(fixed.actions.alchemy.body?.itemHrid).toBe('/items/alchemists_top');
+    expect(fixed.inventoryMap['/items/alchemists_bottoms']).toBe(7);
+  });
   it('repairs the legacy eye-watch hands slot without duplicating its buff or inventing ownership',()=>{
     const p=importPlayerProfile(JSON.stringify(exporter),0);
     p.specialEquipment={hands:{itemHrid:'/items/eye_watch',enhancementLevel:10}};

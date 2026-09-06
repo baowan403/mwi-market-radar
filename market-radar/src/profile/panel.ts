@@ -184,7 +184,6 @@ const ACTION_TOPS: Record<SkillingAction, { hrid: string; name: string }[]> = {
   brewing: [{ hrid: '/items/brewers_top', name: '釀造工上裝' }],
   alchemy: [
     { hrid: '/items/alchemists_top', name: '煉金術士上裝' },
-    { hrid: '/items/alchemist_robe_top', name: '煉金師上衣' },
   ],
   enhancing: [{ hrid: '/items/enhancers_top', name: '強化工上裝' }],
 };
@@ -200,7 +199,6 @@ const ACTION_BOTTOMS: Record<SkillingAction, { hrid: string; name: string }[]> =
   brewing: [{ hrid: '/items/brewers_bottoms', name: '釀造工下裝' }],
   alchemy: [
     { hrid: '/items/alchemists_bottoms', name: '煉金術士下裝' },
-    { hrid: '/items/alchemist_robe_bottoms', name: '煉金師下衣' },
   ],
   enhancing: [{ hrid: '/items/enhancers_bottoms', name: '強化工下裝' }],
 };
@@ -388,6 +386,7 @@ function renderProfileAssumptions(
     toolLevelInput.setAttribute('aria-label', `${ACTION_LABELS[action]}工具強化等級`);
 
     const updateTool = () => {
+      config.loadoutMode = 'manual';
       const hrid = toolSelect.value;
       const level = Math.max(0, Math.min(20, Math.floor(Number(toolLevelInput.value) || 0)));
       toolLevelInput.value = String(level);
@@ -447,6 +446,7 @@ function renderProfileAssumptions(
     topLevelInput.setAttribute('aria-label', `${ACTION_LABELS[action]}上衣強化等級`);
 
     const updateTop = () => {
+      config.loadoutMode = 'manual';
       const hrid = topSelect.value;
       const level = Math.max(0, Math.min(20, Math.floor(Number(topLevelInput.value) || 0)));
       topLevelInput.value = String(level);
@@ -506,6 +506,7 @@ function renderProfileAssumptions(
     bottomLevelInput.setAttribute('aria-label', `${ACTION_LABELS[action]}下衣強化等級`);
 
     const updateBottom = () => {
+      config.loadoutMode = 'manual';
       const hrid = bottomSelect.value;
       const level = Math.max(0, Math.min(20, Math.floor(Number(bottomLevelInput.value) || 0)));
       bottomLevelInput.value = String(level);

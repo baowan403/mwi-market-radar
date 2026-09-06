@@ -19,6 +19,17 @@ afterEach(() => {
 });
 
 describe('profile panel', () => {
+  it('locks manual clothing changes including an empty slot instead of auto-refilling owned gear',async()=>{
+    const store=createMemoryProfileStore();
+    const panel=createProfilePanel({openButton:document.querySelector('#open')!,summary:document.querySelector('#summary')!,dialog:document.querySelector('#dialog')!,store});
+    await panel.importText(JSON.stringify(exporter));await panel.open();
+    const top=document.querySelector<HTMLSelectElement>('[aria-label="煉金上衣"]')!;
+    top.value='';top.dispatchEvent(new Event('change'));
+    expect(panel.getActiveProfile()!.actions.alchemy.loadoutMode).toBe('manual');
+    expect(panel.getActiveProfile()!.actions.alchemy.body).toBeNull();
+    expect([...top.options].some(o=>o.value==='/items/alchemist_robe_top')).toBe(false);
+    panel.destroy();store.close();
+  });
   it.each([null, 7])('does not present warehouse +10 as equipped when slot is %s', async (equippedLevel) => {
     const store=createMemoryProfileStore();
     const panel=createProfilePanel({openButton:document.querySelector('#open')!,summary:document.querySelector('#summary')!,dialog:document.querySelector('#dialog')!,store});
@@ -115,12 +126,12 @@ describe('profile panel', () => {
 
     const topSelect = alchemy?.querySelector<HTMLSelectElement>('select[aria-label="煉金上衣"]');
     const topLevel = alchemy?.querySelector<HTMLInputElement>('input[aria-label="煉金上衣強化等級"]');
-    expect(topSelect?.value).toBe('/items/alchemist_robe_top');
+    expect(topSelect?.value).toBe('/items/alchemists_top');
     expect(topLevel?.value).toBe('7');
 
     const bottomSelect = alchemy?.querySelector<HTMLSelectElement>('select[aria-label="煉金下衣"]');
     const bottomLevel = alchemy?.querySelector<HTMLInputElement>('input[aria-label="煉金下衣強化等級"]');
-    expect(bottomSelect?.value).toBe('/items/alchemist_robe_bottoms');
+    expect(bottomSelect?.value).toBe('/items/alchemists_bottoms');
     expect(bottomLevel?.value).toBe('5');
 
     const houseLevel = alchemy?.querySelector<HTMLInputElement>('input[aria-label="實驗室等級"]');

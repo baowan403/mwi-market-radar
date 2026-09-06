@@ -369,9 +369,9 @@ export function importPlayerProfile(text: string, importedAt = Date.now()): Play
   }
   const data = record(parsed);
   if (!data) throw new ProfileImportError();
-  if (data.version === 1 && record(data.skills)) return importExporter(data, importedAt);
+  if (data.version === 1 && record(data.skills)) return repairLegacyAlchemyEquipment(importExporter(data, importedAt));
   if (record(data.actionConfigMap) && record(data.specialEquimentMap)) {
-    return importPreset(data, importedAt);
+    return repairLegacyAlchemyEquipment(importPreset(data, importedAt));
   }
   throw new ProfileImportError();
 }
@@ -384,6 +384,21 @@ export function repairLegacySpecialEquipment(input: unknown): Record<string, Pro
     delete equipment.hands;
   }
   return equipment;
+}
+
+export function repairLegacyAlchemyEquipment(profile: PlayerProfile): PlayerProfile {
+  const aliases:Record<string,string>={'/items/alchemist_robe_top':'/items/alchemists_top','/items/alchemist_robe_bottoms':'/items/alchemists_bottoms'};
+  const actions={...profile.actions};
+  for(const action of SKILLING_ACTIONS){
+    const current=actions[action];if(!current)continue;
+    for(const slot of ['body','legs'] as const){const eq=current[slot];if(eq&&aliases[eq.itemHrid])actions[action]={...actions[action],[slot]:{...eq,itemHrid:aliases[eq.itemHrid]}};}
+  }
+  const inventoryMap={...profile.inventoryMap},equipmentOwnership={...profile.equipmentOwnership};
+  for(const [oldId,newId] of Object.entries(aliases)){
+    if(inventoryMap[oldId]!==undefined){inventoryMap[newId]=Math.max(inventoryMap[newId]??-1,inventoryMap[oldId]!);delete inventoryMap[oldId];}
+    if(equipmentOwnership[oldId]){equipmentOwnership[newId]??=equipmentOwnership[oldId];delete equipmentOwnership[oldId];}
+  }
+  return {...profile,actions,inventoryMap,...(profile.equipmentOwnership?{equipmentOwnership}:{})};
 }
 
 export function validatePlayerProfile(input: unknown): PlayerProfile {
@@ -402,7 +417,7 @@ export function validatePlayerProfile(input: unknown): PlayerProfile {
 
   const specialEquipment = repairLegacySpecialEquipment(data.specialEquipment);
 
-  return {
+  return repairLegacyAlchemyEquipment({
     id: data.id,
     characterId: typeof data.characterId === 'number' ? data.characterId : null,
     name: data.name,
@@ -424,7 +439,7 @@ export function validatePlayerProfile(input: unknown): PlayerProfile {
     inventoryMap: equipmentInventoryRecord(data.inventoryMap),
     materialInventoryMap: {},
     seals: sealList(data.seals),
-  };
+  });
 }
 
 /**

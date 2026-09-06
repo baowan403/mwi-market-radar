@@ -52,15 +52,16 @@ describe('upgrade goal board',()=>{
     const row=(await run(p)).rows.find(x=>x.itemHrid==='/items/guzzling_pouch'&&x.enhancementLevel===5)!;
     expect(row.eligibility).toBe('unknown');expect(row.priority).toBe('門檻待確認');
   });
-  it('marks exactly-owned gear as a free equipment change, not a new purchase',async()=>{
+  it('excludes owned grades and lower grades instead of offering a duplicate purchase',async()=>{
     const p=profile();p.inventoryMap['/items/alchemists_top']=7;p.equipmentOwnership!['/items/alchemists_top']='owned';p.actions.alchemy.body=null;
-    const row=(await run(p)).rows.find(x=>x.itemHrid==='/items/alchemists_top'&&x.enhancementLevel===7)!;
-    expect(row.owned).toBe(true);expect(row.price).toBe(0);
+    const rows=(await run(p)).rows.filter(x=>x.itemHrid==='/items/alchemists_top');
+    expect(rows.some(x=>x.enhancementLevel<=7)).toBe(false);
+    expect(rows.some(x=>x.enhancementLevel===10)).toBe(true);
   });
   it('does not recommend buying a weaker grade when a better same-item grade is already owned',async()=>{
     const p=profile();p.inventoryMap['/items/celestial_alembic']=10;p.equipmentOwnership!['/items/celestial_alembic']='owned';
     const rows=(await run(p)).rows;
-    expect(rows.find(r=>r.itemHrid==='/items/celestial_alembic'&&r.enhancementLevel===5)?.priority).toBe('已有更高強化');
+    expect(rows.some(r=>r.itemHrid==='/items/celestial_alembic'&&r.enhancementLevel<=10)).toBe(false);
   });
   it('does not invent income uplift from speed when market capacity already limits sales',async()=>{
     const r=await run(profile(),1000);

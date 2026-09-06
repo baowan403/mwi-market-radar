@@ -97,6 +97,7 @@ export async function analyzeUpgradeTargets(options:{
     if(gate.eligibility==='unmet')continue;
     for(const enhancementLevel of GRADES){
       if(current?.itemHrid===itemHrid&&current.enhancementLevel===enhancementLevel)continue;
+      if(isItemOwnedByPlayer(itemHrid,base)&&(base.inventoryMap[itemHrid]??-1)>=enhancementLevel)continue;
       const owned=isItemOwnedByPlayer(itemHrid,base)&&base.inventoryMap[itemHrid]===enhancementLevel;
       const ask=prices.ask(itemHrid,enhancementLevel);
       rows.push({itemHrid,enhancementLevel,slot,owned,price:owned?0:ask!==null&&ask>0?ask:null,...gate,
