@@ -25,7 +25,7 @@ export type PrimaryOutputMode = 'market' | 'non-market' | 'derived';
 export interface LiquidityWarning {
   itemHrid: string;
   side: 'input' | 'output';
-  code: 'history-incomplete' | 'auxiliary-high-share' | 'secondary-history-incomplete';
+  code: 'history-incomplete' | 'auxiliary-high-share' | 'secondary-history-incomplete' | 'historical-capacity';
 }
 
 export interface RealizableStrategy {
@@ -377,11 +377,17 @@ export function evaluateRealizableStrategy(
     return current;
   }, null);
 
+  for (const item of constrained) {
+    if (!item.capacity.volume24hSufficient && item.capacity.safeUnitsPerDay !== null) {
+      warnings.push({ itemHrid: item.flow.itemHrid, side: item.side, code: 'historical-capacity' });
+    }
+  }
+
   let operationRatio: number | null;
   if (riskCode === 'market-unavailable' || riskCode === 'no-ask' || riskCode === 'no-bid') {
     operationRatio = 0;
-  } else if ((primaryCapacity && !primaryCapacity.volume24hSufficient)
-    || inputEvaluated.some((item) => !item.capacity.volume24hSufficient)) {
+  } else if ((primaryCapacity && primaryCapacity.safeUnitsPerDay === null)
+    || inputEvaluated.some((item) => item.capacity.safeUnitsPerDay === null)) {
     operationRatio = null;
   } else if (primaryOutputMode === 'market' && primaryHistoryMissing) {
     operationRatio = null;

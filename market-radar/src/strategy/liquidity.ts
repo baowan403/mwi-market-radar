@@ -215,7 +215,9 @@ export function marketCapacity(key: MarketKey, snapshots: readonly Snapshot[]): 
   // Capacity mode remains conservative, but the visible 24h share always uses
   // the direct rolling-24h volume above. This avoids one spike inflating a batch.
   const capacityBaselines: number[] = [];
-  if (rolling24h.sufficient && rolling24h.volume24h !== null) capacityBaselines.push(rolling24h.volume24h);
+  // Sparse recent observations can only tighten an established multi-day budget.
+  // They cannot create a budget on their own.
+  if ((rolling24h.sufficient || sufficient) && rolling24h.volume24h !== null) capacityBaselines.push(rolling24h.volume24h);
   if (sufficient && median3d !== null && median7d !== null) {
     capacityBaselines.push(median3d, median7d);
   }

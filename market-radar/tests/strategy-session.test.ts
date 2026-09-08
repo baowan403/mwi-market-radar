@@ -24,6 +24,24 @@ function session(c: StrategyCandidate, hours: number, history = snapshots) {
     profile, plannedHours: hours, latestSnapshotAgeMs: 0 });
 }
 describe('duration-aware strategy estimates', () => {
+  it('keeps funded rankings through a collection gap when multi-day capacity remains usable', () => {
+    const history = snapshots.filter(s => s.timestamp <= 154 * 3600000 || s.timestamp === 167 * 3600000);
+    const c = candidate();
+    const liquidity = evaluateRealizableStrategy(c, history);
+    expect(liquidity.outputVolumeCoverageHours).toBe(12);
+    // One further missed hour crosses the rolling threshold, not the historical evidence.
+    history.splice(history.findIndex(s => s.timestamp === 154 * 3600000), 1);
+    const result = session(c, 24, history);
+    expect(result.actionable).toBe(true);
+    expect(result.rankValue).toBeGreaterThan(0);
+    expect(result.executionHours).toBeLessThanOrEqual(12);
+    expect(evaluateRealizableStrategy(c, history).warnings).toContainEqual({
+      itemHrid: '/items/output', side: 'output', code: 'historical-capacity',
+    });
+  });
+  it('still withholds estimates when both recent and multi-day capacity are insufficient', () => {
+    expect(session(candidate(), 24, snapshots.slice(-11)).rankValue).toBeNull();
+  });
   it('supports half-hour sessions without shrinking the 24h sale budget', () => {
     const value = session(candidate(), 0.5);
     expect(value.plannedHours).toBe(0.5);

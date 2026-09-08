@@ -766,6 +766,11 @@ function renderResults(
   const baseAssessed = result.candidates
     .filter((candidate) => candidate.profitPerDay > 0)
     .map((candidate) => ({ candidate, liquidity: evaluateRealizableStrategy(candidate, snapshots, capacityFor) }));
+  if (baseAssessed.some(({ liquidity }) => liquidity.warnings?.some(w => w.code === 'historical-capacity'))) {
+    const notice = element('p', 'strategy-warning');
+    notice.textContent = '近期成交量採樣有缺口；部分收益沿用3日／7日保守容量，產量佔比仍為近期估算。備料前請確認行情。';
+    header.append(notice);
+  }
   const dailyAssessed: AssessedStrategy[] = baseAssessed.map(({candidate,liquidity})=>({candidate,liquidity,
     decision:estimateStrategySession({candidate,liquidity,profile,plannedHours:24,latestSnapshotAgeMs})}));
   const dailyProfit24h = Math.max(0,...dailyAssessed.map(item=>item.decision.rankValue??0));
