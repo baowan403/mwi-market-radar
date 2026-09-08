@@ -1,6 +1,6 @@
 import {analyzeUpgradeTargets,type UpgradeAnalysis,type UpgradeProgress} from './upgrades';
 type Options=Parameters<typeof analyzeUpgradeTargets>[0];
-export type UpgradeWorkerRequest=Pick<Options,'profile'|'data'|'snapshots'|'action'|'hoursPerDay'|'now'>;
+export type UpgradeWorkerRequest=Pick<Options,'profile'|'data'|'snapshots'|'action'|'hoursPerDay'|'now'|'objective'|'topN'|'precision'>;
 export type UpgradeWorkerReply={type:'progress';progress:UpgradeProgress}|{type:'result';result:UpgradeAnalysis}|{type:'error'};
 interface WorkerPort {
   postMessage(value:UpgradeWorkerRequest):void; terminate():void;
@@ -28,7 +28,7 @@ export function runUpgradeAnalysis(options:Options,createWorker?:()=>WorkerPort)
       else finish(new Error('升級分析失敗'));
     };
     worker.onerror=()=>finish(new Error('背景升級分析失敗'));
-    try{worker.postMessage({profile:options.profile,data:options.data,snapshots:options.snapshots,action:options.action,hoursPerDay:options.hoursPerDay,now:options.now});}
+    try{worker.postMessage({profile:options.profile,data:options.data,snapshots:options.snapshots,action:options.action,hoursPerDay:options.hoursPerDay,now:options.now,objective:options.objective,topN:options.topN,precision:options.precision});}
     catch(error){finish(error);}
   });
 }

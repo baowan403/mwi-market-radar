@@ -6,6 +6,7 @@ import {
   analyzeUpgradeTargets,
   type UpgradeAnalysis,
   type UpgradeRow,
+  type UpgradeObjective,
 } from './upgrades';
 import {runUpgradeAnalysis} from './upgrade-runner';
 
@@ -81,16 +82,17 @@ function rowKey(row: UpgradeRow): string {
   return `${row.itemHrid}::${row.enhancementLevel}`;
 }
 
-function efficiency(row: UpgradeRow): number | null {
+function efficiency(row: UpgradeRow, objective:UpgradeObjective='profit'): number | null {
+  const gain=objective==='experience'?row.xpDelta:row.delta;
   if(row.priority==='已有更高強化'||row.eligibility!=='met')return null;
-  if (row.price === null || row.price <= 0 || row.delta === null || row.delta <= 0) return null;
-  const value = row.delta / row.price;
+  if (row.price === null || row.price <= 0 || gain === null || gain === undefined || gain <= 0) return null;
+  const value = gain / row.price;
   return Number.isFinite(value) ? value : null;
 }
 
-function sortRows(rows: readonly UpgradeRow[], sort: UpgradeSort): UpgradeRow[] {
+function sortRows(rows: readonly UpgradeRow[], sort: UpgradeSort, objective:UpgradeObjective='profit'): UpgradeRow[] {
   return rows
-    .map((row, index) => ({ row, index, value: sort === 'gain' ? row.delta : efficiency(row) }))
+    .map((row, index) => ({ row, index, value: sort === 'gain' ? (objective==='experience'?row.xpDelta??null:row.delta) : efficiency(row,objective) }))
     .sort((left, right) => {
       if(sort==='efficiency'){
         const lf=left.row.owned&&left.row.eligibility==='met'&&(left.row.delta??0)>0,rf=right.row.owned&&right.row.eligibility==='met'&&(right.row.delta??0)>0;
@@ -115,7 +117,7 @@ function routeLabel(route: readonly string[] | undefined, itemName: (hrid: strin
   return route && route.length > 0 ? route.map(itemName).join(' → ') : '—';
 }
 
-function renderDetail(row: UpgradeRow, options: UpgradePanelOptions): HTMLTableRowElement {
+function renderDetail(row: UpgradeRow, options: UpgradePanelOptions, objective:UpgradeObjective='profit', precision:'quick'|'verify'='quick'): HTMLTableRowElement {
   const detailRow = element('tr', 'upgrade-detail-row');
   detailRow.dataset.upgradeDetailFor = rowKey(row);
   const cell = element('td');
@@ -128,7 +130,7 @@ function renderDetail(row: UpgradeRow, options: UpgradePanelOptions): HTMLTableR
 
   const content = element('div', 'upgrade-detail-content');
   const route = element('p');
-  route.textContent = `最佳路線：${routeLabel(row.after?.route, options.itemName)}`;
+  route.textContent = precision==='verify'?`最佳路線：${routeLabel(row.after?.route, options.itemName)}`:`參考項目：${row.after?.route.map(options.itemName).join('、')??'—'}`;
   content.append(route);
 
   const requirements = element('p');
@@ -148,8 +150,9 @@ function renderDetail(row: UpgradeRow, options: UpgradePanelOptions): HTMLTableR
     preview.textContent = '換裝後收益預覽：資格或報價尚未確認，暫不視為可執行收益。';
   }
   content.append(preview);
+  if(objective==='experience'){const xp=element('p');xp.textContent=`換裝後經驗：${money(row.after?.xpPerHour)} XP/h；經驗增益：${signedMoney(row.xpDelta??null)} XP/h。`;content.append(xp);}
 
-  if (row.marginal) {
+  if (row.marginal && objective==='profit') {
     const marginal = element('p');
     marginal.textContent = `相鄰比較：+${row.marginal.lowerEnhancement} → +${row.enhancementLevel}；` +
       `增額成本 ${money(row.marginal.extraCost)}；增額收益 ${signedMoney(row.marginal.extraGain)}；` +
@@ -166,7 +169,7 @@ function renderDetail(row: UpgradeRow, options: UpgradePanelOptions): HTMLTableR
   return detailRow;
 }
 
-function renderRow(row: UpgradeRow, options: UpgradePanelOptions): HTMLTableRowElement {
+function renderRow(row: UpgradeRow, options: UpgradePanelOptions, objective:UpgradeObjective='profit'): HTMLTableRowElement {
   const tableRow = element('tr');
   tableRow.dataset.upgradeRow = rowKey(row);
   tableRow.dataset.upgradeEligibility = row.eligibility;
@@ -193,18 +196,20 @@ function renderRow(row: UpgradeRow, options: UpgradePanelOptions): HTMLTableRowE
   tableRow.append(saving);
 
   const delta = element('td', 'upgrade-delta');
-  delta.textContent = signedMoney(row.delta);
+  const gain=objective==='experience'?row.xpDelta??null:row.delta;
+  delta.textContent = signedMoney(gain);
   if(row.eligibility==='unknown'&&row.delta!==null)delta.textContent+='*';
-  delta.dataset.sign=(row.delta??0)>0?'positive':(row.delta??0)<0?'negative':'neutral';
+  delta.dataset.sign=(gain??0)>0?'positive':(gain??0)<0?'negative':'neutral';
   tableRow.append(delta);
 
   const after = element('td', 'upgrade-after');
-  after.textContent = row.after === null ? '—' : money(row.after.profit);
+  after.textContent = row.after === null ? '—' : money(objective==='experience'?row.after.xpPerHour:row.after.profit);
   if(row.eligibility==='unknown'&&row.after!==null)after.textContent+='*';
   tableRow.append(after);
 
   const payback = element('td', 'upgrade-payback');
   payback.textContent = row.owned ? '已持有' : row.price === null ? '—' : days(row.paybackDays);
+  if(objective==='experience')payback.textContent=row.price!==null&&row.price>0&&gain!==null&&gain>0?money(gain/row.price*1000000):'—';
   tableRow.append(payback);
 
   const priority = element('td', 'upgrade-priority');
@@ -244,6 +249,17 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
   }
   skillLabel.append(skillSelect);
   controls.append(skillLabel);
+
+  let objective:UpgradeObjective='profit';
+  const objectiveLabel=element('label');objectiveLabel.textContent='目標';
+  const objectiveSelect=element('select');objectiveSelect.dataset.upgradeObjective='true';
+  for(const [value,label] of [['profit','賺錢'],['experience','衝等']] as const){const o=element('option');o.value=value;o.textContent=label;objectiveSelect.append(o);}
+  objectiveLabel.append(objectiveSelect);controls.append(objectiveLabel);
+  let topN=3;
+  const topLabel=element('label');topLabel.textContent='參考項目';
+  const topSelect=element('select');topSelect.dataset.upgradeTopN='true';
+  for(const n of [1,3,5]){const o=element('option');o.value=String(n);o.textContent=String(n);o.selected=n===3;topSelect.append(o);}
+  topLabel.append(topSelect);controls.append(topLabel);
 
   let hoursPerDay = 24;
   let customDuration = false;
@@ -291,6 +307,13 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
   analyzeButton.textContent = '分析升級目標';
   analyzeButton.dataset.upgradeAnalyze = 'true';
   controls.append(analyzeButton);
+  const verifyButton=element('button','toolbar-button');verifyButton.type='button';verifyButton.textContent='精算前6項';verifyButton.dataset.upgradeVerify='true';verifyButton.disabled=true;controls.append(verifyButton);
+  let showAll=false,showPending=false;
+  const allLabel=element('label'),pendingLabel=element('label');
+  const allCheck=element('input'),pendingCheck=element('input');allCheck.type='checkbox';pendingCheck.type='checkbox';
+  allCheck.dataset.upgradeAll='true';pendingCheck.dataset.upgradePending='true';
+  allLabel.append(allCheck,document.createTextNode('全部候選'));pendingLabel.append(pendingCheck,document.createTextNode('待確認'));
+  controls.append(allLabel,pendingLabel);
   section.append(controls);
 
   const progress = element('progress', 'upgrade-progress');
@@ -319,6 +342,7 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
       progress.hidden = true;
     }
     currentAnalysis = null;
+    verifyButton.disabled=true;
     content.replaceChildren();
     status.textContent = '條件已變更，請重新分析升級目標。';
   };
@@ -331,7 +355,7 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
 
     const baseline = element('p', 'upgrade-baseline');
     baseline.textContent = analysis.baseline
-      ? `目前基準：${routeLabel(analysis.baseline.route, options.itemName)} · 每日模型收益 ${money(analysis.baseline.profit)}（理論值 ${money(analysis.baseline.theoreticalProfit)}）`
+      ? `${analysis.precision==='verify'?'精算基準':'參考均值'}：${analysis.precision==='verify'?routeLabel(analysis.baseline.route, options.itemName):analysis.baseline.route.map(options.itemName).join('、')} · ${objective==='experience'?`${money(analysis.baseline.xpPerHour)} XP/h`:`每日預估收益 ${money(analysis.baseline.profit)}`}`
       : '目前沒有可用的基準收益，保留候選供確認。';
     content.append(baseline);
 
@@ -353,15 +377,23 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
     table.append(columns);
     const head = element('thead');
     const headerRow = element('tr');
-    for (const label of ['裝備', '部位', '價格', '存錢天數', '每日增益', '換裝後收益', '回本天數', '優先級', '備註']) {
+    for (const label of ['裝備', '部位', '價格', '存錢天數', objective==='experience'?'經驗增益/h':'每日增益', objective==='experience'?'換裝後經驗/h':'換裝後收益', objective==='experience'?'每1M經驗增益/h':'回本天數', '優先級', '備註']) {
       const cell = element('th');
       cell.textContent = label;
       headerRow.append(cell);
     }
     head.append(headerRow);
     const body = element('tbody');
-    for (const row of sortRows(analysis.rows, sortMode)) {
-      const main=renderRow(row,options),detail=renderDetail(row,options);
+    const ready=analysis.rows.filter(r=>r.eligibility==='met'&&r.price!==null&&r.after!==null);
+    let shown=ready;
+    if(!showAll){
+      const leaders=new Set<UpgradeRow>();
+      for(const slot of new Set(ready.map(r=>r.slot))){const group=ready.filter(r=>r.slot===slot);for(const mode of ['gain','efficiency'] as const){const first=sortRows(group,mode,objective)[0];if(first)leaders.add(first);}}
+      shown=[...leaders];
+    }
+    if(showPending)shown=shown.concat(analysis.rows.filter(r=>!ready.includes(r)));
+    for (const row of sortRows(shown, sortMode,objective)) {
+      const main=renderRow(row,options,objective),detail=renderDetail(row,options,objective,analysis.precision??'quick');
       detail.hidden=true;main.tabIndex=0;main.setAttribute('aria-expanded','false');
       main.title='點擊查看比較明細';
       const toggle=()=>{detail.hidden=!detail.hidden;main.setAttribute('aria-expanded',String(!detail.hidden));detail.querySelector('details')!.open=!detail.hidden;};
@@ -373,7 +405,7 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
     const tableScroll = element('div', 'upgrade-table-scroll');
     tableScroll.append(table);
     content.append(tableScroll);
-    status.textContent = `已完成：${SKILL_LABELS[analysis.action as UpgradeSkill] ?? analysis.action}、${analysis.hoursPerDay}H；比較 ${analysis.testedVariants} 項，顯示 ${analysis.rows.length} 項。已排除確定不能穿及零／負提升。`;
+    status.textContent = `${analysis.precision==='verify'?'精算完成':'快速比較完成'}：比較 ${analysis.testedVariants} 項，顯示 ${shown.length} 項${showAll?'':'（各部位最佳）'}。`;
   };
 
   skillSelect.addEventListener('change', () => {
@@ -403,8 +435,12 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
     sortMode = sortSelect.value as UpgradeSort;
     if (currentAnalysis) renderAnalysis(currentAnalysis);
   });
+  objectiveSelect.addEventListener('change',()=>{objective=objectiveSelect.value as UpgradeObjective;markStale();});
+  topSelect.addEventListener('change',()=>{topN=Number(topSelect.value);markStale();});
+  allCheck.addEventListener('change',()=>{showAll=allCheck.checked;if(currentAnalysis)renderAnalysis(currentAnalysis);});
+  pendingCheck.addEventListener('change',()=>{showPending=pendingCheck.checked;if(currentAnalysis)renderAnalysis(currentAnalysis);});
 
-  analyzeButton.addEventListener('click', () => {
+  const startAnalysis=(precision:'quick'|'verify') => {
     if (running) {
       running.controller.abort();
       status.textContent = '正在取消升級分析…';
@@ -418,8 +454,8 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
     const id = ++revision;
     const controller = new AbortController();
     running = { id, controller };
-    currentAnalysis = null;
-    content.replaceChildren();
+    if(precision==='quick'){currentAnalysis = null;content.replaceChildren();}
+    verifyButton.disabled=true;
     const onParentAbort = (): void => controller.abort();
     if (options.signal?.aborted) controller.abort();
     else options.signal?.addEventListener('abort', onParentAbort, { once: true });
@@ -437,6 +473,7 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
           snapshots: options.snapshots,
           action: selectedSkill,
           hoursPerDay,
+          objective,topN,precision,
           onProgress: ({ done, total }) => {
             if (running?.id !== id) return;
             progress.max = Math.max(1, total);
@@ -465,10 +502,13 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
           running = null;
           analyzeButton.textContent = '分析升級目標';
           progress.hidden = true;
+          verifyButton.disabled=currentAnalysis===null;
         }
       }
     })();
-  });
+  };
+  analyzeButton.addEventListener('click',()=>startAnalysis('quick'));
+  verifyButton.addEventListener('click',()=>startAnalysis('verify'));
 
   return { element: section };
 }

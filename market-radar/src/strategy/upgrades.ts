@@ -8,20 +8,24 @@ import { createStrategyPriceBook } from './price-book';
 import { evaluateRealizableStrategy } from './realizable';
 import { estimateStrategySession } from './session';
 import { createMarketCapacityLookup } from './liquidity';
+import { candidateExperience, recalculateUpgradeReference } from './upgrade-evaluation';
+import type { StrategyCandidate } from './candidates';
 
-export interface UpgradeEvaluation { profit:number; route:string[]; theoreticalProfit:number }
+export type UpgradeObjective='profit'|'experience';
+export interface UpgradeEvaluation { profit:number; route:string[]; theoreticalProfit:number; xpPerHour?:number }
 export interface UpgradeRow {
   itemHrid:string; enhancementLevel:number; slot:string; price:number|null; owned:boolean;
   eligibility:'met'|'unmet'|'unknown'; requirements:string[];
   after:UpgradeEvaluation|null; delta:number|null; paybackDays:number|null; priority:string;
+  xpDelta?:number|null;
   marginal?:{lowerEnhancement:number;extraCost:number|null;extraGain:number|null;paybackDays:number|null};
 }
 export interface UpgradeAnalysis {
   action:SkillingAction; hoursPerDay:number; baseline:UpgradeEvaluation|null;
   rows:UpgradeRow[]; testedVariants:number; warnings:string[];
+  objective?:UpgradeObjective; precision?:'quick'|'verify'; referenceCount?:number;
 }
 export interface UpgradeProgress {done:number;total:number}
-const GRADES=[0,5,7,10];
 const ACTION_SLOTS=new Set(['tool','body','legs','back','charm']);
 const SPECIAL_SLOTS=new Set(['head','hands','feet','off_hand','pouch','neck','ring','earrings','trinket']);
 const NAMES:Record<string,string>={alchemy:'煉金',crafting:'製作',cheesesmithing:'鍛造',tailoring:'裁縫',cooking:'烹飪',brewing:'沖泡',
@@ -65,12 +69,15 @@ function requirementState(profile:PlayerProfile,raw:unknown,currentSameItem:bool
 export async function analyzeUpgradeTargets(options:{
   profile:PlayerProfile;data:NormalizedStrategyGameData;snapshots:readonly Snapshot[];action:SkillingAction;
   hoursPerDay:number;onProgress?:(progress:UpgradeProgress)=>void;signal?:AbortSignal;now?:number;
+  objective?:UpgradeObjective; topN?:number; precision?:'quick'|'verify';
   calculate?:typeof buildStrategyCandidates;
 }):Promise<UpgradeAnalysis> {
   const cancelled=()=>{if(options.signal?.aborted)throw new DOMException('已取消','AbortError');};
   cancelled();
   if(options.action==='enhancing')throw new Error('本版不含強化投資');
   const {data,action}=options;
+  const objective=options.objective??'profit',precision=options.precision??'quick';
+  const topN=Math.max(1,Math.min(5,Math.round(options.topN??3)));
   const hoursPerDay=Number.isFinite(options.hoursPerDay)?Math.max(.5,Math.min(24,options.hoursPerDay)):24;
   const now=options.now??Date.now();
   const snapshots=[...new Map(options.snapshots.filter(s=>s.timestamp<=now).map(s=>[s.timestamp,s])).values()].sort((a,b)=>a.timestamp-b.timestamp);
@@ -78,12 +85,19 @@ export async function analyzeUpgradeTargets(options:{
   const prices=createStrategyPriceBook(latest??{timestamp:0,quotes:{}},data);
   const base=structuredClone(enrichProfileWithBestLoadout(options.profile,data));
   base.loadoutMode='manual'; // Freeze all other equipment; never mutate real profile/ownership.
-  const warnings=['比較單件換裝，不可把各列增益相加；購買後應重新評估。','只比較所選技能及同技能多步；未計跨技能流程、練級收益或舊裝轉售。'];
-  warnings.push('升級比較暫不納入新增深度組合搜尋。');
+  const warnings=['比較單件換裝；各列增益不可相加，未計舊裝轉售。'];
+  warnings.push(precision==='quick'?'快速比較固定參考路線的平均增益；精算才重新搜尋路線。':'精算初選前6項，含涉及所選技能的跨技能組合。');
+  if(objective==='experience')warnings.push('以高收益路線比較經驗；XP/h依所選時數與市場容量估算，沿用目前配茶政策。');
   warnings.push(base.teaMode==='manual'||base.actions[action].teaMode==='manual'?'兩邊皆使用快照指定的茶飲。':'兩邊皆依同一自動配茶政策重算。');
   if(latest)warnings.push(`行情時間：${new Date(latest.timestamp).toLocaleString()}`);
   if(!fresh)warnings.push('市場行情不足或超過3H，收益比較暫停；裝備目標仍保留。');
   const rows:UpgradeRow[]=[];
+  const quotedGrades=new Map<string,number[]>();
+  for(const [key,quote] of Object.entries(latest?.quotes??{})){
+    const at=key.lastIndexOf('::'),grade=Number(key.slice(at+2));
+    if(at<0||!Number.isInteger(grade)||grade<0||data.enhancementLevelTotalBonusMultiplierTable[grade]===undefined||!(quote.a!==null&&quote.a>0))continue;
+    const hrid=key.slice(0,at),grades=quotedGrades.get(hrid)??[];grades.push(grade);quotedGrades.set(hrid,grades);
+  }
   for(const [itemHrid,item] of data.itemsByHrid){
     const detail=item.equipmentDetail;if(!detail||item.isTradable!==true)continue;
     const rawType=String(detail.type??'').replace('/equipment_types/','');
@@ -95,8 +109,8 @@ export async function analyzeUpgradeTargets(options:{
     const current=equipmentAt(base,action,slot);
     const gate=requirementState(base,detail.levelRequirements,current?.itemHrid===itemHrid);
     if(gate.eligibility==='unmet')continue;
-    for(const enhancementLevel of GRADES){
-      if(current?.itemHrid===itemHrid&&current.enhancementLevel===enhancementLevel)continue;
+    for(const enhancementLevel of [...new Set([0,...(quotedGrades.get(itemHrid)??[])])].sort((a,b)=>a-b)){
+      if(current?.itemHrid===itemHrid&&current.enhancementLevel>=enhancementLevel)continue;
       if(isItemOwnedByPlayer(itemHrid,base)&&(base.inventoryMap[itemHrid]??-1)>=enhancementLevel)continue;
       const owned=isItemOwnedByPlayer(itemHrid,base)&&base.inventoryMap[itemHrid]===enhancementLevel;
       const ask=prices.ask(itemHrid,enhancementLevel);
@@ -106,48 +120,77 @@ export async function analyzeUpgradeTargets(options:{
   }
   const cache=new Map<string,UpgradeEvaluation|null>();
   const capacityFor=createMarketCapacityLookup(snapshots);
-  // Experience does not enter current profit. Keep concentration in the key:
-  // identical equipped-tea buffs alone must not conflate different auto-tea effects.
-  const signatureFor=(profile:PlayerProfile)=>JSON.stringify({...actionBuffs(profile,action,data),Experience:0});
-  const evaluate=(profile:PlayerProfile):UpgradeEvaluation|null=>{
-    if(!fresh)return null;
-    const signature=signatureFor(profile);
-    if(cache.has(signature))return cache.get(signature)!;
-    const candidates=(options.calculate??buildStrategyCandidates)({profile,data,prices,actions:[action],includeCombinations:false}).candidates;
-    let best:UpgradeEvaluation|null=null,hasComparable=false;
-    for(const candidate of candidates){
+  const scan=options.calculate??buildStrategyCandidates;
+  const blocked=['market-unavailable','no-ask','no-bid','price-anomaly','insufficient-primary-data','insufficient-input-data'];
+  const measure=(candidate:StrategyCandidate,profile:PlayerProfile):UpgradeEvaluation|null=>{
       const liquidity=evaluateRealizableStrategy(candidate,snapshots,capacityFor);
       const session=estimateStrategySession({candidate,liquidity,profile,plannedHours:hoursPerDay,latestSnapshotAgeMs:now-latest!.timestamp});
-      if(liquidity.safeHoursPerDay!==null&&liquidity.safeHoursPerDay>0&&!['market-unavailable','no-ask','no-bid','price-anomaly','insufficient-primary-data','insufficient-input-data'].includes(liquidity.riskCode))hasComparable=true;
-      if(session.rankValue!==null&&(!best||session.rankValue>best.profit))best={profit:session.rankValue,route:[...candidate.path],theoreticalProfit:candidate.profitPerHour*hoursPerDay};
-    }
-    if(!best&&hasComparable)best={profit:0,route:[],theoreticalProfit:0};
-    cache.set(signature,best);return best;
+      if(blocked.includes(liquidity.riskCode)||session.executionHours<=0)return null;
+      return {profit:session.batchProfit??0,route:[...candidate.path],theoreticalProfit:candidate.profitPerHour*hoursPerDay,xpPerHour:candidateExperience(candidate,action)*session.executionHours/hoursPerDay};
   };
-  const baseline=evaluate(base);
+  const score=(v:UpgradeEvaluation)=>objective==='experience'?(v.xpPerHour??0):v.profit;
+  const references:StrategyCandidate[]=[];
+  if(fresh){
+    const source=scan({profile:base,data,prices,actions:[action],includeCombinations:false}).candidates;
+    const seen=new Set<string>();
+    const ordered=source.map(c=>({c,value:measure(c,base)})).filter(r=>r.value!==null&&r.value.profit>0).sort((a,b)=>b.value!.profit-a.value!.profit);
+    for(const {c} of ordered){const key=c.path.join('|');if(seen.has(key))continue;seen.add(key);references.push(c);if(references.length===topN)break;}
+  }
+  const average=(values:UpgradeEvaluation[]):UpgradeEvaluation|null=>values.length?{
+    profit:values.reduce((s,v)=>s+v.profit,0)/values.length,theoreticalProfit:values.reduce((s,v)=>s+v.theoreticalProfit,0)/values.length,
+    xpPerHour:values.reduce((s,v)=>s+(v.xpPerHour??0),0)/values.length,route:references.map(c=>c.path.at(-1)??c.title),
+  }:null;
+  let baseline=average(references.map(c=>measure(c,base)!));
+  const quick=(profile:PlayerProfile):UpgradeEvaluation|null=>{
+    const signature=JSON.stringify(actionBuffs(profile,action,data));
+    if(cache.has(signature))return cache.get(signature)!;
+    const custom=options.calculate?scan({profile,data,prices,actions:[action],includeCombinations:false}).candidates:null;
+    const values:UpgradeEvaluation[]=[];
+    for(const ref of references){
+      const c=custom?custom.find(c=>c.id===ref.id):recalculateUpgradeReference(ref,profile,data,prices);
+      const value=c?measure(c,profile):null;if(!value){cache.set(signature,null);return null;}values.push(value);
+    }
+    const value=average(values);cache.set(signature,value);return value;
+  };
+  const assign=(row:UpgradeRow,value:UpgradeEvaluation|null)=>{
+    row.after=value;row.delta=value&&baseline?value.profit-baseline.profit:null;
+    row.xpDelta=value&&baseline?(value.xpPerHour??0)-(baseline.xpPerHour??0):null;
+    if(row.delta!==null&&Math.abs(row.delta)<1e-6)row.delta=0;
+    row.paybackDays=row.delta!==null&&row.delta>0&&row.price!==null?row.price/row.delta:null;
+  };
+  const scenarioFor=(row:UpgradeRow)=>{const p=structuredClone(base);putEquipment(p,action,row.slot,{itemHrid:row.itemHrid,enhancementLevel:row.enhancementLevel});return p;};
   let lastYield=performance.now();
   for(let i=0;i<rows.length;i++){
     cancelled();const row=rows[i]!;
-    if(row.eligibility!=='unmet'&&baseline!==null){
-      const scenario=structuredClone(base);
-      putEquipment(scenario,action,row.slot,{itemHrid:row.itemHrid,enhancementLevel:row.enhancementLevel});
-      row.after=evaluate(scenario);
-      if(row.after){row.delta=row.after.profit-baseline.profit;if(Math.abs(row.delta)<1e-6)row.delta=0;}
-      if(row.delta!==null&&row.delta>0&&row.price!==null)row.paybackDays=row.price/row.delta;
-    }
+    if(row.eligibility==='met'&&row.price!==null&&baseline!==null)assign(row,quick(scenarioFor(row)));
     options.onProgress?.({done:i+1,total:rows.length});
     // Yield by time, not for each cheap/cache-hit target (Windows timer floor).
     if(performance.now()-lastYield>40){await new Promise(resolve=>setTimeout(resolve,0));lastYield=performance.now();}
   }
   cancelled();
+  const metric=(r:UpgradeRow)=>objective==='experience'?(r.xpDelta??0):(r.delta??0);
+  if(precision==='verify'&&baseline){
+    const eligible=rows.filter(r=>r.eligibility==='met'&&r.price!==null&&metric(r)>0);
+    const byGain=[...eligible].sort((a,b)=>metric(b)-metric(a));
+    const byEfficiency=[...eligible].sort((a,b)=>metric(b)/b.price!-metric(a)/a.price!);
+    const selected=[...new Set([...byGain.slice(0,3),...byEfficiency.slice(0,3)])].slice(0,6);
+    const full=(profile:PlayerProfile):UpgradeEvaluation|null=>{
+      const candidates=scan({profile,data,prices}).candidates.filter(c=>c.steps.some(s=>s.action===action));
+      let best:UpgradeEvaluation|null=null;
+      for(const c of candidates){const value=measure(c,profile);if(value&&value.profit>0&&(!best||score(value)>score(best)))best=value;}
+      return best;
+    };
+    baseline=full(base);
+    for(let i=0;i<selected.length;i++){cancelled();assign(selected[i]!,full(scenarioFor(selected[i]!)));options.onProgress?.({done:i+1,total:selected.length});await new Promise(r=>setTimeout(r,0));}
+    rows.splice(0,rows.length,...selected);
+  }
   const higherOwned=(row:UpgradeRow)=>isItemOwnedByPlayer(row.itemHrid,base)&&(base.inventoryMap[row.itemHrid]??-1)>row.enhancementLevel;
-  const comparable=rows.filter(r=>r.eligibility==='met'&&r.price!==null&&(r.delta??0)>0&&!higherOwned(r));
-  const largest=Math.max(0,...comparable.map(r=>r.delta!));
-  const fastest=Math.min(Infinity,...comparable.filter(r=>!r.owned).map(r=>r.paybackDays!));
+  const comparable=rows.filter(r=>r.eligibility==='met'&&r.price!==null&&metric(r)>0&&!higherOwned(r));
+  const largest=Math.max(0,...comparable.map(metric));
+  const fastest=Math.min(Infinity,...comparable.filter(r=>!r.owned).map(r=>r.price!/metric(r)));
   for(const row of rows){
-    row.priority=row.eligibility==='unmet'?'需達標':row.eligibility==='unknown'?'門檻待確認':row.delta===null?'行情待確認'
-      :higherOwned(row)?'已有更高強化':row.delta<=0?'無提升':row.owned?'已持有，可換上':row.price===null?'待報價'
-      :row.delta>=largest-.000001?'提升優先':row.paybackDays===fastest?'效率優先':'可考慮';
+    row.priority=row.eligibility==='unmet'?'需達標':row.eligibility==='unknown'?'門檻待確認':row.price===null?'待報價':row.delta===null?'行情待確認'
+      :metric(row)<=0?'無提升':metric(row)>=largest-.000001?'提升優先':row.price!/metric(row)===fastest?'效率優先':'可考慮';
     const lower=rows.filter(r=>r.itemHrid===row.itemHrid&&r.enhancementLevel<row.enhancementLevel).sort((a,b)=>b.enhancementLevel-a.enhancementLevel)[0];
     if(lower){
       const extraCost=row.price!==null&&lower.price!==null&&!row.owned&&!lower.owned?row.price-lower.price:null;
@@ -155,7 +198,7 @@ export async function analyzeUpgradeTargets(options:{
       row.marginal={lowerEnhancement:lower.enhancementLevel,extraCost,extraGain,paybackDays:extraCost!==null&&extraCost>=0&&extraGain!==null&&extraGain>0?extraCost/extraGain:null};
     }
   }
-  const positiveRows=rows.filter(row=>row.delta===null||row.delta>0);
-  positiveRows.sort((a,b)=>(b.delta??-Infinity)-(a.delta??-Infinity)||(a.price??Infinity)-(b.price??Infinity)||a.itemHrid.localeCompare(b.itemHrid)||a.enhancementLevel-b.enhancementLevel);
-  return {action,hoursPerDay,baseline,rows:positiveRows,testedVariants:rows.length,warnings};
+  const positiveRows=rows.filter(row=>row.delta===null||metric(row)>0);
+  positiveRows.sort((a,b)=>metric(b)-metric(a)||(a.price??Infinity)-(b.price??Infinity)||a.itemHrid.localeCompare(b.itemHrid)||a.enhancementLevel-b.enhancementLevel);
+  return {action,hoursPerDay,baseline,rows:positiveRows,testedVariants:rows.length,warnings,objective,precision,referenceCount:references.length};
 }

@@ -58,8 +58,12 @@ function analysis(): UpgradeAnalysis {
 }
 
 describe('upgrade target panel', () => {
+  function showEverything(panel:ReturnType<typeof createUpgradePanel>){
+    for(const selector of ['[data-upgrade-all]','[data-upgrade-pending]']){const c=panel.element.querySelector<HTMLInputElement>(selector)!;c.checked=true;c.dispatchEvent(new Event('change'));}
+  }
   it('uses concise columns and global 24h income for saving days without a wallet',async()=>{
     const panel=createUpgradePanel({profile,data,snapshots,itemName:h=>h,dailyProfit24h:50,analyze:vi.fn(async()=>analysis())});
+    showEverything(panel);
     (panel.element.querySelector('[data-upgrade-analyze]') as HTMLButtonElement).click();
     await vi.waitFor(()=>expect(panel.element.querySelectorAll('[data-upgrade-row]')).toHaveLength(3));
     expect([...panel.element.querySelectorAll('th')].map(e=>e.textContent)).toEqual(['裝備','部位','價格','存錢天數','每日增益','換裝後收益','回本天數','優先級','備註']);
@@ -73,6 +77,7 @@ describe('upgrade target panel', () => {
     const result=analysis();result.rows[1]!.priority='已有更高強化';
     result.rows.push({...result.rows[1]!,itemHrid:'/items/useful',delta:30,priority:'可考慮'});
     const panel=createUpgradePanel({profile,data,snapshots,itemName:h=>h,analyze:vi.fn(async()=>result) as never});
+    showEverything(panel);
     (panel.element.querySelector('[data-upgrade-analyze]') as HTMLButtonElement).click();
     await vi.waitFor(()=>expect(panel.element.querySelectorAll('[data-upgrade-row]')).toHaveLength(4));
     const sort=panel.element.querySelector<HTMLSelectElement>('[data-upgrade-sort]')!;sort.value='efficiency';sort.dispatchEvent(new Event('change'));
@@ -104,6 +109,7 @@ describe('upgrade target panel', () => {
       analyze: analyze as never,
     });
     const button = panel.element.querySelector<HTMLButtonElement>('[data-upgrade-analyze]')!;
+    showEverything(panel);
     expect(analyze).not.toHaveBeenCalled();
     button.click();
     await vi.waitFor(() => expect(analyze).toHaveBeenCalledOnce());
@@ -152,5 +158,19 @@ describe('upgrade target panel', () => {
     button.click();
     await vi.waitFor(() => expect(analyze).toHaveBeenCalledTimes(2));
     expect(analyze.mock.calls[1]![0]).toMatchObject({ action: 'alchemy', hoursPerDay: 3.5 });
+  });
+  it('separates XP units from money and offers explicit shortlist verification',async()=>{
+    const result=analysis();result.rows[1]!.xpDelta=50;result.rows[1]!.after!.xpPerHour=150;
+    const analyze=vi.fn(async(_options:unknown)=>result);
+    const panel=createUpgradePanel({profile,data,snapshots,itemName:h=>h,analyze});
+    const objective=panel.element.querySelector<HTMLSelectElement>('[data-upgrade-objective]')!;
+    objective.value='experience';objective.dispatchEvent(new Event('change'));
+    (panel.element.querySelector('[data-upgrade-analyze]') as HTMLButtonElement).click();
+    await vi.waitFor(()=>expect(panel.element.querySelector('thead')?.textContent).toContain('經驗增益/h'));
+    expect(panel.element.querySelector('thead')?.textContent).not.toContain('回本天數');
+    expect(analyze.mock.calls[0]?.[0]).toMatchObject({objective:'experience',precision:'quick',topN:3});
+    (panel.element.querySelector('[data-upgrade-verify]') as HTMLButtonElement).click();
+    await vi.waitFor(()=>expect(analyze).toHaveBeenCalledTimes(2));
+    expect(analyze.mock.calls[1]?.[0]).toMatchObject({precision:'verify'});
   });
 });

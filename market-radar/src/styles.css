@@ -2400,6 +2400,12 @@ dialog::backdrop {
 .upgrade-controls input {
   width: 92px;
 }
+.upgrade-controls input[type="checkbox"] {
+  width:16px; min-width:16px; height:16px; min-height:16px; padding:0;
+  accent-color:var(--color-accent);
+}
+.upgrade-controls select[data-upgrade-objective], .upgrade-controls select[data-upgrade-top-n] { min-width:76px; }
+.upgrade-controls button:disabled { opacity:.45; cursor:default; }
 
 .upgrade-controls button {
   padding: 0 14px;
