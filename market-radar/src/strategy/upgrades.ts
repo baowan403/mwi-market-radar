@@ -12,7 +12,7 @@ import { candidateExperience, recalculateUpgradeReference } from './upgrade-eval
 import type { StrategyCandidate } from './candidates';
 
 export type UpgradeObjective='profit'|'experience';
-export interface UpgradeEvaluation { profit:number; route:string[]; theoreticalProfit:number; xpPerHour?:number }
+export interface UpgradeEvaluation { profit:number; route:string[]; theoreticalProfit:number; xpPerHour?:number; candidate?:StrategyCandidate }
 export interface UpgradeRow {
   itemHrid:string; enhancementLevel:number; slot:string; price:number|null; owned:boolean;
   eligibility:'met'|'unmet'|'unknown'; requirements:string[];
@@ -126,7 +126,7 @@ export async function analyzeUpgradeTargets(options:{
       const liquidity=evaluateRealizableStrategy(candidate,snapshots,capacityFor);
       const session=estimateStrategySession({candidate,liquidity,profile,plannedHours:hoursPerDay,latestSnapshotAgeMs:now-latest!.timestamp});
       if(blocked.includes(liquidity.riskCode)||session.executionHours<=0)return null;
-      return {profit:session.batchProfit??0,route:[...candidate.path],theoreticalProfit:candidate.profitPerHour*hoursPerDay,xpPerHour:candidateExperience(candidate,action)*session.executionHours/hoursPerDay};
+      return {profit:session.batchProfit??0,route:[...candidate.path],theoreticalProfit:candidate.profitPerHour*hoursPerDay,xpPerHour:candidateExperience(candidate,action)*session.executionHours/hoursPerDay,candidate};
   };
   const score=(v:UpgradeEvaluation)=>objective==='experience'?(v.xpPerHour??0):v.profit;
   const references:StrategyCandidate[]=[];

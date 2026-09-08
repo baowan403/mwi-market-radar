@@ -9,6 +9,7 @@ import {
   type UpgradeObjective,
 } from './upgrades';
 import {runUpgradeAnalysis} from './upgrade-runner';
+import {formatSemanticPath} from './semantic-path';
 
 type UpgradeSkill = Exclude<SkillingAction, 'enhancing'>;
 type UpgradeSort = 'gain' | 'efficiency';
@@ -130,7 +131,7 @@ function renderDetail(row: UpgradeRow, options: UpgradePanelOptions, objective:U
 
   const content = element('div', 'upgrade-detail-content');
   const route = element('p');
-  route.textContent = precision==='verify'?`最佳路線：${routeLabel(row.after?.route, options.itemName)}`:`參考項目：${row.after?.route.map(options.itemName).join('、')??'—'}`;
+  route.textContent = precision==='verify'?`最佳路線：${row.after?.candidate?formatSemanticPath(row.after.candidate,options.data,options.itemName):routeLabel(row.after?.route, options.itemName)}`:`參考項目：${row.after?.route.map(options.itemName).join('、')??'—'}`;
   content.append(route);
 
   const requirements = element('p');
@@ -355,7 +356,7 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
 
     const baseline = element('p', 'upgrade-baseline');
     baseline.textContent = analysis.baseline
-      ? `${analysis.precision==='verify'?'精算基準':'參考均值'}：${analysis.precision==='verify'?routeLabel(analysis.baseline.route, options.itemName):analysis.baseline.route.map(options.itemName).join('、')} · ${objective==='experience'?`${money(analysis.baseline.xpPerHour)} XP/h`:`每日預估收益 ${money(analysis.baseline.profit)}`}`
+      ? `${analysis.precision==='verify'?'精算基準':'參考均值'}：${analysis.precision==='verify'?(analysis.baseline.candidate?formatSemanticPath(analysis.baseline.candidate,options.data,options.itemName):routeLabel(analysis.baseline.route, options.itemName)):analysis.baseline.route.map(options.itemName).join('、')} · ${objective==='experience'?`${money(analysis.baseline.xpPerHour)} XP/h`:`每日預估收益 ${money(analysis.baseline.profit)}`}`
       : '目前沒有可用的基準收益，保留候選供確認。';
     content.append(baseline);
 
