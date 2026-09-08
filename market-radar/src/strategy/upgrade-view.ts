@@ -474,11 +474,11 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
           action: selectedSkill,
           hoursPerDay,
           objective,topN,precision,
-          onProgress: ({ done, total }) => {
+          onProgress: ({ done, total, phase }) => {
             if (running?.id !== id) return;
             progress.max = Math.max(1, total);
             progress.value = Math.min(progress.max, Math.max(0, done));
-            status.textContent = `正在分析升級目標… ${done}/${total}`;
+            status.textContent = `${phase==='verify'?'正在精算':'正在快速比較'}… ${done}/${total}`;
           },
           signal: controller.signal,
           now: options.now?.(),

@@ -25,7 +25,7 @@ export interface UpgradeAnalysis {
   rows:UpgradeRow[]; testedVariants:number; warnings:string[];
   objective?:UpgradeObjective; precision?:'quick'|'verify'; referenceCount?:number;
 }
-export interface UpgradeProgress {done:number;total:number}
+export interface UpgradeProgress {done:number;total:number;phase?:'quick'|'verify'}
 const ACTION_SLOTS=new Set(['tool','body','legs','back','charm']);
 const SPECIAL_SLOTS=new Set(['head','hands','feet','off_hand','pouch','neck','ring','earrings','trinket']);
 const NAMES:Record<string,string>={alchemy:'煉金',crafting:'製作',cheesesmithing:'鍛造',tailoring:'裁縫',cooking:'烹飪',brewing:'沖泡',
@@ -163,7 +163,7 @@ export async function analyzeUpgradeTargets(options:{
   for(let i=0;i<rows.length;i++){
     cancelled();const row=rows[i]!;
     if(row.eligibility==='met'&&row.price!==null&&baseline!==null)assign(row,quick(scenarioFor(row)));
-    options.onProgress?.({done:i+1,total:rows.length});
+    options.onProgress?.({done:i+1,total:rows.length,phase:'quick'});
     // Yield by time, not for each cheap/cache-hit target (Windows timer floor).
     if(performance.now()-lastYield>40){await new Promise(resolve=>setTimeout(resolve,0));lastYield=performance.now();}
   }
@@ -180,8 +180,9 @@ export async function analyzeUpgradeTargets(options:{
       for(const c of candidates){const value=measure(c,profile);if(value&&value.profit>0&&(!best||score(value)>score(best)))best=value;}
       return best;
     };
+    options.onProgress?.({done:0,total:selected.length,phase:'verify'});
     baseline=full(base);
-    for(let i=0;i<selected.length;i++){cancelled();assign(selected[i]!,full(scenarioFor(selected[i]!)));options.onProgress?.({done:i+1,total:selected.length});await new Promise(r=>setTimeout(r,0));}
+    for(let i=0;i<selected.length;i++){cancelled();assign(selected[i]!,full(scenarioFor(selected[i]!)));options.onProgress?.({done:i+1,total:selected.length,phase:'verify'});await new Promise(r=>setTimeout(r,0));}
     rows.splice(0,rows.length,...selected);
   }
   const higherOwned=(row:UpgradeRow)=>isItemOwnedByPlayer(row.itemHrid,base)&&(base.inventoryMap[row.itemHrid]??-1)>row.enhancementLevel;
