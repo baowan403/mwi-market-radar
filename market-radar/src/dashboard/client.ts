@@ -117,8 +117,8 @@ function isSnapshotPage(value: unknown): value is BridgeSnapshotPage {
 }
 
 function normalizedTimeout(timeoutMs: number | undefined): number {
-  if (timeoutMs === undefined) return 2_000;
-  return Number.isFinite(timeoutMs) && timeoutMs >= 0 ? timeoutMs : 2_000;
+  if (timeoutMs === undefined) return 10_000;
+  return Number.isFinite(timeoutMs) && timeoutMs >= 0 ? timeoutMs : 10_000;
 }
 
 function normalizedPageSize(pageSize: number | undefined): number {

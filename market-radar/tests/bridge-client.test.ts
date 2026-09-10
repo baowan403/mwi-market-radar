@@ -267,6 +267,18 @@ describe('createDashboardClient', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('allows a large local snapshot store more than two seconds to answer by default', async () => {
+    vi.useFakeTimers();
+    const target = new EventTarget();
+    target.addEventListener(BRIDGE_REQUEST_EVENT, (event) => {
+      const id = String(requestDetail(event).id);
+      setTimeout(() => respond(target, { id, ok: true, value: bootstrap }), 2_500);
+    });
+    const pending = createDashboardClient(target, { idFactory: () => 'slow-local-store' }).bootstrap();
+    await vi.advanceTimersByTimeAsync(2_500);
+    await expect(pending).resolves.toEqual(bootstrap);
+  });
+
   it('releases settled ids so a later request can reuse an id without unbounded history', async () => {
     const target = new EventTarget();
     const ids: string[] = [];
