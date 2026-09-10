@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { StrategyMarginPoint } from '../src/strategy/margin-series';
-import { strategyTrendSignal } from '../src/strategy/signals';
+import { strategyMomentum, strategyTrendSignal } from '../src/strategy/signals';
 
 const DAY = 86_400_000;
 
@@ -28,6 +28,32 @@ function series(
 }
 
 describe('explainable strategy trend signals', () => {
+  it('classifies momentum from non-overlapping 0-1d, 1-3d and 3-7d segments', () => {
+    const accelerating = series(7, (ratio) => {
+      const day = ratio * 7;
+      const profit = day <= 3 ? 100 + day : day <= 6 ? 103 + (day - 3) * 2 : 109 + (day - 6) * 5;
+      return { cost: 100, income: 100 + profit, capacity: 100, spread: 1 };
+    });
+    expect(strategyMomentum(accelerating).phase).toBe('accelerating');
+
+    const cooling = series(7, (ratio) => {
+      const day = ratio * 7;
+      const profit = day <= 3 ? 100 + day * 4 : day <= 6 ? 112 + (day - 3) * 2 : 118 + (day - 6) * 0.2;
+      return { cost: 100, income: 100 + profit, capacity: 100, spread: 1 };
+    });
+    expect(strategyMomentum(cooling).phase).toBe('cooling');
+  });
+
+  it('distinguishes a pullback from sustained weakening and reports missing history', () => {
+    const pullback = series(7, (ratio) => {
+      const day = ratio * 7;
+      const profit = day <= 6 ? 100 + day * 2 : 112 - (day - 6) * 2;
+      return { cost: 100, income: 100 + profit, capacity: 100, spread: 1 };
+    });
+    expect(strategyMomentum(pullback).phase).toBe('pullback');
+    expect(strategyMomentum(series(7, (ratio) => ({ cost: 100, income: 220 - ratio * 20, capacity: 100, spread: 1 }))).phase).toBe('weakening');
+    expect(strategyMomentum(series(3, () => ({ cost: 100, income: 200, capacity: 100, spread: 1 }))).phase).toBe('unknown');
+  });
   it('keeps low profit momentum candidates below top priority', () => {
     const signal = strategyTrendSignal(series(8, () => ({cost: 100, income: 200, capacity: 100, spread: 1})),
       {currentProfitRatio: 0.5, classification: 'long-run'});

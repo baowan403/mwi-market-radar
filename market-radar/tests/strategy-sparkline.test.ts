@@ -36,4 +36,16 @@ describe('strategy sparkline svg generator', () => {
     expect(svg).toContain('<path');
     expect(svg).toContain('stroke="#f87171"'); // 紅色
   });
+
+  it('renders only the latest 72h and uses theoretical profit like the trend columns', () => {
+    const hour = 3_600_000;
+    const points = [
+      { timestamp: 0, theoreticalProfitPerHour: 1_000, realizableProfitPerDay: 1_000 },
+      { timestamp: 96 * hour, theoreticalProfitPerHour: 100, realizableProfitPerDay: 9_000 },
+      { timestamp: 168 * hour, theoreticalProfitPerHour: 200, realizableProfitPerDay: 1_000 },
+    ] as StrategyMarginPoint[];
+    const svg = generateSparklineSvg(points, { hours: 72 });
+    expect(svg).toContain('stroke="#34d399"');
+    expect(svg).toContain('data-point-count="2"');
+  });
 });

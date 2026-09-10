@@ -318,8 +318,18 @@ function strategyRow(
   row.append(trend7dCell);
 
   const sparkCell = element('td', 'strategy-sparkline-cell');
-  sparkCell.innerHTML = generateSparklineSvg(assessedSignal.series, { width: 72, height: 20 });
-  sparkCell.title = '過去 72 小時利潤走勢波形（綠漲紅跌）';
+  sparkCell.innerHTML = generateSparklineSvg(assessedSignal.series, { width: 72, height: 20, hours: 72 });
+  const momentum = assessedSignal.signal.momentum;
+  if (momentum) {
+    const badge = element('span', 'strategy-momentum-badge');
+    badge.dataset.momentum = momentum.phase;
+    badge.textContent = momentum.label;
+    badge.title = momentum.phase === 'unknown'
+      ? '不足7日有效歷史，暫不判斷動能'
+      : `短線 ${trendPct(momentum.recentDailyPct)}／中線每日 ${trendPct(momentum.priorDailyPct)}／長線每日 ${trendPct(momentum.longDailyPct)}`;
+    sparkCell.append(badge);
+  }
+  sparkCell.title = '過去72小時理論利潤走勢；動能以0–1日、1–3日、3–7日三段比較';
   row.append(sparkCell);
 
   const shareCell = element('td', 'strategy-market-share');

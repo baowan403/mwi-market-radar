@@ -4,6 +4,15 @@ import type { LiquidityClassification } from './realizable';
 export type StrategySignalAction = 'execute' | 'prepare' | 'wait' | 'sell' | 'stop';
 export type StrategySignalConfidence = 'none' | 'low' | 'medium' | 'high';
 export type StrategyPriority = 'top' | 'high' | 'medium' | 'low';
+export type StrategyMomentumPhase = 'accelerating' | 'rising' | 'stable' | 'cooling' | 'pullback' | 'weakening' | 'unknown';
+
+export interface StrategyMomentum {
+  phase: StrategyMomentumPhase;
+  label: string;
+  recentDailyPct: number | null;
+  priorDailyPct: number | null;
+  longDailyPct: number | null;
+}
 
 export interface StrategySignalBacktest {
   passed: boolean;
@@ -20,6 +29,7 @@ export interface StrategySignal {
   alphaScore?: number | null;
   isAlphaOpportunity?: boolean;
   alphaReason?: string | null;
+  momentum?: StrategyMomentum;
   metrics: {
     margin1dPct: number | null;
     margin3dPct: number | null;
@@ -51,6 +61,39 @@ function profitOf(point: StrategyMarginPoint | null | undefined): number | null 
   if (finite(point.theoreticalProfitPerHour)) return point.theoreticalProfitPerHour * 24;
   if (finite(point.realizableProfitPerDay)) return point.realizableProfitPerDay;
   return null;
+}
+
+function dailyRate(newer: number | null, older: number | null, days: number): number | null {
+  if (!finite(newer) || !finite(older) || newer <= 0 || older <= 0) return null;
+  return (Math.pow(newer / older, 1 / days) - 1) * 100;
+}
+
+export function strategyMomentum(series: readonly StrategyMarginPoint[]): StrategyMomentum {
+  const ordered = [...series].sort((a, b) => a.timestamp - b.timestamp);
+  const latest = ordered.at(-1);
+  const unknown: StrategyMomentum = {
+    phase: 'unknown', label: '資料不足', recentDailyPct: null, priorDailyPct: null, longDailyPct: null,
+  };
+  if (!latest) return unknown;
+  const at1d = nearestPoint(ordered, latest.timestamp - DAY_MS);
+  const at3d = nearestPoint(ordered, latest.timestamp - 3 * DAY_MS);
+  const at7d = nearestPoint(ordered, latest.timestamp - 7 * DAY_MS);
+  const recent = dailyRate(profitOf(latest), profitOf(at1d), 1);
+  const prior = dailyRate(profitOf(at1d), profitOf(at3d), 2);
+  const long = dailyRate(profitOf(at3d), profitOf(at7d), 4);
+  if (recent === null || prior === null || long === null) return unknown;
+
+  let phase: StrategyMomentumPhase;
+  if (recent < -0.25) phase = prior > 0.25 || long > 0.25 ? 'pullback' : 'weakening';
+  else if ([recent, prior, long].every(value => Math.abs(value) <= 0.25)) phase = 'stable';
+  else if (recent > prior + 0.5 && prior >= long - 0.5) phase = 'accelerating';
+  else if (recent < prior - 0.5) phase = 'cooling';
+  else phase = 'rising';
+  const labels: Record<StrategyMomentumPhase, string> = {
+    accelerating: '加速', rising: '穩升', stable: '持平', cooling: '降溫',
+    pullback: '回調', weakening: '轉弱', unknown: '資料不足',
+  };
+  return { phase, label: labels[phase], recentDailyPct: recent, priorDailyPct: prior, longDailyPct: long };
 }
 
 function nearestPoint(
@@ -92,6 +135,7 @@ export function strategyTrendSignal(
   } = {},
 ): StrategySignal {
   const ordered = [...series].sort((left, right) => left.timestamp - right.timestamp);
+  const momentum = strategyMomentum(ordered);
   const latest = ordered.at(-1);
   const earliest = ordered[0];
   const emptyMetrics: StrategySignal['metrics'] = {
@@ -107,7 +151,7 @@ export function strategyTrendSignal(
   if (!latest || !earliest) {
     return {
       action: 'wait', priority: 'low', confidence: 'none', reasons: ['尚無策略歷史資料'],
-      invalidation: ['累積至少 7 天有效資料後重新判斷'], metrics: emptyMetrics,
+      invalidation: ['累積至少 7 天有效資料後重新判斷'], metrics: emptyMetrics, momentum,
     };
   }
   const spanDays = (latest.timestamp - earliest.timestamp) / DAY_MS;
@@ -115,7 +159,7 @@ export function strategyTrendSignal(
   if (spanDays < 1) {
     return {
       action: 'wait', priority: 'medium', confidence, reasons: ['有效歷史不足 1 天，暫以中性優先級呈現'],
-      invalidation: ['累積滿 7 天有效資料後重新判斷'], metrics: emptyMetrics,
+      invalidation: ['累積滿 7 天有效資料後重新判斷'], metrics: emptyMetrics, momentum,
     };
   }
 
@@ -145,7 +189,7 @@ export function strategyTrendSignal(
     return {
       action: 'wait', priority: 'low', confidence: 'none',
       reasons: ['市場快照已超過 180 分鐘，暫停產生可執行建議'],
-      invalidation: ['取得 180 分鐘內的新市場快照後重新判斷'], metrics,
+      invalidation: ['取得 180 分鐘內的新市場快照後重新判斷'], metrics, momentum,
     };
   }
   if (options.latestSnapshotAgeMs !== undefined && options.latestSnapshotAgeMs > 60 * 60_000) {
@@ -167,7 +211,7 @@ export function strategyTrendSignal(
       : `3D 利潤暴跌 ${formatted(metrics.margin3dPct)}，且已自波段高點大幅滑落`;
     return {
       action: 'stop', priority: 'low', confidence, reasons: [reason],
-      invalidation: ['利潤恢復且 3D 趨勢好轉時重新評估'], metrics,
+      invalidation: ['利潤恢復且 3D 趨勢好轉時重新評估'], metrics, momentum,
     };
   }
 
@@ -179,7 +223,7 @@ export function strategyTrendSignal(
     return {
       action: 'sell', priority: 'medium', confidence,
       reasons: [`3D 售價上升 ${formatted(metrics.income3dPct)}，但承接容量下降 ${formatted(metrics.capacity3dPct)}`],
-      invalidation: ['若承接容量 3D 回升至 -5% 以上，改回生產評估'], metrics,
+      invalidation: ['若承接容量 3D 回升至 -5% 以上，改回生產評估'], metrics, momentum,
     };
   }
 
@@ -192,8 +236,8 @@ export function strategyTrendSignal(
   if (m3 === null || m3 >= -2) {
     // 嚴格趨勢動能判定優先級：
     // 🔥 最高：必須 1D > 0 且處於加速擴張期（1D >= +1.5% 且 1D >= 3D），或長中短線全面共振（1D >= +0.5% 且 3D >= +3% 且 7D >= 0%）
-    const isSurging = m1 !== null && m1 >= 1.5 && (m3 === null || m3 >= 0) && (m3 === null || m1 >= m3);
-    const isResonance = m1 !== null && m1 >= 0.5 && m3 !== null && m3 >= 3 && (m7 === null || m7 >= 0);
+    const isSurging = momentum.phase === 'accelerating' && m1 !== null && m1 >= 1.5;
+    const isResonance = momentum.phase === 'rising' && m1 !== null && m1 >= 0.5 && m3 !== null && m3 >= 3 && (m7 === null || m7 >= 0);
     const isTop = (isSurging || isResonance) && (m1 !== null && m1 > 0);
 
     let priority: StrategyPriority = 'high';
@@ -253,6 +297,9 @@ export function strategyTrendSignal(
       if (priority === 'top' || priority === 'high') priority = 'medium';
       reasons.push('目前日利低於榜首九成，動能先作觀察');
     }
+    if (momentum.phase === 'cooling' && priority === 'top') priority = 'high';
+    if (momentum.phase === 'pullback' && (priority === 'top' || priority === 'high')) priority = 'medium';
+    if (momentum.phase === 'weakening') priority = 'low';
 
     return {
       action: 'execute', priority, confidence,
@@ -260,7 +307,7 @@ export function strategyTrendSignal(
       invalidation: ['3D 利潤下降超過 10% 時重新評估'], metrics,
       alphaScore,
       isAlphaOpportunity: isAlpha,
-      alphaReason,
+      alphaReason, momentum,
     };
   }
 
@@ -275,7 +322,7 @@ export function strategyTrendSignal(
       invalidation: ['3D 改善至 -2% 以上則升級為推薦；惡化至 -10% 以下則降級為觀望'], metrics,
       alphaScore: null,
       isAlphaOpportunity: false,
-      alphaReason: null,
+      alphaReason: null, momentum,
     };
   }
 
@@ -286,6 +333,6 @@ export function strategyTrendSignal(
     invalidation: ['3D 利潤止跌回升至 -3% 以上再重新評估'], metrics,
     alphaScore: null,
     isAlphaOpportunity: false,
-    alphaReason: null,
+    alphaReason: null, momentum,
   };
 }

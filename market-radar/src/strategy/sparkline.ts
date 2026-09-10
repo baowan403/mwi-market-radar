@@ -4,6 +4,7 @@ export interface SparklineOptions {
   width?: number;
   height?: number;
   strokeWidth?: number;
+  hours?: number;
 }
 
 /**
@@ -19,15 +20,15 @@ export function generateSparklineSvg(
   const strokeWidth = options.strokeWidth ?? 1.5;
   const paddingY = 3;
 
-  if (!points || points.length < 2) {
+  const latestTimestamp = points.at(-1)?.timestamp ?? 0;
+  const hours = options.hours ?? 72;
+  const visible = points.filter(point => point.timestamp >= latestTimestamp - hours * 3_600_000);
+  if (visible.length < 2) {
     return `<svg class="strategy-sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><line x1="0" y1="${height / 2}" x2="${width}" y2="${height / 2}" stroke="var(--color-muted)" stroke-dasharray="2 2" stroke-width="1"/></svg>`;
   }
 
-  // 取得數值陣列（優先取 realizableProfitPerDay，若無則取 theoreticalProfitPerHour * 24）
-  const values = points.map((p) => {
-    if (typeof p.realizableProfitPerDay === 'number' && Number.isFinite(p.realizableProfitPerDay)) {
-      return p.realizableProfitPerDay;
-    }
+  // 與 1D / 3D / 7D 欄位一致，只畫當前價格下的理論策略利潤。
+  const values = visible.map((p) => {
     if (typeof p.theoreticalProfitPerHour === 'number' && Number.isFinite(p.theoreticalProfitPerHour)) {
       return p.theoreticalProfitPerHour * 24;
     }
@@ -59,5 +60,5 @@ export function generateSparklineSvg(
   const strokeColor = isUp ? '#34d399' : '#f87171';
   const lastCoord = coords[coords.length - 1] ?? { x: width, y: height / 2 };
 
-  return `<svg class="strategy-sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-hidden="true"><path d="${pathD}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${lastCoord.x}" cy="${lastCoord.y}" r="2" fill="${strokeColor}"/></svg>`;
+  return `<svg class="strategy-sparkline" data-point-count="${visible.length}" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-hidden="true"><path d="${pathD}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${lastCoord.x}" cy="${lastCoord.y}" r="2" fill="${strokeColor}"/></svg>`;
 }

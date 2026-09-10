@@ -227,7 +227,14 @@ describe('strategy recommendation view', () => {
     expect(target.querySelector('.strategy-priority-cell')).not.toBeNull();
     const firstRow = target.querySelector('[data-strategy-row]')!;
     expect(firstRow.querySelectorAll(':scope > td')).toHaveLength(12);
-    expect(firstRow.querySelector('.strategy-sparkline-cell')?.textContent).toBe('');
+    expect(firstRow.querySelector('.strategy-sparkline-cell')?.textContent).not.toBe('');
+    expect(firstRow.querySelector('.strategy-momentum-badge')).not.toBeNull();
+    const duration = target.querySelector<HTMLSelectElement>('[data-strategy-hours]')!;
+    for (const hours of ['6', '12', '24']) {
+      duration.value = hours;
+      duration.dispatchEvent(new Event('change'));
+      expect(target.querySelector('.strategy-momentum-badge')).not.toBeNull();
+    }
     const pin = target.querySelector<HTMLButtonElement>('[data-strategy-pin="workflow:redwood"]')!;
     pin.click();
     await vi.waitFor(async () => expect(await pinStore.list()).toEqual(['workflow:redwood']));

@@ -2347,6 +2347,26 @@ dialog::backdrop {
   color: var(--color-muted);
 }
 
+.strategy-momentum-badge {
+  display: block;
+  width: max-content;
+  margin: 2px auto 0;
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 0.64rem;
+  font-weight: 750;
+  line-height: 1.25;
+  color: var(--color-muted);
+  background: rgb(145 160 182 / 10%);
+}
+
+.strategy-momentum-badge[data-momentum="accelerating"] { color: #ffdf40; background: rgb(255 215 0 / 16%); }
+.strategy-momentum-badge[data-momentum="rising"] { color: #34d399; background: rgb(52 211 153 / 12%); }
+.strategy-momentum-badge[data-momentum="stable"] { color: #93c5fd; background: rgb(147 197 253 / 10%); }
+.strategy-momentum-badge[data-momentum="cooling"] { color: #fbbf24; background: rgb(251 191 36 / 12%); }
+.strategy-momentum-badge[data-momentum="pullback"] { color: #fb923c; background: rgb(251 146 60 / 12%); }
+.strategy-momentum-badge[data-momentum="weakening"] { color: #f87171; background: rgb(248 113 113 / 12%); }
+
 /* ── 升級目標榜：局部樣式，不影響市場策略表 ── */
 .upgrade-panel {
   margin: 12px 0;
