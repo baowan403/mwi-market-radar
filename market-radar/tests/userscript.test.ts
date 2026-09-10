@@ -5,9 +5,15 @@ import {
   resolveOriginRoute,
   startForCurrentOrigin,
 } from '../src/userscript/main';
-import { normalizeDashboardOrigins, toUserscriptMatches } from '../src/userscript/origins';
+import { DEFAULT_DASHBOARD_ORIGINS, normalizeDashboardOrigins, toUserscriptMatches } from '../src/userscript/origins';
 
 describe('userscript dashboard origins', () => {
+  it('injects into the production GitHub Pages dashboard by default', () => {
+    expect(DEFAULT_DASHBOARD_ORIGINS).toContain('https://baowan403.github.io/mwi-market-radar');
+    expect(toUserscriptMatches(DEFAULT_DASHBOARD_ORIGINS)).toContain(
+      'https://baowan403.github.io/mwi-market-radar/*',
+    );
+  });
   it('normalizes dashboard origins and preserves path bases in metadata matches', () => {
     const origins = normalizeDashboardOrigins('https://example.github.io/radar,http://localhost:4173');
 
@@ -79,7 +85,7 @@ describe('userscript startup diagnostics', () => {
 
     expect(target.documentElement.dataset).toEqual({
       mwiRadarScript: 'loaded',
-      mwiRadarVersion: '0.1.5',
+      mwiRadarVersion: '0.1.6',
       mwiRadarTransport: 'dom-event',
       mwiRadarRoute: 'mwi',
       mwiRadarState: 'started',
@@ -104,7 +110,7 @@ describe('userscript startup diagnostics', () => {
 
     expect(target.documentElement.dataset).toEqual({
       mwiRadarScript: 'loaded',
-      mwiRadarVersion: '0.1.5',
+      mwiRadarVersion: '0.1.6',
       mwiRadarTransport: 'dom-event',
       mwiRadarRoute: 'dashboard',
       mwiRadarState: 'started',

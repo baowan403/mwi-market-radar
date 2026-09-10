@@ -1,4 +1,7 @@
-export const DEFAULT_DASHBOARD_ORIGINS = ['http://localhost:4173'] as const;
+export const DEFAULT_DASHBOARD_ORIGINS = [
+  'https://baowan403.github.io/mwi-market-radar',
+  'http://localhost:4173',
+] as const;
 
 function isPathWithinDashboardBase(pathname: string, basePathname: string): boolean {
   const basePath = basePathname.replace(/\/+$/, '');
