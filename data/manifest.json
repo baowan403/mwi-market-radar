@@ -1,28 +1,8 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-10T09:25:40.280Z",
-  "latestTimestamp": 1789031160000,
+  "generatedAt": "2026-09-10T13:46:02.672Z",
+  "latestTimestamp": 1789045560000,
   "snapshots": [
-    {
-      "timestamp": 1788167160000,
-      "file": "snapshots/1788167160000.txt",
-      "bytes": 21631
-    },
-    {
-      "timestamp": 1788170760000,
-      "file": "snapshots/1788170760000.txt",
-      "bytes": 21907
-    },
-    {
-      "timestamp": 1788174360000,
-      "file": "snapshots/1788174360000.txt",
-      "bytes": 22187
-    },
-    {
-      "timestamp": 1788177960000,
-      "file": "snapshots/1788177960000.txt",
-      "bytes": 23671
-    },
     {
       "timestamp": 1788181560000,
       "file": "snapshots/1788181560000.txt",
@@ -1207,6 +1187,11 @@
       "timestamp": 1789031160000,
       "file": "snapshots/1789031160000.txt",
       "bytes": 44111
+    },
+    {
+      "timestamp": 1789045560000,
+      "file": "snapshots/1789045560000.txt",
+      "bytes": 43779
     }
   ]
 }
