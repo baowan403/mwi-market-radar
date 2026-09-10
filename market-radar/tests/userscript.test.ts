@@ -131,7 +131,7 @@ describe('userscript startup diagnostics', () => {
 
     expect(target.documentElement.dataset).toEqual({
       mwiRadarScript: 'loaded',
-      mwiRadarVersion: '0.1.5',
+      mwiRadarVersion: '0.1.6',
       mwiRadarTransport: 'dom-event',
       mwiRadarRoute: 'mwi',
       mwiRadarState: 'error',
