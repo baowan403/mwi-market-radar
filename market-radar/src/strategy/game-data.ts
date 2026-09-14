@@ -1,6 +1,7 @@
 import type {
   StrategyActionDetail,
   StrategyGameDataInput,
+  StrategyHouseRoomDetail,
   StrategyItemDetail,
 } from './types';
 
@@ -94,6 +95,20 @@ function validateActions(value: Record<string, unknown>): Record<string, Strateg
   return result;
 }
 
+function validateHouseRooms(value: Record<string, unknown>): Record<string, StrategyHouseRoomDetail> {
+  const result: Record<string, StrategyHouseRoomDetail> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    const room = record(raw);
+    const costs = record(room?.upgradeCostsMap);
+    if (!room || key !== room.hrid || !key.startsWith('/house_rooms/')
+      || typeof room.name !== 'string' || typeof room.skillHrid !== 'string' || !costs
+      || Object.values(costs).some(value => !validCountedItems(value))) throw new StrategyDataError();
+    result[key] = raw as StrategyHouseRoomDetail;
+  }
+  if (Object.keys(result).length === 0) throw new StrategyDataError();
+  return result;
+}
+
 export class GameDataFreshnessError extends Error {
   readonly code = 'game_data_freshness_error';
   constructor(message: string) {
@@ -135,6 +150,7 @@ export function normalizeStrategyGameData(input: unknown): NormalizedStrategyGam
   const personalBuffTypeDetailMap = record(data?.personalBuffTypeDetailMap);
   const openableLootDropMap = record(data?.openableLootDropMap);
   const shopItemDetailMap = record(data?.shopItemDetailMap);
+  const houseRoomDetailMap = record(data?.houseRoomDetailMap);
   if (
     !data
     || typeof data.gameVersion !== 'string'
@@ -149,6 +165,7 @@ export function normalizeStrategyGameData(input: unknown): NormalizedStrategyGam
     || !personalBuffTypeDetailMap
     || !openableLootDropMap
     || !shopItemDetailMap
+    || !houseRoomDetailMap
   ) {
     throw new StrategyDataError();
   }
@@ -204,8 +221,8 @@ export function normalizeStrategyGameData(input: unknown): NormalizedStrategyGam
     personalBuffTypeDetailMap: { ...personalBuffTypeDetailMap },
     openableLootDropMap: { ...openableLootDropMap } as StrategyGameDataInput['openableLootDropMap'],
     shopItemDetailMap: { ...shopItemDetailMap },
+    houseRoomDetailMap: validateHouseRooms(houseRoomDetailMap),
     itemsByHrid: new Map(Object.entries(items)),
     actionsByHrid: new Map(Object.entries(actions)),
   };
 }
-

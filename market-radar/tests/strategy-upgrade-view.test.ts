@@ -37,7 +37,7 @@ function analysis(): UpgradeAnalysis {
     warnings: [],
     rows: [
       {
-        itemHrid: '/items/alpha_shears', enhancementLevel: 5, slot: 'tool', price: null,
+        itemHrid: '/items/alpha_shears', enhancementLevel: 5, slot: 'tool', price: 80,
         owned: false, eligibility: 'met', requirements: ['採摘等級 90'], after: evaluation(190, ['base', 'alpha']),
         delta: 90, paybackDays: null, priority: '高', marginal: undefined,
       },
@@ -59,27 +59,29 @@ function analysis(): UpgradeAnalysis {
 
 describe('upgrade target panel', () => {
   function showEverything(panel:ReturnType<typeof createUpgradePanel>){
-    for(const selector of ['[data-upgrade-all]','[data-upgrade-pending]']){const c=panel.element.querySelector<HTMLInputElement>(selector)!;c.checked=true;c.dispatchEvent(new Event('change'));}
+    (panel.element.querySelector('[data-upgrade-more]') as HTMLButtonElement).click();
   }
   it('uses concise columns and global 24h income for saving days without a wallet',async()=>{
     const panel=createUpgradePanel({profile,data,snapshots,itemName:h=>h,dailyProfit24h:50,analyze:vi.fn(async()=>analysis())});
-    showEverything(panel);
     (panel.element.querySelector('[data-upgrade-analyze]') as HTMLButtonElement).click();
-    await vi.waitFor(()=>expect(panel.element.querySelectorAll('[data-upgrade-row]')).toHaveLength(3));
+    await vi.waitFor(()=>expect(panel.element.querySelectorAll('[data-upgrade-row]')).toHaveLength(1));
+    showEverything(panel);
+    expect(panel.element.querySelectorAll('[data-upgrade-row]')).toHaveLength(2);
     expect([...panel.element.querySelectorAll('th')].map(e=>e.textContent)).toEqual(['裝備','部位','價格','存錢天數','每日增益','換裝後收益','回本天數','優先級','備註']);
     expect(panel.element.textContent).not.toContain('購買目標');
     expect(panel.element.querySelector('[data-upgrade-row="/items/beta_shears::6"] .upgrade-saving')?.textContent).toBe('2.0天');
-    expect(panel.element.querySelector('[data-upgrade-row="/items/alpha_shears::5"] .upgrade-saving')?.textContent).toBe('—');
+    expect(panel.element.querySelector('[data-upgrade-row="/items/alpha_shears::5"] .upgrade-saving')?.textContent).toBe('1.6天');
     expect(panel.element.querySelector('.upgrade-slot')?.textContent).toBe('工具');
     expect(panel.element.querySelector('.upgrade-detail-row td')?.getAttribute('colspan')).toBe('9');
   });
   it('does not put a redundant lower grade before useful purchases in efficiency order',async()=>{
-    const result=analysis();result.rows[1]!.priority='已有更高強化';
+    const result=analysis();result.rows[0]!.price=null;result.rows[1]!.priority='已有更高強化';
     result.rows.push({...result.rows[1]!,itemHrid:'/items/useful',delta:30,priority:'可考慮'});
     const panel=createUpgradePanel({profile,data,snapshots,itemName:h=>h,analyze:vi.fn(async()=>result) as never});
-    showEverything(panel);
     (panel.element.querySelector('[data-upgrade-analyze]') as HTMLButtonElement).click();
-    await vi.waitFor(()=>expect(panel.element.querySelectorAll('[data-upgrade-row]')).toHaveLength(4));
+    await vi.waitFor(()=>expect(panel.element.querySelector('[data-upgrade-more]')).not.toBeNull());
+    showEverything(panel);
+    expect(panel.element.querySelectorAll('[data-upgrade-row]')).toHaveLength(2);
     const sort=panel.element.querySelector<HTMLSelectElement>('[data-upgrade-sort]')!;sort.value='efficiency';sort.dispatchEvent(new Event('change'));
     expect(panel.element.querySelector<HTMLElement>('[data-upgrade-row]')?.dataset.upgradeRow).toBe('/items/useful::6');
   });
@@ -99,30 +101,34 @@ describe('upgrade target panel', () => {
     expect([...hours.options].map((option) => option.value)).toEqual(['6', '12', '24', 'custom']);
     expect(sort.value).toBe('gain');
     expect(panel.element.querySelector('[data-upgrade-budget]')).toBeNull();
+    expect(panel.element.querySelector('[data-upgrade-top-n]')).toBeNull();
+    expect(panel.element.querySelector('[data-upgrade-pending]')).toBeNull();
+    expect(panel.element.querySelector('[data-upgrade-all]')).toBeNull();
+    expect(panel.element.querySelector('[data-upgrade-more]')).not.toBeNull();
+    expect(panel.element.querySelector('[data-upgrade-verify]')?.textContent).toBe('精算推薦項目');
     expect(panel.element.textContent).not.toContain('錢包');
   });
 
-  it('runs only on explicit analysis, keeps unknown prices visible, sorts by gain, and folds details', async () => {
+  it('runs only on explicit analysis, summarizes unavailable rows, sorts by gain, and folds details', async () => {
     const analyze = vi.fn(async (_options:unknown) => analysis());
     const panel = createUpgradePanel({
       profile, data, snapshots, itemName: (hrid) => hrid,
       analyze: analyze as never,
     });
     const button = panel.element.querySelector<HTMLButtonElement>('[data-upgrade-analyze]')!;
-    showEverything(panel);
     expect(analyze).not.toHaveBeenCalled();
     button.click();
     await vi.waitFor(() => expect(analyze).toHaveBeenCalledOnce());
+    showEverything(panel);
 
     expect(analyze.mock.calls[0]![0]).toMatchObject({ action: 'foraging', hoursPerDay: 24 });
-    expect(panel.element.querySelectorAll('[data-upgrade-row]')).toHaveLength(3);
+    expect(panel.element.querySelectorAll('[data-upgrade-row]')).toHaveLength(2);
     expect([...panel.element.querySelectorAll<HTMLElement>('[data-upgrade-row]')]
       .map((row) => row.dataset.upgradeRow)).toEqual([
-        '/items/alpha_shears::5', '/items/beta_shears::6', '/items/gamma_shears::7',
+        '/items/alpha_shears::5', '/items/beta_shears::6',
       ]);
-    expect(panel.element.querySelector('[data-upgrade-row="/items/alpha_shears::5"]')?.textContent).toContain('—');
     expect(panel.element.querySelector('[data-upgrade-row="/items/alpha_shears::5"]')?.textContent).toContain('90');
-    expect(panel.element.querySelector('[data-upgrade-row="/items/gamma_shears::7"]')?.textContent).toContain('已持有');
+    expect(panel.element.textContent).toContain('另有1項資料不足未列入');
     expect(panel.element.querySelectorAll('thead th')).toHaveLength(9);
     expect(panel.element.querySelector('thead')?.textContent).toContain('每日增益');
     expect(panel.element.querySelector('thead')?.textContent).toContain('回本天數');
@@ -172,5 +178,30 @@ describe('upgrade target panel', () => {
     (panel.element.querySelector('[data-upgrade-verify]') as HTMLButtonElement).click();
     await vi.waitFor(()=>expect(analyze).toHaveBeenCalledTimes(2));
     expect(analyze.mock.calls[1]?.[0]).toMatchObject({precision:'verify'});
+  });
+  it('renders a house target and its cumulative material details',async()=>{
+    const result=analysis();result.rows=[{
+      kind:'house',itemHrid:'/house_rooms/garden',enhancementLevel:5,slot:'house',price:25000020,
+      owned:false,eligibility:'met',requirements:['目前Lv4；升至Lv5'],after:evaluation(160,['base']),delta:60,
+      paybackDays:2,priority:'提升優先',materials:[{itemHrid:'/items/coin',count:25000000,unitPrice:1},{itemHrid:'/items/a',count:2,unitPrice:10}],
+    }];
+    const panel=createUpgradePanel({profile,data,snapshots,itemName:h=>h,analyze:vi.fn(async()=>result)});
+    (panel.element.querySelector('[data-upgrade-analyze]') as HTMLButtonElement).click();
+    await vi.waitFor(()=>expect(panel.element.textContent).toContain('花園 Lv5'));
+    expect(panel.element.querySelector('.upgrade-slot')?.textContent).toBe('房屋');
+    (panel.element.querySelector('[data-upgrade-row]') as HTMLTableRowElement).click();
+    expect(panel.element.textContent).toContain('/items/a × 2');
+  });
+  it('keeps the complete quick list available after shortlist verification',async()=>{
+    const quick=analysis();const verified={...analysis(),precision:'verify' as const,rows:[analysis().rows[1]!],testedVariants:1};
+    const analyze=vi.fn(async(options:{precision:string})=>options.precision==='verify'?verified:quick);
+    const panel=createUpgradePanel({profile,data,snapshots,itemName:h=>h,analyze:analyze as never});
+    (panel.element.querySelector('[data-upgrade-analyze]') as HTMLButtonElement).click();
+    await vi.waitFor(()=>expect(analyze).toHaveBeenCalledTimes(1));
+    (panel.element.querySelector('[data-upgrade-verify]') as HTMLButtonElement).click();
+    await vi.waitFor(()=>expect(analyze).toHaveBeenCalledTimes(2));
+    showEverything(panel);
+    expect(panel.element.querySelectorAll('[data-upgrade-row]')).toHaveLength(2);
+    expect(panel.element.textContent).toContain('完整快速候選');
   });
 });

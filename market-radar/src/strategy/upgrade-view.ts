@@ -31,6 +31,12 @@ const SKILL_LABELS: Record<UpgradeSkill, string> = {
   alchemy: '煉金',
 };
 
+const HOUSE_LABELS: Record<string,string>={
+  '/house_rooms/dairy_barn':'乳牛棚','/house_rooms/garden':'花園','/house_rooms/log_shed':'原木棚',
+  '/house_rooms/forge':'鍛造坊','/house_rooms/workshop':'工作坊','/house_rooms/sewing_parlor':'裁縫室',
+  '/house_rooms/kitchen':'廚房','/house_rooms/brewery':'沖泡室','/house_rooms/laboratory':'實驗室',
+};
+
 export interface UpgradePanelOptions {
   /** Highest current executable 24h return across all skills; never a wallet. */
   dailyProfit24h?: number | null;
@@ -126,7 +132,7 @@ function renderDetail(row: UpgradeRow, options: UpgradePanelOptions, objective:U
   const details = element('details', 'upgrade-detail');
   details.dataset.upgradeDetail = 'true';
   const summary = element('summary');
-  summary.textContent = '查看最佳路線、條件與收益預覽';
+  summary.textContent = row.kind==='house'?'查看最佳路線、材料與收益預覽':'查看最佳路線、條件與收益預覽';
   details.append(summary);
 
   const content = element('div', 'upgrade-detail-content');
@@ -139,6 +145,13 @@ function renderDetail(row: UpgradeRow, options: UpgradePanelOptions, objective:U
     ? `資格要求：${row.requirements.join('；')}`
     : `資格要求：${eligibilityLabel(row)}`;
   content.append(requirements);
+
+  if(row.kind==='house'&&row.materials?.length){
+    const materialTitle=element('p');materialTitle.textContent='累計材料：';content.append(materialTitle);
+    const list=element('ul','upgrade-materials');
+    for(const material of row.materials){const item=element('li');item.textContent=`${options.itemName(material.itemHrid)} × ${money(material.count)}（單價 ${money(material.unitPrice)}）`;list.append(item);}
+    content.append(list);
+  }
 
   const preview = element('p');
   if (row.after !== null && row.eligibility === 'met') {
@@ -162,7 +175,9 @@ function renderDetail(row: UpgradeRow, options: UpgradePanelOptions, objective:U
   }
 
   const note = element('p', 'upgrade-detail-note');
-  note.textContent = '單件比較不可直接相加；不假設出售舊裝。市場報價僅作參考，不保證成交深度。';
+  note.textContent = row.kind==='house'
+    ? '房屋成本按完整市場替代成本、跨級累加；不扣現金或庫存。市場報價僅作參考。'
+    : '單件比較不可直接相加；不假設出售舊裝。市場報價僅作參考，不保證成交深度。';
   content.append(note);
   details.append(content);
   cell.append(details);
@@ -177,12 +192,12 @@ function renderRow(row: UpgradeRow, options: UpgradePanelOptions, objective:Upgr
 
   const equipment = element('td', 'upgrade-equipment');
   const title = element('strong');
-  title.textContent = `${options.itemName(row.itemHrid)} +${row.enhancementLevel}`;
+  title.textContent = row.kind==='house'?`${HOUSE_LABELS[row.itemHrid]??row.itemHrid} Lv${row.enhancementLevel}`:`${options.itemName(row.itemHrid)} +${row.enhancementLevel}`;
   equipment.append(title);
   tableRow.append(equipment);
 
   const slot = element('td', 'upgrade-slot');
-  const slotNames:Record<string,string>={tool:'工具',body:'上衣',legs:'下裝',back:'背飾',charm:'護符',head:'帽子',hands:'手套',feet:'鞋子',off_hand:'副手',pouch:'袋子',neck:'項鍊',earrings:'耳環',ring:'戒指',trinket:'徽章'};
+  const slotNames:Record<string,string>={tool:'工具',body:'上衣',legs:'下裝',back:'背飾',charm:'護符',head:'帽子',hands:'手套',feet:'鞋子',off_hand:'副手',pouch:'袋子',neck:'項鍊',earrings:'耳環',ring:'戒指',trinket:'徽章',house:'房屋'};
   slot.textContent = slotNames[row.slot]??'裝備';
   tableRow.append(slot);
 
@@ -256,12 +271,6 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
   const objectiveSelect=element('select');objectiveSelect.dataset.upgradeObjective='true';
   for(const [value,label] of [['profit','賺錢'],['experience','衝等']] as const){const o=element('option');o.value=value;o.textContent=label;objectiveSelect.append(o);}
   objectiveLabel.append(objectiveSelect);controls.append(objectiveLabel);
-  let topN=3;
-  const topLabel=element('label');topLabel.textContent='參考項目';
-  const topSelect=element('select');topSelect.dataset.upgradeTopN='true';
-  for(const n of [1,3,5]){const o=element('option');o.value=String(n);o.textContent=String(n);o.selected=n===3;topSelect.append(o);}
-  topLabel.append(topSelect);controls.append(topLabel);
-
   let hoursPerDay = 24;
   let customDuration = false;
   const hoursLabel = element('label');
@@ -308,13 +317,8 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
   analyzeButton.textContent = '分析升級目標';
   analyzeButton.dataset.upgradeAnalyze = 'true';
   controls.append(analyzeButton);
-  const verifyButton=element('button','toolbar-button');verifyButton.type='button';verifyButton.textContent='精算前6項';verifyButton.dataset.upgradeVerify='true';verifyButton.disabled=true;controls.append(verifyButton);
-  let showAll=false,showPending=false;
-  const allLabel=element('label'),pendingLabel=element('label');
-  const allCheck=element('input'),pendingCheck=element('input');allCheck.type='checkbox';pendingCheck.type='checkbox';
-  allCheck.dataset.upgradeAll='true';pendingCheck.dataset.upgradePending='true';
-  allLabel.append(allCheck,document.createTextNode('全部候選'));pendingLabel.append(pendingCheck,document.createTextNode('待確認'));
-  controls.append(allLabel,pendingLabel);
+  const verifyButton=element('button','toolbar-button');verifyButton.type='button';verifyButton.textContent='精算推薦項目';verifyButton.dataset.upgradeVerify='true';verifyButton.disabled=true;controls.append(verifyButton);
+  const verifyHint=element('small','upgrade-control-hint');verifyHint.textContent='購買前使用；會重新搜尋最佳路線，較慢。';controls.append(verifyHint);
   section.append(controls);
 
   const progress = element('progress', 'upgrade-progress');
@@ -331,7 +335,12 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
   const content = element('div', 'upgrade-content');
   section.append(content);
 
+  const moreButton=element('button','toolbar-button upgrade-more');moreButton.type='button';moreButton.dataset.upgradeMore='true';
+  moreButton.textContent='顯示更多候選';moreButton.hidden=true;moreButton.disabled=true;section.append(moreButton);
+
   let currentAnalysis: UpgradeAnalysis | null = null;
+  let quickAnalysis: UpgradeAnalysis | null = null;
+  let showAll=false;
   let revision = 0;
   let running: { id: number; controller: AbortController } | null = null;
 
@@ -343,6 +352,8 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
       progress.hidden = true;
     }
     currentAnalysis = null;
+    quickAnalysis = null;
+    showAll=false;moreButton.hidden=true;moreButton.disabled=true;
     verifyButton.disabled=true;
     content.replaceChildren();
     status.textContent = '條件已變更，請重新分析升級目標。';
@@ -354,9 +365,11 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
     disclaimer.textContent = '模型收益比較，不是實際資產或成交保證；單件升級不可把多列收益直接相加。';
     content.append(disclaimer);
 
+    const displayed=showAll&&quickAnalysis?quickAnalysis:analysis;
+    if(showAll&&analysis.precision==='verify'){const quickNote=element('p','upgrade-disclaimer');quickNote.textContent='完整快速候選；精算結果請切回「只看推薦」。';content.append(quickNote);}
     const baseline = element('p', 'upgrade-baseline');
-    baseline.textContent = analysis.baseline
-      ? `${analysis.precision==='verify'?'精算基準':'參考均值'}：${analysis.precision==='verify'?(analysis.baseline.candidate?formatSemanticPath(analysis.baseline.candidate,options.data,options.itemName):routeLabel(analysis.baseline.route, options.itemName)):analysis.baseline.route.map(options.itemName).join('、')} · ${objective==='experience'?`${money(analysis.baseline.xpPerHour)} XP/h`:`每日預估收益 ${money(analysis.baseline.profit)}`}`
+    baseline.textContent = displayed.baseline
+      ? `${displayed.precision==='verify'?'精算基準':'參考均值（固定3條）'}：${displayed.precision==='verify'?(displayed.baseline.candidate?formatSemanticPath(displayed.baseline.candidate,options.data,options.itemName):routeLabel(displayed.baseline.route, options.itemName)):displayed.baseline.route.map(options.itemName).join('、')} · ${objective==='experience'?`${money(displayed.baseline.xpPerHour)} XP/h`:`每日預估收益 ${money(displayed.baseline.profit)}`}`
       : '目前沒有可用的基準收益，保留候選供確認。';
     content.append(baseline);
 
@@ -364,9 +377,9 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
     savingReference.textContent = `存錢參考：全技能最高24H預估收益 ${money(options.dailyProfit24h)}／日；從零存起，不扣現金。`;
     content.append(savingReference);
 
-    if (analysis.warnings.length > 0) {
+    if (displayed.warnings.length > 0) {
       const warnings = element('p', 'upgrade-warning');
-      warnings.textContent = analysis.warnings.join('；');
+      warnings.textContent = displayed.warnings.join('；');
       content.append(warnings);
     }
 
@@ -385,16 +398,15 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
     }
     head.append(headerRow);
     const body = element('tbody');
-    const ready=analysis.rows.filter(r=>r.eligibility==='met'&&r.price!==null&&r.after!==null);
+    const ready=displayed.rows.filter(r=>r.eligibility==='met'&&r.price!==null&&r.after!==null);
     let shown=ready;
-    if(!showAll){
+    if(!showAll&&displayed.precision!=='verify'){
       const leaders=new Set<UpgradeRow>();
       for(const slot of new Set(ready.map(r=>r.slot))){const group=ready.filter(r=>r.slot===slot);for(const mode of ['gain','efficiency'] as const){const first=sortRows(group,mode,objective)[0];if(first)leaders.add(first);}}
       shown=[...leaders];
     }
-    if(showPending)shown=shown.concat(analysis.rows.filter(r=>!ready.includes(r)));
     for (const row of sortRows(shown, sortMode,objective)) {
-      const main=renderRow(row,options,objective),detail=renderDetail(row,options,objective,analysis.precision??'quick');
+      const main=renderRow(row,options,objective),detail=renderDetail(row,options,objective,displayed.precision??'quick');
       detail.hidden=true;main.tabIndex=0;main.setAttribute('aria-expanded','false');
       main.title='點擊查看比較明細';
       const toggle=()=>{detail.hidden=!detail.hidden;main.setAttribute('aria-expanded',String(!detail.hidden));detail.querySelector('details')!.open=!detail.hidden;};
@@ -406,7 +418,12 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
     const tableScroll = element('div', 'upgrade-table-scroll');
     tableScroll.append(table);
     content.append(tableScroll);
-    status.textContent = `${analysis.precision==='verify'?'精算完成':'快速比較完成'}：比較 ${analysis.testedVariants} 項，顯示 ${shown.length} 項${showAll?'':'（各部位最佳）'}。`;
+    const unavailable=displayed.rows.length-ready.length;
+    if(unavailable>0){const note=element('p','upgrade-warning');note.textContent=`另有${unavailable}項資料不足未列入。`;content.append(note);}
+    const quickReady=quickAnalysis?.rows.filter(r=>r.eligibility==='met'&&r.price!==null&&r.after!==null).length??0;
+    moreButton.hidden=quickReady<=shown.length&&!showAll;moreButton.disabled=quickReady===0;
+    moreButton.textContent=showAll?'只看推薦':`顯示更多候選（${Math.max(0,quickReady-shown.length)}）`;
+    status.textContent = `${displayed.precision==='verify'?'精算完成':'快速比較完成'}：比較 ${displayed.testedVariants} 項，顯示 ${shown.length} 項${showAll?'（完整快速清單）':displayed.precision==='verify'?'（精算推薦）':'（各部位最佳）'}。`;
   };
 
   skillSelect.addEventListener('change', () => {
@@ -437,9 +454,7 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
     if (currentAnalysis) renderAnalysis(currentAnalysis);
   });
   objectiveSelect.addEventListener('change',()=>{objective=objectiveSelect.value as UpgradeObjective;markStale();});
-  topSelect.addEventListener('change',()=>{topN=Number(topSelect.value);markStale();});
-  allCheck.addEventListener('change',()=>{showAll=allCheck.checked;if(currentAnalysis)renderAnalysis(currentAnalysis);});
-  pendingCheck.addEventListener('change',()=>{showPending=pendingCheck.checked;if(currentAnalysis)renderAnalysis(currentAnalysis);});
+  moreButton.addEventListener('click',()=>{showAll=!showAll;if(currentAnalysis)renderAnalysis(currentAnalysis);});
 
   const startAnalysis=(precision:'quick'|'verify') => {
     if (running) {
@@ -455,7 +470,8 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
     const id = ++revision;
     const controller = new AbortController();
     running = { id, controller };
-    if(precision==='quick'){currentAnalysis = null;content.replaceChildren();}
+    if(precision==='quick'){currentAnalysis = null;quickAnalysis=null;content.replaceChildren();}
+    showAll=false;
     verifyButton.disabled=true;
     const onParentAbort = (): void => controller.abort();
     if (options.signal?.aborted) controller.abort();
@@ -474,7 +490,7 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
           snapshots: options.snapshots,
           action: selectedSkill,
           hoursPerDay,
-          objective,topN,precision,
+          objective,topN:3,precision,
           onProgress: ({ done, total, phase }) => {
             if (running?.id !== id) return;
             progress.max = Math.max(1, total);
@@ -489,6 +505,7 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
           return;
         }
         currentAnalysis = analysis;
+        if(precision==='quick')quickAnalysis=analysis;
         renderAnalysis(analysis);
       } catch (error) {
         if (controller.signal.aborted || isAbortError(error)) {

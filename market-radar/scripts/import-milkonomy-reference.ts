@@ -51,6 +51,7 @@ const strategyData = {
   personalBuffTypeDetailMap: gameData.personalBuffTypeDetailMap,
   openableLootDropMap: gameData.openableLootDropMap,
   shopItemDetailMap: gameData.shopItemDetailMap,
+  houseRoomDetailMap: gameData.houseRoomDetailMap,
 };
 
 function stable(value: unknown): unknown {

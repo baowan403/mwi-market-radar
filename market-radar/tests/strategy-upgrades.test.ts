@@ -18,6 +18,10 @@ const history=(volume=1e9):Snapshot[]=>Array.from({length:48},(_,i)=>({timestamp
   '/items/alchemists_bottoms::10':{a:100000000,b:90000000,p:99000000,v:1},
   '/items/guzzling_pouch::5':{a:400000000,b:390000000,p:395000000,v:1},
   '/items/necklace_of_wisdom::0':{a:1000000,b:900000,p:950000,v:1},
+  '/items/purpleheart_lumber::0':{a:10,b:9,p:10,v:1000},'/items/ginkgo_lumber::0':{a:10,b:9,p:10,v:1000},
+  '/items/milking_essence::0':{a:10,b:9,p:10,v:1000},'/items/foraging_essence::0':{a:10,b:9,p:10,v:1000},
+  '/items/woodcutting_essence::0':{a:10,b:9,p:10,v:1000},'/items/burble_alembic::0':{a:10,b:9,p:10,v:1000},
+  '/items/crimson_alembic::0':{a:10,b:9,p:10,v:1000},
 }}));
 const calculate:typeof buildStrategyCandidates=({profile:p,actions})=>{
   const buffs=actionBuffs(p,'alchemy',data);
@@ -29,6 +33,15 @@ const calculate:typeof buildStrategyCandidates=({profile:p,actions})=>{
 };
 async function run(p=profile(),volume=1e9){return analyzeUpgradeTargets({profile:p,data,snapshots:history(volume),action:'alchemy',hoursPerDay:24,calculate,now:47*3600000});}
 describe('upgrade goal board',()=>{
+  it('ranks the next cumulative house level beside equipment', async () => {
+    const p=profile();p.actions.alchemy.houseLevel=4;
+    const r=await run(p);
+    const house=r.rows.find(row=>row.kind==='house'&&row.itemHrid==='/house_rooms/laboratory'&&row.enhancementLevel===5)!;
+    expect(house).toBeDefined();
+    expect(house.price).toBe(25_072_360);
+    expect(house.delta).toBeGreaterThan(0);
+    expect(house.materials?.some(item=>item.itemHrid==='/items/crimson_alembic')).toBe(true);
+  });
   it('verifies only the shortlist and uses the verified baseline for every delta',async()=>{
     let fullCalls=0;
     const wrapped:typeof calculate=opts=>{if(!opts.actions)fullCalls++;return calculate(opts);};

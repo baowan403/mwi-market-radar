@@ -2350,6 +2350,10 @@ dialog::backdrop {
   align-items: center;
   gap: 10px 14px;
 }
+.upgrade-control-hint { color: var(--color-muted); font-size: .72rem; max-width: 220px; }
+.upgrade-more { display: block; margin: 10px auto 0; }
+.upgrade-more[hidden] { display: none; }
+.upgrade-materials { margin: 4px 0 10px; padding-left: 20px; color: var(--color-muted); }
 
 .upgrade-controls h3 {
   margin: 0;

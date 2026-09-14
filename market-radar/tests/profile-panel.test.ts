@@ -154,6 +154,7 @@ describe('profile panel', () => {
 
     const houseLevel = alchemy?.querySelector<HTMLInputElement>('input[aria-label="實驗室等級"]');
     expect(houseLevel?.value).toBe('4');
+    expect(houseLevel?.max).toBe('8');
 
     // 檢查通用配件 (暴飲袋)
     const pouchCheck = document.querySelector<HTMLInputElement>('#special--items-guzzling_pouch');

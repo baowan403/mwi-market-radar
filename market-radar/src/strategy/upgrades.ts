@@ -10,15 +10,18 @@ import { estimateStrategySession } from './session';
 import { createMarketCapacityLookup } from './liquidity';
 import { candidateExperience, recalculateUpgradeReference } from './upgrade-evaluation';
 import type { StrategyCandidate } from './candidates';
+import { buildHouseUpgradeTargets, type HouseUpgradeMaterial } from './house-upgrades';
 
 export type UpgradeObjective='profit'|'experience';
 export interface UpgradeEvaluation { profit:number; route:string[]; theoreticalProfit:number; xpPerHour?:number; candidate?:StrategyCandidate }
 export interface UpgradeRow {
+  kind?:'equipment'|'house';
   itemHrid:string; enhancementLevel:number; slot:string; price:number|null; owned:boolean;
   eligibility:'met'|'unmet'|'unknown'; requirements:string[];
   after:UpgradeEvaluation|null; delta:number|null; paybackDays:number|null; priority:string;
   xpDelta?:number|null;
   marginal?:{lowerEnhancement:number;extraCost:number|null;extraGain:number|null;paybackDays:number|null};
+  materials?:HouseUpgradeMaterial[];
 }
 export interface UpgradeAnalysis {
   action:SkillingAction; hoursPerDay:number; baseline:UpgradeEvaluation|null;
@@ -118,6 +121,11 @@ export async function analyzeUpgradeTargets(options:{
         after:null,delta:null,paybackDays:null,priority:'待評估'});
     }
   }
+  for(const target of buildHouseUpgradeTargets({profile:base,action,rooms:data.houseRoomDetailMap,prices})){
+    rows.push({kind:'house',itemHrid:target.houseHrid,enhancementLevel:target.targetLevel,slot:'house',owned:false,
+      price:target.price,eligibility:'met',requirements:[`目前Lv${target.currentLevel}；升至Lv${target.targetLevel}`],
+      materials:target.materials,after:null,delta:null,paybackDays:null,priority:'待評估'});
+  }
   const cache=new Map<string,UpgradeEvaluation|null>();
   const capacityFor=createMarketCapacityLookup(snapshots);
   const scan=options.calculate??buildStrategyCandidates;
@@ -158,7 +166,8 @@ export async function analyzeUpgradeTargets(options:{
     if(row.delta!==null&&Math.abs(row.delta)<1e-6)row.delta=0;
     row.paybackDays=row.delta!==null&&row.delta>0&&row.price!==null?row.price/row.delta:null;
   };
-  const scenarioFor=(row:UpgradeRow)=>{const p=structuredClone(base);putEquipment(p,action,row.slot,{itemHrid:row.itemHrid,enhancementLevel:row.enhancementLevel});return p;};
+  const scenarioFor=(row:UpgradeRow)=>{const p=structuredClone(base);if(row.kind==='house')p.actions[action].houseLevel=row.enhancementLevel;
+    else putEquipment(p,action,row.slot,{itemHrid:row.itemHrid,enhancementLevel:row.enhancementLevel});return p;};
   let lastYield=performance.now();
   for(let i=0;i<rows.length;i++){
     cancelled();const row=rows[i]!;
@@ -185,7 +194,7 @@ export async function analyzeUpgradeTargets(options:{
     for(let i=0;i<selected.length;i++){cancelled();assign(selected[i]!,full(scenarioFor(selected[i]!)));options.onProgress?.({done:i+1,total:selected.length,phase:'verify'});await new Promise(r=>setTimeout(r,0));}
     rows.splice(0,rows.length,...selected);
   }
-  const higherOwned=(row:UpgradeRow)=>isItemOwnedByPlayer(row.itemHrid,base)&&(base.inventoryMap[row.itemHrid]??-1)>row.enhancementLevel;
+  const higherOwned=(row:UpgradeRow)=>row.kind!=='house'&&isItemOwnedByPlayer(row.itemHrid,base)&&(base.inventoryMap[row.itemHrid]??-1)>row.enhancementLevel;
   const comparable=rows.filter(r=>r.eligibility==='met'&&r.price!==null&&metric(r)>0&&!higherOwned(r));
   const largest=Math.max(0,...comparable.map(metric));
   const fastest=Math.min(Infinity,...comparable.filter(r=>!r.owned).map(r=>r.price!/metric(r)));

@@ -99,6 +99,13 @@ export interface StrategyItemDetail {
   scrollDetail?: Record<string, unknown> | null;
 }
 
+export interface StrategyHouseRoomDetail {
+  hrid: string;
+  name: string;
+  skillHrid: string;
+  upgradeCostsMap: Record<string, CountedItem[]>;
+}
+
 export interface StrategyGameDataInput {
   gameVersion: string;
   versionTimestamp: string;
@@ -116,4 +123,5 @@ export interface StrategyGameDataInput {
     maxCount: number;
   }>>;
   shopItemDetailMap: Record<string, unknown>;
+  houseRoomDetailMap: Record<string, StrategyHouseRoomDetail>;
 }

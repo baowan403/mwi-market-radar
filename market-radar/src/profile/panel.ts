@@ -549,14 +549,14 @@ function renderProfileAssumptions(
     const houseLevelInput = element('input', 'profile-num-input');
     houseLevelInput.type = 'number';
     houseLevelInput.min = '0';
-    houseLevelInput.max = '10';
+    houseLevelInput.max = '8';
     houseLevelInput.value = String(config.houseLevel);
     houseLevelInput.setAttribute('aria-label', `${HOUSE_LABELS[action]}等級`);
     const houseUnit = element('span', 'profile-input-unit');
     houseUnit.textContent = '級';
 
     const updateHouse = () => {
-      const lvl = Math.max(0, Math.min(10, Math.floor(Number(houseLevelInput.value) || 0)));
+      const lvl = Math.max(0, Math.min(8, Math.floor(Number(houseLevelInput.value) || 0)));
       houseLevelInput.value = String(lvl);
       config.houseLevel = lvl;
       profile.provenanceMap = profile.provenanceMap ?? {};

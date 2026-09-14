@@ -36,6 +36,7 @@ describe('pinned Milkonomy reference artifacts', () => {
       personalBuffTypeDetailMap: expect.any(Object),
       openableLootDropMap: expect.any(Object),
       shopItemDetailMap: expect.any(Object),
+      houseRoomDetailMap: expect.any(Object),
     }));
     expect(strategyData).not.toHaveProperty('monsterDetailMap');
     expect(strategyData).not.toHaveProperty('chat');
@@ -47,6 +48,7 @@ describe('pinned Milkonomy reference artifacts', () => {
 
     expect(normalized.itemsByHrid.size).toBeGreaterThan(100);
     expect(normalized.actionsByHrid.size).toBeGreaterThan(100);
+    expect(normalized.houseRoomDetailMap['/house_rooms/laboratory']).toBeDefined();
     expect(() => normalizeStrategyGameData({ gameVersion: 'bad' })).toThrow(StrategyDataError);
   });
 
