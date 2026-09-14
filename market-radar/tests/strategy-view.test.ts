@@ -538,7 +538,7 @@ describe('strategy recommendation view', () => {
     view.destroy();
   });
 
-  it('filters strategies by alpha opportunity when alpha skill option is selected', async () => {
+  it('does not expose the redundant alpha mode in the toolbar or skill selector', async () => {
     const target = document.createElement('section');
     const snapshots = history({
       '/items/steady_cloth': 10_000,
@@ -573,12 +573,9 @@ describe('strategy recommendation view', () => {
     const skillSelect = target.querySelector<HTMLSelectElement>('[data-strategy-skill]')!;
     expect(skillSelect).not.toBeNull();
 
-    // 切換到 ⚡ 突發短缺 / 暴利
-    skillSelect.value = 'alpha';
-    skillSelect.dispatchEvent(new Event('change'));
-
-    // 目前平穩布匹無突發利潤爆發（m1=0），應展示平穩提示
-    expect(target.textContent).toContain('目前資料下沒有符合條件的短期動能候選');
+    expect([...skillSelect.options].map((option) => option.value)).not.toContain('alpha');
+    expect(target.querySelector('[data-strategy-tab="alpha"]')).toBeNull();
+    expect(target.textContent).not.toContain('突發短缺 / 暴利');
 
     view.destroy();
   });

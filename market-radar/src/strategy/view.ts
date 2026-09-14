@@ -127,11 +127,10 @@ const CONFIDENCE_LABELS: Record<StrategySignalConfidence, string> = {
   high: '高',
 };
 
-export type StrategyFilterSkill = 'all' | 'alpha' | SkillingAction;
+export type StrategyFilterSkill = 'all' | SkillingAction;
 
 export const STRATEGY_SKILL_OPTIONS: Array<{ value: StrategyFilterSkill; label: string }> = [
   { value: 'all', label: '全部生活技能（9大技能）' },
-  { value: 'alpha', label: '⚡ 突發短缺 / 暴利' },
   { value: 'milking', label: '擠奶' },
   { value: 'foraging', label: '採摘' },
   { value: 'woodcutting', label: '伐木' },
@@ -188,10 +187,8 @@ function matchesSearchQuery(candidate: StrategyCandidate, query: string, itemNam
 function matchesSkill(
   candidate: StrategyCandidate,
   selectedSkill: StrategyFilterSkill,
-  signal?: StrategySignal,
 ): boolean {
   if (selectedSkill === 'all') return true;
-  if (selectedSkill === 'alpha') return signal?.isAlphaOpportunity === true;
   return candidate.steps.some((step) => step.action === selectedSkill);
 }
 
@@ -692,20 +689,14 @@ function renderResults(
   steadyBtn.type = 'button';
   steadyBtn.textContent = '策略推薦';
   steadyBtn.dataset.strategyTab = 'steady';
-  if (filterState.selectedSkill !== 'alpha') steadyBtn.classList.add('active');
-
-  const alphaBtn = element('button', 'toolbar-button');
-  alphaBtn.type = 'button';
-  alphaBtn.textContent = '⚡ 突發短缺 / 暴利';
-  alphaBtn.dataset.strategyTab = 'alpha';
-  if (filterState.selectedSkill === 'alpha') alphaBtn.classList.add('active');
+  steadyBtn.classList.add('active');
 
   const opportunityBtn=element('button','toolbar-button');
   opportunityBtn.type='button'; opportunityBtn.textContent='機會雷達';
   opportunityBtn.dataset.strategyTab='opportunity';
   const upgradeBtn=element('button','toolbar-button');upgradeBtn.type='button';
   upgradeBtn.textContent='升級目標';upgradeBtn.dataset.strategyTab='upgrades';
-  modeGroup.append(steadyBtn, opportunityBtn, upgradeBtn, alphaBtn);
+  modeGroup.append(steadyBtn, opportunityBtn, upgradeBtn);
 
   const skillGroup = element('div', 'strategy-filter-group');
   const skillLabel = element('label', 'strategy-label');
@@ -875,8 +866,7 @@ function renderResults(
     durationGroup.hidden=isUpgrade;
     skillGroup.hidden=toolPage;searchGroup.hidden=toolPage;unrankedLabel.hidden=toolPage;
     for(const [button,active] of [[opportunityBtn,isOpportunity],[upgradeBtn,isUpgrade],
-      [alphaBtn,!toolPage&&filterState.selectedSkill==='alpha'],
-      [steadyBtn,!toolPage&&filterState.selectedSkill!=='alpha']] as const){
+      [steadyBtn,!toolPage]] as const){
       button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
     }
   }
@@ -887,24 +877,6 @@ function renderResults(
   steadyBtn.addEventListener('click', () => {
     filterState.upgradeMode=false;
     filterState.opportunityMode=false;
-    if (filterState.selectedSkill === 'alpha') {
-      filterState.selectedSkill = 'all';
-      skillSelect.value = 'all';
-      syncModeButtons();
-      updateResults();
-    }
-    syncModeButtons();
-  });
-
-  alphaBtn.addEventListener('click', () => {
-    filterState.upgradeMode=false;
-    filterState.opportunityMode=false;
-    if (filterState.selectedSkill !== 'alpha') {
-      filterState.selectedSkill = 'alpha';
-      skillSelect.value = 'alpha';
-      syncModeButtons();
-      updateResults();
-    }
     syncModeButtons();
   });
 
@@ -930,27 +902,13 @@ function renderResults(
     }
     bestEstimatedProfit = Math.max(0, ...assessed.map(item => item.decision.rankValue ?? 0));
 
-    // ── 效能核心優化：未選擇 alpha 時，完全不對幾千個候選提前計算信號 ──
-    let matched: AssessedStrategy[];
-    if (filterState.selectedSkill === 'alpha') {
-      const candidatesToScan = assessed.filter((item) => (
-        isSearchActive
-          ? matchesSearchQuery(item.candidate, filterState.searchQuery, options.itemName)
-          : item.decision.actionable
-      ));
-      matched = candidatesToScan.filter((item) => {
-        const s = getAssessedSignal(item);
-        return s.signal.isAlphaOpportunity === true;
-      });
-    } else {
-      matched = assessed.filter(({ candidate, decision }) => {
-        if (!matchesSkill(candidate, filterState.selectedSkill)) return false;
-        if (isSearchActive) {
-          return matchesSearchQuery(candidate, filterState.searchQuery, options.itemName);
-        }
-        return decision.actionable || filterState.showUnranked === true;
-      });
-    }
+    let matched = assessed.filter(({ candidate, decision }) => {
+      if (!matchesSkill(candidate, filterState.selectedSkill)) return false;
+      if (isSearchActive) {
+        return matchesSearchQuery(candidate, filterState.searchQuery, options.itemName);
+      }
+      return decision.actionable || filterState.showUnranked === true;
+    });
 
     // Only compute trends for the top50 and its boundary profit bucket, never the entire tail.
     matched.sort((a, b) => (effectiveProfit(b) - effectiveProfit(a)) || a.candidate.id.localeCompare(b.candidate.id));
@@ -977,9 +935,7 @@ function renderResults(
 
       const leftContainer = element('div', 'strategy-decision-summary-left');
       const label = element('strong');
-      label.textContent = filterState.selectedSkill === 'alpha'
-        ? '⚡ 短缺套利首選'
-        : '預估收益首選';
+      label.textContent = '預估收益首選';
       const value = element('span', 'strategy-decision-summary-title');
       const bestPathName = formatSemanticPath(best.candidate, data, options.itemName);
       value.textContent = `${bestPathName}・${filterState.plannedHours ?? 24}H 預估收益 ${metric(best.decision.rankValue)}`;
@@ -990,11 +946,7 @@ function renderResults(
         : `限做${quantity(best.decision.executionHours)}H；剩餘時間未計收益。`;
 
       const radarBadge = element('span', 'strategy-radar-badge');
-      if (filterState.selectedSkill === 'alpha') {
-        radarBadge.textContent = '⚡ 模式：突發短缺暴利雷達（已剔除幽靈插針）';
-      } else {
-        radarBadge.textContent = '市場風險請見各列；短缺機會另行檢查';
-      }
+      radarBadge.textContent = '趨勢與市場風險已納入優先級';
 
       summary.append(leftContainer, note, radarBadge);
       nextResults.append(summary);
@@ -1012,8 +964,6 @@ function renderResults(
       const empty = element('p', 'strategy-no-result');
       if (isSearchActive) {
         empty.textContent = `找不到與「${filterState.searchQuery.trim()}」相關的策略。`;
-      } else if (filterState.selectedSkill === 'alpha') {
-        empty.textContent = '目前資料下沒有符合條件的短期動能候選。';
       } else if (filterState.selectedSkill !== 'all') {
         const skillName = STRATEGY_SKILL_OPTIONS.find((s) => s.value === filterState.selectedSkill)?.label ?? '';
         empty.textContent = `在「${skillName}」技能下沒有符合條件的策略。`;
@@ -1028,8 +978,6 @@ function renderResults(
     const meta = element('p', 'strategy-meta');
     if (isSearchActive) {
       meta.textContent = `搜尋「${filterState.searchQuery.trim()}」：顯示前 ${chosen.length} 條（依目前選定排序）`;
-    } else if (filterState.selectedSkill === 'alpha') {
-      meta.textContent = `短缺候選：前${chosen.length}條，依${filterState.plannedHours ?? 24}H預估收益排序`;
     } else if (filterState.selectedSkill !== 'all') {
       const skillName = STRATEGY_SKILL_OPTIONS.find((s) => s.value === filterState.selectedSkill)?.label ?? '';
       meta.textContent = `技能「${skillName}」：前${chosen.length}條，依${filterState.plannedHours ?? 24}H預估收益排序`;
