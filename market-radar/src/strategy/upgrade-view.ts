@@ -402,7 +402,15 @@ export function createUpgradePanel(options: UpgradePanelOptions): UpgradePanel {
     let shown=ready;
     if(!showAll&&displayed.precision!=='verify'){
       const leaders=new Set<UpgradeRow>();
-      for(const slot of new Set(ready.map(r=>r.slot))){const group=ready.filter(r=>r.slot===slot);for(const mode of ['gain','efficiency'] as const){const first=sortRows(group,mode,objective)[0];if(first)leaders.add(first);}}
+      for(const slot of new Set(ready.map(r=>r.slot))){
+        const group=ready.filter(r=>r.slot===slot);
+        if(slot==='house'){
+          const nextLevel=[...group].sort((a,b)=>a.enhancementLevel-b.enhancementLevel)[0];
+          if(nextLevel)leaders.add(nextLevel);
+          continue;
+        }
+        for(const mode of ['gain','efficiency'] as const){const first=sortRows(group,mode,objective)[0];if(first)leaders.add(first);}
+      }
       shown=[...leaders];
     }
     for (const row of sortRows(shown, sortMode,objective)) {

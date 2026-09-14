@@ -192,6 +192,21 @@ describe('upgrade target panel', () => {
     (panel.element.querySelector('[data-upgrade-row]') as HTMLTableRowElement).click();
     expect(panel.element.textContent).toContain('/items/a × 2');
   });
+  it('recommends only the next sequential house level by default',async()=>{
+    const result=analysis();
+    result.rows=[5,6,7,8].map(level=>({
+      kind:'house' as const,itemHrid:'/house_rooms/laboratory',enhancementLevel:level,slot:'house',
+      price:level*100,owned:false,eligibility:'met' as const,requirements:[`目前Lv4；升至Lv${level}`],
+      after:evaluation(100+level*20,['base']),delta:level*20,paybackDays:level,priority:'可考慮',materials:[],
+    }));
+    const panel=createUpgradePanel({profile,data,snapshots,itemName:h=>h,analyze:vi.fn(async()=>result)});
+    (panel.element.querySelector('[data-upgrade-analyze]') as HTMLButtonElement).click();
+    await vi.waitFor(()=>expect(panel.element.querySelectorAll('[data-upgrade-row]')).toHaveLength(1));
+    expect(panel.element.querySelector<HTMLElement>('[data-upgrade-row]')?.dataset.upgradeRow)
+      .toBe('/house_rooms/laboratory::5');
+    showEverything(panel);
+    expect(panel.element.querySelectorAll('[data-upgrade-row]')).toHaveLength(4);
+  });
   it('keeps the complete quick list available after shortlist verification',async()=>{
     const quick=analysis();const verified={...analysis(),precision:'verify' as const,rows:[analysis().rows[1]!],testedVariants:1};
     const analyze=vi.fn(async(options:{precision:string})=>options.precision==='verify'?verified:quick);
