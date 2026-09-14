@@ -9,10 +9,8 @@ import { generateSparklineSvg } from './sparkline';
 import { createStrategyPriceBook } from './price-book';
 import { createMarketCapacityLookup, createMarketCapacityHistory } from './liquidity';
 import { estimateStrategySession, compareSessionRanking, type StrategySession } from './session';
-import { createOpportunityPanel } from './opportunity-view';
 import { createUpgradePanel } from './upgrade-view';
 import { runCandidateScan } from './candidate-runner';
-import { createOpportunityJournal, type OpportunityJournal } from './opportunity-journal';
 import { formatSemanticPath } from './semantic-path';
 import {
   evaluateRealizableStrategy,
@@ -45,8 +43,6 @@ export interface StrategyViewOptions {
   itemName(hrid: string): string;
   onImportProfile(): void;
   now?: () => number;
-  opportunityJournal?: OpportunityJournal;
-  opportunitySignal?: AbortSignal;
 }
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
@@ -620,7 +616,6 @@ interface StrategyFilterContext {
   plannedHours?: number;
   customDuration?: boolean;
   showUnranked?: boolean;
-  opportunityMode?: boolean;
   upgradeMode?: boolean;
 }
 
@@ -632,6 +627,7 @@ function renderResults(
   data: NormalizedStrategyGameData,
   profile: PlayerProfile,
   latestSnapshotAgeMs: number,
+  renderSignal: AbortSignal | undefined,
   initialFilter: StrategyFilterContext = {
     selectedSkill: 'all', searchQuery: '', plannedHours: 24,
   },
@@ -691,12 +687,9 @@ function renderResults(
   steadyBtn.dataset.strategyTab = 'steady';
   steadyBtn.classList.add('active');
 
-  const opportunityBtn=element('button','toolbar-button');
-  opportunityBtn.type='button'; opportunityBtn.textContent='機會雷達';
-  opportunityBtn.dataset.strategyTab='opportunity';
   const upgradeBtn=element('button','toolbar-button');upgradeBtn.type='button';
   upgradeBtn.textContent='升級目標';upgradeBtn.dataset.strategyTab='upgrades';
-  modeGroup.append(steadyBtn, opportunityBtn, upgradeBtn);
+  modeGroup.append(steadyBtn, upgradeBtn);
 
   const skillGroup = element('div', 'strategy-filter-group');
   const skillLabel = element('label', 'strategy-label');
@@ -775,16 +768,7 @@ function renderResults(
   const dailyAssessed: AssessedStrategy[] = baseAssessed.map(({candidate,liquidity})=>({candidate,liquidity,
     decision:estimateStrategySession({candidate,liquidity,profile,plannedHours:24,latestSnapshotAgeMs})}));
   const dailyProfit24h = Math.max(0,...dailyAssessed.map(item=>item.decision.rankValue??0));
-  const briefing=element('p','opportunity-brief');
-  briefing.textContent='機會尚未分析，可到「機會雷達」查看。';
-  briefing.dataset.tone='neutral';
-  options.target.insertBefore(briefing,resultsContainer);
-  const opportunityPanel = createOpportunityPanel({ candidates: result.candidates, snapshots, data, profile,
-    getHours: () => filterState.plannedHours ?? 24, itemName: options.itemName,
-    journal: options.opportunityJournal!, now: options.now, signal: options.opportunitySignal,
-    onSummary:(text,tone)=>{briefing.textContent=text;briefing.dataset.tone=tone;} });
-  options.target.insertBefore(opportunityPanel.element, resultsContainer);
-  const upgradePanel=createUpgradePanel({profile,data,snapshots,dailyProfit24h:dailyProfit24h>0?dailyProfit24h:null,itemName:options.itemName,now:options.now,signal:options.opportunitySignal});
+  const upgradePanel=createUpgradePanel({profile,data,snapshots,dailyProfit24h:dailyProfit24h>0?dailyProfit24h:null,itemName:options.itemName,now:options.now,signal:renderSignal});
   options.target.insertBefore(upgradePanel.element,resultsContainer);
   let bestEstimatedProfit = 0;
 
@@ -857,26 +841,19 @@ function renderResults(
 
   function syncModeButtons(): void {
     const isUpgrade=filterState.upgradeMode===true;
-    const isOpportunity=!isUpgrade&&filterState.opportunityMode===true;
-    const toolPage=isOpportunity||isUpgrade;
-    opportunityPanel.element.hidden=!isOpportunity;
     upgradePanel.element.hidden=!isUpgrade;
-    resultsContainer.hidden=toolPage;
-    briefing.hidden=toolPage;
+    resultsContainer.hidden=isUpgrade;
     durationGroup.hidden=isUpgrade;
-    skillGroup.hidden=toolPage;searchGroup.hidden=toolPage;unrankedLabel.hidden=toolPage;
-    for(const [button,active] of [[opportunityBtn,isOpportunity],[upgradeBtn,isUpgrade],
-      [steadyBtn,!toolPage]] as const){
+    skillGroup.hidden=isUpgrade;searchGroup.hidden=isUpgrade;unrankedLabel.hidden=isUpgrade;
+    for(const [button,active] of [[upgradeBtn,isUpgrade],[steadyBtn,!isUpgrade]] as const){
       button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
     }
   }
 
-  opportunityBtn.addEventListener('click',()=>{filterState.upgradeMode=false;filterState.opportunityMode=true;syncModeButtons();});
-  upgradeBtn.addEventListener('click',()=>{filterState.upgradeMode=true;filterState.opportunityMode=false;syncModeButtons();});
+  upgradeBtn.addEventListener('click',()=>{filterState.upgradeMode=true;syncModeButtons();});
 
   steadyBtn.addEventListener('click', () => {
     filterState.upgradeMode=false;
-    filterState.opportunityMode=false;
     syncModeButtons();
   });
 
@@ -1055,14 +1032,12 @@ function renderResults(
     if (!filterState.customDuration) {
       filterState.plannedHours = Number(durationSelect.value);
       customHours.value = String(filterState.plannedHours);
-      opportunityPanel.invalidate();
       updateResults();
     }
   });
   customHours.addEventListener('change', () => {
     if (!customHours.checkValidity() || !Number.isFinite(customHours.valueAsNumber)) return;
     filterState.plannedHours = customHours.valueAsNumber;
-    opportunityPanel.invalidate();
     updateResults();
   });
   unrankedInput.addEventListener('change', () => {
@@ -1077,7 +1052,6 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
   let generation = 0;
   let destroyed = false;
   let renderController = new AbortController();
-  const journal = options.opportunityJournal ?? createOpportunityJournal();
   const filterState: StrategyFilterContext = { selectedSkill: 'all', searchQuery: '', plannedHours: 24 };
   return {
     async render(): Promise<void> {
@@ -1107,7 +1081,7 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
           : await runCandidateScan({profile,data,snapshot,signal:renderController.signal});
         if (destroyed || current !== generation) return;
         const now = options.now?.() ?? Date.now();
-        renderResults(result, new Set(pins), { ...options, opportunityJournal: journal, opportunitySignal: renderController.signal }, snapshots, data, profile, Math.max(0, now - snapshot.timestamp), filterState);
+        renderResults(result, new Set(pins), options, snapshots, data, profile, Math.max(0, now - snapshot.timestamp), renderController.signal, filterState);
       } catch {
         if (!destroyed && current === generation) options.target.textContent = '策略資料無法使用，請稍後再試。';
       }
@@ -1115,7 +1089,6 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
     destroy(): void {
       destroyed = true;
       renderController.abort();
-      if (!options.opportunityJournal) journal.close();
       generation += 1;
     },
   };

@@ -115,13 +115,11 @@ describe('strategy recommendation view', () => {
       now: () => snapshots.at(-1)!.timestamp });
     await view.render();
     const ids = () => [...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map(r => r.dataset.strategyRow);
-    const opportunity=target.querySelector<HTMLElement>('[data-opportunity-panel]')!;
     const ranking=target.querySelector<HTMLElement>('.strategy-results-container')!;
-    expect(opportunity.hidden).toBe(true); expect(ranking.hidden).toBe(false);
-    (target.querySelector('[data-strategy-tab="opportunity"]') as HTMLButtonElement).click();
-    expect(opportunity.hidden).toBe(false); expect(ranking.hidden).toBe(true);
-    (target.querySelector('[data-strategy-tab="steady"]') as HTMLButtonElement).click();
-    expect(opportunity.hidden).toBe(true); expect(ranking.hidden).toBe(false);
+    expect(target.querySelector('[data-opportunity-panel]')).toBeNull();
+    expect(target.querySelector('[data-strategy-tab="opportunity"]')).toBeNull();
+    expect(target.textContent).not.toContain('機會雷達');
+    expect(ranking.hidden).toBe(false);
     const upgrades=target.querySelector<HTMLElement>('[data-upgrade-panel]')!;
     expect(upgrades.hidden).toBe(true);
     (target.querySelector('[data-strategy-tab="upgrades"]') as HTMLButtonElement).click();
