@@ -8,6 +8,7 @@ import type { PlayerProfile } from '../src/profile/types';
 import type { MarketKey, Snapshot } from '../src/core/types';
 import type { StrategyStepResult } from '../src/strategy/types';
 import * as sessionModule from '../src/strategy/session';
+import {createMemoryStrategyResultCache} from '../src/strategy/result-cache';
 
 const profile = {
   id: 'character:1', name: '測試牛', actions: { alchemy: { playerLevel: 103 } },
@@ -71,6 +72,21 @@ const calculated: StrategyCandidateResult = {
 };
 
 describe('strategy recommendation view', () => {
+  it('reuses a completed scan after a new view instance is created',async()=>{
+    const cache=createMemoryStrategyResultCache();
+    const gameData={gameVersion:'v1',versionTimestamp:'1',shopItemDetailMap:{},openableLootDropMap:{},itemsByHrid:new Map()} as never;
+    const firstCalculate=vi.fn(()=>calculated);
+    const first=createStrategyView({target:document.createElement('section'),getProfile:()=>profile,getSnapshots:()=>[snapshot],
+      loadGameData:async()=>gameData,calculate:firstCalculate,resultCache:cache,pinStore:createMemoryStrategyPinStore(),itemName:h=>h,onImportProfile:vi.fn()});
+    await first.render();first.destroy();
+    const secondCalculate=vi.fn(()=>calculated);
+    const second=createStrategyView({target:document.createElement('section'),getProfile:()=>profile,getSnapshots:()=>[snapshot],
+      loadGameData:async()=>gameData,calculate:secondCalculate,resultCache:cache,pinStore:createMemoryStrategyPinStore(),itemName:h=>h,onImportProfile:vi.fn()});
+    await second.render();
+    expect(firstCalculate).toHaveBeenCalledOnce();
+    expect(secondCalculate).not.toHaveBeenCalled();
+    second.destroy();
+  });
   it('reuses an unchanged candidate scan and invalidates it when the market snapshot changes',async()=>{
     const target=document.createElement('section');
     let currentSnapshot={...snapshot};

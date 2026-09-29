@@ -27,6 +27,11 @@ import {
   type StrategySignalConfidence,
 } from './signals';
 import type { StrategyFlow, StrategyStepResult } from './types';
+import {
+  createBrowserStrategyResultCache,
+  strategyResultCacheKey,
+  type StrategyResultCache,
+} from './result-cache';
 
 export interface StrategyView {
   render(): Promise<void>;
@@ -43,6 +48,7 @@ export interface StrategyViewOptions {
   itemName(hrid: string): string;
   onImportProfile(): void;
   now?: () => number;
+  resultCache?: StrategyResultCache | null;
 }
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
@@ -1066,6 +1072,7 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
     snapshotTimestamp: number;
     nodes: Node[];
   } | null = null;
+  const resultCache=options.resultCache===undefined?createBrowserStrategyResultCache():options.resultCache;
   const filterState: StrategyFilterContext = { selectedSkill: 'all', searchQuery: '', plannedHours: 24 };
   return {
     async render(): Promise<void> {
@@ -1096,16 +1103,19 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
       try {
         const [data, pins] = await Promise.all([options.loadGameData(), options.pinStore.list()]);
         if (destroyed || current !== generation) return;
+        const cacheKey=strategyResultCacheKey(profileSignature,snapshot.timestamp,data);
         let result: StrategyCandidateResult;
         if (completedScan?.profileSignature === profileSignature
           && completedScan.snapshotTimestamp === snapshot.timestamp
           && completedScan.data === data) {
           result = completedScan.result;
         } else {
-          result = options.calculate
+          const persisted=resultCache===null?null:await resultCache.get(cacheKey);
+          result = persisted ?? (options.calculate
             ? options.calculate({ profile, data, prices: createStrategyPriceBook(snapshot, data) })
-            : await runCandidateScan({profile,data,snapshot,signal:renderController.signal});
+            : await runCandidateScan({profile,data,snapshot,signal:renderController.signal}));
           completedScan = { profileSignature, snapshotTimestamp: snapshot.timestamp, data, result };
+          if(persisted===null&&resultCache!==null)void resultCache.set(cacheKey,result);
         }
         if (destroyed || current !== generation) return;
         const now = options.now?.() ?? Date.now();
