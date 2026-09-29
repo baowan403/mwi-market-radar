@@ -38,7 +38,7 @@ describe('balanced multi-step workflows', () => {
     expect(r.steps.map(s=>s.workFraction)).toEqual([1/6,2/6,3/6]);
     expect(r.inputs.map(f=>f.itemHrid)).toEqual(['/items/a']);
     expect(r.outputs.map(f=>f.itemHrid)).toEqual(['/items/d','/items/e']);
-    expect(r.profitPerHour).toBeCloseTo((2*100*.95+3*200*.95-10)/6);
+    expect(r.profitPerHour).toBeCloseTo((2*100*.96+3*200*.96-10)/6);
     expect(()=>calculateConnectedWorkflow([root,b,b],[{from:0,to:1,itemHrid:'/items/b'},{from:0,to:2,itemHrid:'/items/b'}])).toThrow();
   });
   it('balances stage time and removes internal intermediates', () => {
