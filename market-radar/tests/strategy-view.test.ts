@@ -71,6 +71,21 @@ const calculated: StrategyCandidateResult = {
 };
 
 describe('strategy recommendation view', () => {
+  it('reuses an unchanged candidate scan and invalidates it when the market snapshot changes',async()=>{
+    const target=document.createElement('section');
+    let currentSnapshot={...snapshot};
+    const calculate=vi.fn(()=>calculated);
+    const gameData={shopItemDetailMap:{},openableLootDropMap:{},itemsByHrid:new Map()} as never;
+    const view=createStrategyView({target,getProfile:()=>profile,getSnapshots:()=>[currentSnapshot],
+      loadGameData:async()=>gameData,calculate,pinStore:createMemoryStrategyPinStore(),itemName:h=>h,onImportProfile:vi.fn()});
+    await view.render();
+    await view.render();
+    expect(calculate).toHaveBeenCalledTimes(1);
+    currentSnapshot={...snapshot,timestamp:2};
+    await view.render();
+    expect(calculate).toHaveBeenCalledTimes(2);
+    view.destroy();
+  });
   it('always explains the tea decision when a strategy uses no tea',async()=>{
     const target=document.createElement('section');
     const manual={...profile,teaMode:'manual' as const};

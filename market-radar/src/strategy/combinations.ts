@@ -5,6 +5,9 @@ import type {StrategyStepResult,StrategyFlow} from './types';
 import {expandStrategyLiquidation} from './liquidation';
 import {calculateConnectedWorkflow,type WorkflowConnection} from './workflow';
 
+const MAX_EVALUATED_PER_ROOT=8;
+const MAX_RETAINED_PER_ROOT=2;
+
 export function prepareCombinationStep(step:StrategyStepResult,data:NormalizedStrategyGameData,prices:MarketPriceBook):StrategyStepResult|null {
   const inputs=step.inputs.map(f=>data.itemsByHrid.get(f.itemHrid)?.isTradable===false?{...f,market:false}:f);
   if(step.valid||step.outputs.length>0)return {...step,inputs};
@@ -45,11 +48,10 @@ export function discoverCombinations(source:readonly StrategyStepResult[],data:N
   let local:StrategyCandidate[]=[];
   function walk(path:StrategyStepResult[],connections:WorkflowConnection[]):void {
     if(path.length>1){
-      if(evaluated++>=120)return;
+      if(evaluated++>=MAX_EVALUATED_PER_ROOT)return;
       let workflow;
       try{workflow=calculateConnectedWorkflow(path,connections);}catch{return;}
-      const legacy=path.every(s=>s.valid&&s.action!=='alchemy')&&connections.every(c=>c.from===c.to-1&&c.itemHrid===path[c.from]!.outputHrid);
-      if(!legacy&&workflow.valid&&workflow.profitPerHour!==null&&workflow.profitPerHour>0&&!seen.has(workflow.id)){
+      if(workflow.valid&&workflow.profitPerHour!==null&&workflow.profitPerHour>0&&!seen.has(workflow.id)){
         seen.add(workflow.id);
         const primarySet=new Set(path.flatMap(mainOutputs));
         const primaryOutputHrids=[...new Set(workflow.outputs.filter(f=>primarySet.has(f.itemHrid)).map(f=>f.itemHrid))];
@@ -60,12 +62,12 @@ export function discoverCombinations(source:readonly StrategyStepResult[],data:N
           path:[...new Set(itemPath)],steps:workflow.steps,connections:[...connections],primaryOutputHrids,
           profitPerHour:workflow.profitPerHour,profitPerDay:workflow.profitPerHour*24,costPerHour:workflow.costPerHour!,incomePerHour:workflow.incomePerHour!,workingCapital24h:workflow.costPerHour!*24,verificationStatus:'unverified'});
         local.sort((a,b)=>b.profitPerHour-a.profitPerHour||a.workingCapital24h-b.workingCapital24h||a.id.localeCompare(b.id));
-        if(local.length>8)local.length=8;
+        if(local.length>MAX_RETAINED_PER_ROOT)local.length=MAX_RETAINED_PER_ROOT;
       }
     }
     if(path.length===3)return;
     for(let from=0;from<path.length;from++)for(const itemHrid of new Set(mainOutputs(path[from]!))){
-      if(evaluated>=120)return;
+      if(evaluated>=MAX_EVALUATED_PER_ROOT)return;
       if(itemHrid==='/items/coin'||connections.some(c=>c.from===from&&c.itemHrid===itemHrid))continue;
       for(const next of byInput.get(itemHrid)??[]){
         if(path.some(s=>s.id===next.id))continue;

@@ -49,7 +49,8 @@ export const TEA_POOLS_BY_ACTION: Record<SkillingAction, ActionTeaPool> = {
   },
   alchemy: {
     tiered: ['/items/ultra_alchemy_tea', '/items/super_alchemy_tea', '/items/alchemy_tea'],
-    generic: ['/items/catalytic_tea', '/items/efficiency_tea', '/items/artisan_tea'],
+    // Artisan affects manufacturing output, not decompose/transmute/coinify.
+    generic: ['/items/catalytic_tea', '/items/efficiency_tea'],
   },
   cheesesmithing: {
     tiered: ['/items/ultra_cheesesmithing_tea', '/items/super_cheesesmithing_tea', '/items/cheesesmithing_tea'],

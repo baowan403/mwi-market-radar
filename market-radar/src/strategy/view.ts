@@ -1052,6 +1052,12 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
   let generation = 0;
   let destroyed = false;
   let renderController = new AbortController();
+  let completedScan: {
+    profileSignature: string;
+    snapshotTimestamp: number;
+    data: NormalizedStrategyGameData;
+    result: StrategyCandidateResult;
+  } | null = null;
   const filterState: StrategyFilterContext = { selectedSkill: 'all', searchQuery: '', plannedHours: 24 };
   return {
     async render(): Promise<void> {
@@ -1076,9 +1082,18 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
       try {
         const [data, pins] = await Promise.all([options.loadGameData(), options.pinStore.list()]);
         if (destroyed || current !== generation) return;
-        const result = options.calculate
-          ? options.calculate({ profile, data, prices: createStrategyPriceBook(snapshot, data) })
-          : await runCandidateScan({profile,data,snapshot,signal:renderController.signal});
+        const profileSignature = JSON.stringify(profile);
+        let result: StrategyCandidateResult;
+        if (completedScan?.profileSignature === profileSignature
+          && completedScan.snapshotTimestamp === snapshot.timestamp
+          && completedScan.data === data) {
+          result = completedScan.result;
+        } else {
+          result = options.calculate
+            ? options.calculate({ profile, data, prices: createStrategyPriceBook(snapshot, data) })
+            : await runCandidateScan({profile,data,snapshot,signal:renderController.signal});
+          completedScan = { profileSignature, snapshotTimestamp: snapshot.timestamp, data, result };
+        }
         if (destroyed || current !== generation) return;
         const now = options.now?.() ?? Date.now();
         renderResults(result, new Set(pins), options, snapshots, data, profile, Math.max(0, now - snapshot.timestamp), renderController.signal, filterState);
