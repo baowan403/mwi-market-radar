@@ -79,8 +79,11 @@ describe('strategy recommendation view', () => {
     const view=createStrategyView({target,getProfile:()=>profile,getSnapshots:()=>[currentSnapshot],
       loadGameData:async()=>gameData,calculate,pinStore:createMemoryStrategyPinStore(),itemName:h=>h,onImportProfile:vi.fn()});
     await view.render();
+    const firstRenderedNode=target.firstChild;
+    target.replaceChildren(document.createElement('p'));
     await view.render();
     expect(calculate).toHaveBeenCalledTimes(1);
+    expect(target.firstChild).toBe(firstRenderedNode);
     currentSnapshot={...snapshot,timestamp:2};
     await view.render();
     expect(calculate).toHaveBeenCalledTimes(2);
@@ -643,3 +646,4 @@ describe('strategy recommendation view', () => {
     view.destroy();
   });
 });
+

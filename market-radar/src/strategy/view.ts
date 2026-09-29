@@ -1058,6 +1058,11 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
     data: NormalizedStrategyGameData;
     result: StrategyCandidateResult;
   } | null = null;
+  let completedView: {
+    profileSignature: string;
+    snapshotTimestamp: number;
+    nodes: Node[];
+  } | null = null;
   const filterState: StrategyFilterContext = { selectedSkill: 'all', searchQuery: '', plannedHours: 24 };
   return {
     async render(): Promise<void> {
@@ -1078,11 +1083,16 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
         options.target.textContent = '尚無市場快照，無法計算策略。';
         return;
       }
+      const profileSignature = JSON.stringify(profile);
+      if (completedView?.profileSignature === profileSignature
+        && completedView.snapshotTimestamp === snapshot.timestamp) {
+        options.target.replaceChildren(...completedView.nodes);
+        return;
+      }
       options.target.innerHTML = '<p class="strategy-loading">正在計算個人化策略…</p>';
       try {
         const [data, pins] = await Promise.all([options.loadGameData(), options.pinStore.list()]);
         if (destroyed || current !== generation) return;
-        const profileSignature = JSON.stringify(profile);
         let result: StrategyCandidateResult;
         if (completedScan?.profileSignature === profileSignature
           && completedScan.snapshotTimestamp === snapshot.timestamp
@@ -1097,14 +1107,22 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
         if (destroyed || current !== generation) return;
         const now = options.now?.() ?? Date.now();
         renderResults(result, new Set(pins), options, snapshots, data, profile, Math.max(0, now - snapshot.timestamp), renderController.signal, filterState);
+        completedView = {
+          profileSignature,
+          snapshotTimestamp: snapshot.timestamp,
+          nodes: [...options.target.childNodes],
+        };
       } catch {
         if (!destroyed && current === generation) options.target.textContent = '策略資料無法使用，請稍後再試。';
       }
     },
     destroy(): void {
       destroyed = true;
+      completedScan = null;
+      completedView = null;
       renderController.abort();
       generation += 1;
     },
   };
 }
+
