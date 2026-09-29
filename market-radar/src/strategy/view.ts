@@ -1036,7 +1036,10 @@ function renderResults(
     }
   });
   customHours.addEventListener('change', () => {
-    if (!customHours.checkValidity() || !Number.isFinite(customHours.valueAsNumber)) return;
+    if (!customHours.checkValidity() || !Number.isFinite(customHours.valueAsNumber)) {
+      customHours.value = String(filterState.plannedHours ?? 24);
+      return;
+    }
     filterState.plannedHours = customHours.valueAsNumber;
     updateResults();
   });
