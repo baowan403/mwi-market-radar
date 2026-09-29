@@ -111,10 +111,11 @@ export function formatSemanticPath(
       parts.push('點金（金幣）');
     }
   } else {
-    // 其他產物均於市場販賣（計 5% 交易所稅率與市場成交量）
+    // 其他產物均於市場販賣（計 4% 交易所稅率與市場成交量）
     parts.push(`販賣 ${itemName(lastOutputHrid)}`);
   }
 
   // 去除連續重複的描述（例如已有 "分解成 奶酪" 又接 "販賣 奶酪" 時，簡潔整併或保留明確動作）
   return parts.join(' → ');
 }
+

@@ -72,7 +72,7 @@ describe('Milkonomy-compatible alchemy', () => {
     expect(none.outputs.find((flow) => flow.itemHrid === '/items/cowbell')?.market).toBe(false);
     expect(none.outputs.find((flow) => flow.itemHrid === '/items/moonstone')?.market).toBe(true);
     expect(none.incomePerHour).toBeCloseTo(none.outputs.reduce((sum, flow) => (
-      sum + flow.unitsPerHour * flow.unitPrice! * (flow.market ? 0.95 : 1)
+      sum + flow.unitsPerHour * flow.unitPrice! * (flow.market ? 0.96 : 1)
     ), 0));
   });
 
@@ -118,3 +118,4 @@ describe('Milkonomy-compatible alchemy', () => {
     expect(result.profitPerHour).toBeNull();
   });
 });
+

@@ -84,11 +84,11 @@ describe('MWI Client Ground Truth & Parity Golden Tests (jotaro99)', () => {
     expect(economic.inputAskPrices['/items/holy_milk']).toBe(960);
     expect(economic.outputBidPrices['/items/milking_essence']).toBe(447);
 
-    // 稅率對帳：主要產物為市場交易品，稅率必須為 0.95
-    expect(economic.outputValuations['/items/milking_essence']?.taxFactor).toBe(0.95);
+    // 稅率對帳：主要產物為市場交易品，稅率必須為 0.96
+    expect(economic.outputValuations['/items/milking_essence']?.taxFactor).toBe(0.96);
     expect(economic.outputValuations['/items/milking_essence']?.unitBidPrice).toBe(447);
     expect(economic.outputValuations['/items/milking_essence']?.netValuePerHour).toBeCloseTo(
-      physical.outputUnitsPerHour['/items/milking_essence']! * 447 * 0.95,
+      physical.outputUnitsPerHour['/items/milking_essence']! * 447 * 0.96,
       1,
     );
 
@@ -247,3 +247,4 @@ describe('MWI Client Ground Truth & Parity Golden Tests (jotaro99)', () => {
     expect(expensiveRun.ledger!.economic.revenuePerHour).not.toBe(normalRun.ledger!.economic.revenuePerHour);
   });
 });
+

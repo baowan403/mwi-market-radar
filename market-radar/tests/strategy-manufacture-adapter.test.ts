@@ -82,7 +82,7 @@ describe('real manufacturing recipe adapter', () => {
     expect(result.outputs.find((item) => item.itemHrid === '/items/cowbell')?.market).toBe(false);
     expect(result.outputs.find((item) => item.itemHrid === '/items/moonstone')?.market).toBe(true);
     expect(result.incomePerHour).toBeCloseTo(result.outputs.reduce((sum, flow) => (
-      sum + flow.unitsPerHour * flow.unitPrice! * (flow.market ? 0.95 : 1)
+      sum + flow.unitsPerHour * flow.unitPrice! * (flow.market ? 0.96 : 1)
     ), 0));
     expect(result.profitPerHour).not.toBeNull();
   });
@@ -247,3 +247,4 @@ describe('real manufacturing recipe adapter', () => {
     expect(boostedUnits).toBeCloseTo(normalUnits * 1.5, 4);
   });
 });
+

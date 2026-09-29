@@ -18,8 +18,8 @@ function step(
     valid: true,
     actionsPerHour: 1,
     costPerHour: inputPrice,
-    incomePerHour: outputUnits * outputPrice * 0.95,
-    profitPerHour: outputUnits * outputPrice * 0.95 - inputPrice,
+    incomePerHour: outputUnits * outputPrice * 0.96,
+    profitPerHour: outputUnits * outputPrice * 0.96 - inputPrice,
     experiencePerHour: 10,
     inputs: [{ itemHrid: inputHrid, enhancementLevel: 0, unitsPerHour: 1, unitPrice: inputPrice, market: true }],
     outputs: [{ itemHrid: outputHrid, enhancementLevel: 0, unitsPerHour: outputUnits, unitPrice: outputPrice, market: true }],
@@ -63,8 +63,8 @@ describe('balanced multi-step workflows', () => {
     expect(result.steps[0]).toMatchObject({
       actionsPerHour: 1 / 39,
       costPerHour: 10 / 39,
-      incomePerHour: 2 * 20 * 0.95 / 39,
-      profitPerHour: (2 * 20 * 0.95 - 10) / 39,
+      incomePerHour: 2 * 20 * 0.96 / 39,
+      profitPerHour: (2 * 20 * 0.96 - 10) / 39,
       experiencePerHour: 10 / 39,
     });
     expect(result.inputs).toHaveLength(1);
@@ -72,7 +72,7 @@ describe('balanced multi-step workflows', () => {
     expect(result.outputs).toHaveLength(2);
     expect(result.outputs.map((flow) => flow.itemHrid)).toEqual(['/items/e', '/items/cowbell']);
     expect(result.costPerHour).toBeCloseTo(10 / 39);
-    expect(result.incomePerHour).toBeCloseTo((7 * 50 * 0.95 + 2 * 100) * 30 / 39);
+    expect(result.incomePerHour).toBeCloseTo((7 * 50 * 0.96 + 2 * 100) * 30 / 39);
     expect(result.profitPerHour).toBeCloseTo(result.incomePerHour! - result.costPerHour!);
   });
 
@@ -89,3 +89,4 @@ describe('balanced multi-step workflows', () => {
     )))).toThrow('策略工作流無法使用');
   });
 });
+
