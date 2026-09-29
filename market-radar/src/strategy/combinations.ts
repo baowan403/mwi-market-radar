@@ -5,8 +5,8 @@ import type {StrategyStepResult,StrategyFlow} from './types';
 import {expandStrategyLiquidation} from './liquidation';
 import {calculateConnectedWorkflow,type WorkflowConnection} from './workflow';
 
-const MAX_EVALUATED_PER_ROOT=8;
-const MAX_RETAINED_PER_ROOT=2;
+const MAX_EVALUATED_PER_ROOT=120;
+const MAX_RETAINED_PER_ROOT=8;
 
 export function prepareCombinationStep(step:StrategyStepResult,data:NormalizedStrategyGameData,prices:MarketPriceBook):StrategyStepResult|null {
   const inputs=step.inputs.map(f=>data.itemsByHrid.get(f.itemHrid)?.isTradable===false?{...f,market:false}:f);
@@ -42,8 +42,6 @@ export function discoverCombinations(source:readonly StrategyStepResult[],data:N
   const steps=source.map(s=>prepareCombinationStep(s,data,prices)).filter((s):s is StrategyStepResult=>!!s);
   const byInput=new Map<string,StrategyStepResult[]>();
   for(const s of steps)for(const input of new Set(feedInputs(s))){const list=byInput.get(input)??[];list.push(s);byInput.set(input,list);}
-  for(const list of byInput.values())list.sort((a,b)=>(a.action==='alchemy'?0:1)-(b.action==='alchemy'?0:1)
-    ||(b.profitPerHour??-Infinity)-(a.profitPerHour??-Infinity)||a.id.localeCompare(b.id));
   const results:StrategyCandidate[]=[];
   const seen=new Set<string>();
   let evaluated=0;

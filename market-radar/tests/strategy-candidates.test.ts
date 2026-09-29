@@ -89,7 +89,6 @@ describe('personalized strategy candidate enumeration', () => {
     expect(result.candidates.map((item) => item.profitPerDay)).toEqual(
       [...result.candidates.map((item) => item.profitPerDay)].sort((left, right) => right - left),
     );
-    expect(result.candidates.every((item) => item.steps.length <= 3)).toBe(true);
   });
 
   it('finishes a full-data scan within acceptable time budget', () => {

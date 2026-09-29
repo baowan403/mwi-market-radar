@@ -263,14 +263,12 @@ export function buildStrategyCandidates(options: {
     if (step) addCandidate(candidateFromStep(step, 'gather', data));
   }
 
-  // Preserve established manufacturing trains deterministically. They are
-  // bounded to the same three-step promise as broader combination discovery.
   const consumers = consumersByInput(data);
   const walk = (path: StrategyStepResult[], seenOutputs: Set<string>): void => {
     if (path.length >= 2) {
       try { addCandidate(candidateFromWorkflow(calculateWorkflow(path), 'workflow', data)); } catch { /* diagnostic only */ }
     }
-    if (path.length >= 3) return;
+    if (path.length >= 7) return;
     const outputHrid = path.at(-1)!.outputHrid;
     for (const consumerHrid of consumers.get(outputHrid) ?? []) {
       const next = manufactureStep(consumerHrid);

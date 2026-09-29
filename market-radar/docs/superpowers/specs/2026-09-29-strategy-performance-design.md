@@ -10,14 +10,13 @@ The current scan runs both a legacy manufacturing DFS up to seven steps and a ne
 
 ## Design
 
-1. Enforce the existing player promise that combination strategies contain at most three actions.
-2. Bound per-root combination exploration and retained variants while preserving known cross-skill, co-product and decompose-to-coinify routes.
-3. Cache one completed scan by profile contents, latest snapshot timestamp and normalized game-data identity. Re-entering the strategy surface reuses it; a profile, price snapshot or data change invalidates it.
-4. Keep trend, liquidity, tax, tea and profit formulas unchanged.
+1. Preserve the existing candidate coverage; performance work must not prune profitable paths.
+2. Cache one completed scan by profile contents, latest snapshot timestamp and normalized game-data identity. Re-entering the strategy surface reuses it; a profile, price snapshot or data change invalidates it.
+3. Exclude Artisan Tea from Alchemy-only operations because that manufacturing buff cannot affect decomposition, transmutation or coinification.
+4. Keep trend, liquidity, tax, remaining tea effects and profit formulas unchanged.
 
 ## Acceptance
 
-- No returned candidate has more than three steps.
 - Known important one-, two- and three-step strategies remain covered.
 - Re-rendering with the same profile, snapshot and data does not scan again.
 - A changed profile or snapshot scans again.
