@@ -263,27 +263,23 @@ export function buildStrategyCandidates(options: {
     if (step) addCandidate(candidateFromStep(step, 'gather', data));
   }
 
-  // Upgrade counterfactuals deliberately skip the broader combination engine,
-  // so retain their bounded same-profession manufacturing trains. The main
-  // recommendation scan uses discoverCombinations once instead of enumerating
-  // the same two/three-step paths twice.
-  if (options.includeCombinations === false) {
-    const consumers = consumersByInput(data);
-    const walk = (path: StrategyStepResult[], seenOutputs: Set<string>): void => {
-      if (path.length >= 2) {
-        try { addCandidate(candidateFromWorkflow(calculateWorkflow(path), 'workflow', data)); } catch { /* diagnostic only */ }
-      }
-      if (path.length >= 3) return;
-      const outputHrid = path.at(-1)!.outputHrid;
-      for (const consumerHrid of consumers.get(outputHrid) ?? []) {
-        const next = manufactureStep(consumerHrid);
-        if (!next || seenOutputs.has(next.outputHrid)) continue;
-        walk([...path, next], new Set([...seenOutputs, next.outputHrid]));
-      }
-    };
-    for (const step of stepCache.values()) {
-      if (step) walk([step], new Set([step.outputHrid]));
+  // Preserve established manufacturing trains deterministically. They are
+  // bounded to the same three-step promise as broader combination discovery.
+  const consumers = consumersByInput(data);
+  const walk = (path: StrategyStepResult[], seenOutputs: Set<string>): void => {
+    if (path.length >= 2) {
+      try { addCandidate(candidateFromWorkflow(calculateWorkflow(path), 'workflow', data)); } catch { /* diagnostic only */ }
     }
+    if (path.length >= 3) return;
+    const outputHrid = path.at(-1)!.outputHrid;
+    for (const consumerHrid of consumers.get(outputHrid) ?? []) {
+      const next = manufactureStep(consumerHrid);
+      if (!next || seenOutputs.has(next.outputHrid)) continue;
+      walk([...path, next], new Set([...seenOutputs, next.outputHrid]));
+    }
+  };
+  for (const step of stepCache.values()) {
+    if (step) walk([step], new Set([step.outputHrid]));
   }
 
   if (allowed('alchemy')) {

@@ -42,6 +42,8 @@ export function discoverCombinations(source:readonly StrategyStepResult[],data:N
   const steps=source.map(s=>prepareCombinationStep(s,data,prices)).filter((s):s is StrategyStepResult=>!!s);
   const byInput=new Map<string,StrategyStepResult[]>();
   for(const s of steps)for(const input of new Set(feedInputs(s))){const list=byInput.get(input)??[];list.push(s);byInput.set(input,list);}
+  for(const list of byInput.values())list.sort((a,b)=>(a.action==='alchemy'?0:1)-(b.action==='alchemy'?0:1)
+    ||(b.profitPerHour??-Infinity)-(a.profitPerHour??-Infinity)||a.id.localeCompare(b.id));
   const results:StrategyCandidate[]=[];
   const seen=new Set<string>();
   let evaluated=0;
@@ -51,7 +53,8 @@ export function discoverCombinations(source:readonly StrategyStepResult[],data:N
       if(evaluated++>=MAX_EVALUATED_PER_ROOT)return;
       let workflow;
       try{workflow=calculateConnectedWorkflow(path,connections);}catch{return;}
-      if(workflow.valid&&workflow.profitPerHour!==null&&workflow.profitPerHour>0&&!seen.has(workflow.id)){
+      const legacy=path.every(s=>s.valid&&s.action!=='alchemy')&&connections.every(c=>c.from===c.to-1&&c.itemHrid===path[c.from]!.outputHrid);
+      if(!legacy&&workflow.valid&&workflow.profitPerHour!==null&&workflow.profitPerHour>0&&!seen.has(workflow.id)){
         seen.add(workflow.id);
         const primarySet=new Set(path.flatMap(mainOutputs));
         const primaryOutputHrids=[...new Set(workflow.outputs.filter(f=>primarySet.has(f.itemHrid)).map(f=>f.itemHrid))];
