@@ -60,7 +60,7 @@ const missingBidInput: ManufactureInput = {
 };
 
 describe('one-step manufacture parity', () => {
-  it('matches Milkonomy ask-in, bid-out, five-percent-tax arithmetic', () => {
+  it('matches Milkonomy ask-in, bid-out, four-percent-tax arithmetic', () => {
     const result = calculateManufacture(buildGoldenInput(golden.case));
 
     expect(result.efficiency).toBeCloseTo(golden.expected.efficiency, 12);
@@ -106,13 +106,14 @@ describe('one-step manufacture parity', () => {
     expect(result.profitPerHour).toBe(100);
   });
 
-  it('uses expected drop units before applying the five-percent sale tax', () => {
+  it('uses expected drop units before applying the four-percent sale tax', () => {
     const result = calculateManufacture({
       ...coinOutputInput,
       products: [],
       rareDrops: [{ itemHrid: '/items/rare', count: 3, rate: 0.25, price: 100, taxable: true }],
     });
 
-    expect(result.incomePerHour).toBeCloseTo(71.25);
+    expect(result.incomePerHour).toBeCloseTo(72);
   });
 });
+

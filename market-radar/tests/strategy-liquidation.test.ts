@@ -66,7 +66,7 @@ describe('complete openable-loot liquidation', () => {
       unitsPerHour: 4.375, unitPrice: 10, market: true,
     });
     expect(result.flows.find((flow) => flow.itemHrid === '/items/amber')?.unitsPerHour).toBeCloseTo(0.19995);
-    expect(prices.bid('/items/medium_artisans_crate')).toBeCloseTo(27_147.661075);
+    expect(prices.bid('/items/medium_artisans_crate')).toBeCloseTo(27_148.47856);
   });
 
   it('recursively expands nested nontradable loot and aggregates equal leaves', () => {
@@ -94,7 +94,7 @@ describe('complete openable-loot liquidation', () => {
         unitsPerHour: 4, unitPrice: 20, market: true,
       }],
     });
-    expect(prices.bid('/items/nested_outer')).toBe(76);
+    expect(prices.bid('/items/nested_outer')).toBe(76.8);
   });
 
   it('fails closed when any required child quote is missing', () => {
@@ -196,3 +196,4 @@ describe('complete openable-loot liquidation', () => {
     expect(prices.bid('/items/tradable_openable')).toBe(500);
   });
 });
+

@@ -141,9 +141,9 @@ describe('historical strategy margin series', () => {
     expect(repriced).toMatchObject({
       id: 'workflow:fixed',
       costPerHour: 100,
-      incomePerHour: 285,
-      profitPerHour: 185,
-      profitPerDay: 4_440,
+      incomePerHour: 288,
+      profitPerHour: 188,
+      profitPerDay: 4_512,
       workingCapital24h: 2_400,
     });
   });
@@ -168,10 +168,11 @@ describe('historical strategy margin series', () => {
     expect(repriced?.steps[0]?.outputs.find((flow) => flow.itemHrid === '/items/cowbell')?.unitPrice).toBe(200);
     expect(repriced).toMatchObject({
       costPerHour: 100,
-      incomePerHour: 600,
-      profitPerHour: 500,
-      profitPerDay: 12_000,
+      incomePerHour: 602,
+      profitPerHour: 502,
+      profitPerDay: 12_048,
       workingCapital24h: 2_400,
     });
   });
 });
+

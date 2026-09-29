@@ -62,7 +62,7 @@ describe('strategy market price book', () => {
     const book = createStrategyPriceBook(extended, data);
 
     expect(book.ask('/items/crate')).toBe(20);
-    expect(book.bid('/items/crate')).toBe(15.2);
+    expect(book.bid('/items/crate')).toBe(15.36);
     expect(book.ask('/items/tool')).toBe(5_000);
     expect(book.bid('/items/tool')).toBe(5_500);
   });
@@ -121,3 +121,4 @@ describe('strategy market price book', () => {
     expect(book.bid('/items/cowbell')).toBe(40_000);
   });
 });
+
