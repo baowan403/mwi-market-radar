@@ -11,10 +11,6 @@ import type { PlayerProfile } from '../src/profile/types';
 describe('Dynamic Tea Optimizer & Guzzling Pouch', () => {
   const data = normalizeStrategyGameData(strategyDataJson);
 
-  it('does not evaluate artisan tea for alchemy operations',()=>{
-    expect(getLegalTeaCombinations('alchemy').some((combo)=>combo.includes('/items/artisan_tea'))).toBe(false);
-  });
-
   it('generates strictly legal tea combinations with max 3 teas and tier exclusivity', () => {
     const brewingCombos = getLegalTeaCombinations('brewing');
     expect(brewingCombos.length).toBeGreaterThan(0);
@@ -529,3 +525,4 @@ describe('Dynamic Tea Optimizer & Guzzling Pouch', () => {
     expect(cappedEffScore).toBeGreaterThan(0);
   });
 });
+

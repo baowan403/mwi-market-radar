@@ -12,8 +12,7 @@ The current scan runs both a legacy manufacturing DFS up to seven steps and a ne
 
 1. Preserve the existing candidate coverage; performance work must not prune profitable paths.
 2. Cache one completed scan by profile contents, latest snapshot timestamp and normalized game-data identity. Re-entering the strategy surface reuses it; a profile, price snapshot or data change invalidates it.
-3. Exclude Artisan Tea from Alchemy-only operations because that manufacturing buff cannot affect decomposition, transmutation or coinification.
-4. Keep trend, liquidity, tax, remaining tea effects and profit formulas unchanged.
+3. Keep candidate, trend, liquidity, tax, tea and profit formulas unchanged.
 
 ## Acceptance
 
@@ -21,3 +20,4 @@ The current scan runs both a legacy manufacturing DFS up to seven steps and a ne
 - Re-rendering with the same profile, snapshot and data does not scan again.
 - A changed profile or snapshot scans again.
 - Representative candidate benchmark returns below the existing five-second regression budget.
+
