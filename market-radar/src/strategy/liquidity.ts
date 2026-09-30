@@ -4,6 +4,7 @@ const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 const SAFE_SHARE = 0.05;
 const MIN_DAILY_COVERAGE_HOURS = 12;
+const MIN_ROLLING_24H_ESTIMATE_HOURS = 4;
 const MIN_ROLLING_24H_COVERAGE_HOURS = 12;
 export type MarketCapacityLookup = (key: MarketKey) => MarketCapacity;
 
@@ -150,7 +151,9 @@ function rollingVolume24h(
   const sufficient = coverageHours >= MIN_ROLLING_24H_COVERAGE_HOURS;
   return {
     observedVolume24h: coverageHours > 0 ? observedVolume : null,
-    volume24h: coverageHours >= 4 ? observedVolume * 24 / coverageHours : null,
+    volume24h: coverageHours >= MIN_ROLLING_24H_ESTIMATE_HOURS
+      ? observedVolume * 24 / coverageHours
+      : null,
     coverageHours24h: coverageHours,
     sufficient,
   };
@@ -215,9 +218,9 @@ export function marketCapacity(key: MarketKey, snapshots: readonly Snapshot[]): 
   // Capacity mode remains conservative, but the visible 24h share always uses
   // the direct rolling-24h volume above. This avoids one spike inflating a batch.
   const capacityBaselines: number[] = [];
-  // Sparse recent observations can only tighten an established multi-day budget.
-  // They cannot create a budget on their own.
-  if ((rolling24h.sufficient || sufficient) && rolling24h.volume24h !== null) capacityBaselines.push(rolling24h.volume24h);
+  // Four or more recent observations can seed a low-confidence normalized
+  // budget. Twelve covered hours still marks the estimate as sufficient.
+  if (rolling24h.volume24h !== null) capacityBaselines.push(rolling24h.volume24h);
   if (sufficient && median3d !== null && median7d !== null) {
     capacityBaselines.push(median3d, median7d);
   }

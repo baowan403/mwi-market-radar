@@ -39,8 +39,14 @@ describe('duration-aware strategy estimates', () => {
       itemHrid: '/items/output', side: 'output', code: 'historical-capacity',
     });
   });
-  it('still withholds estimates when both recent and multi-day capacity are insufficient', () => {
-    expect(session(candidate(), 24, snapshots.slice(-11)).rankValue).toBeNull();
+  it('keeps a low-confidence estimate with five recent hours', () => {
+    const value = session(candidate(), 24, snapshots.slice(-5));
+    expect(value.rankValue).toBeGreaterThan(0);
+    expect(value.actionable).toBe(true);
+    expect(value.durationCovered).toBe(false);
+  });
+  it('still withholds estimates below the four-hour estimate floor', () => {
+    expect(session(candidate(), 24, snapshots.slice(-3)).rankValue).toBeNull();
   });
   it('supports half-hour sessions without shrinking the 24h sale budget', () => {
     const value = session(candidate(), 0.5);
