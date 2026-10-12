@@ -144,13 +144,13 @@ describe('strategy recommendation view', () => {
     expect(upgrades.hidden).toBe(false);expect(ranking.hidden).toBe(true);
     (target.querySelector('[data-strategy-tab="steady"]') as HTMLButtonElement).click();
     expect(upgrades.hidden).toBe(true);expect(ranking.hidden).toBe(false);
-    expect(ids()).toEqual(['steady', 'fast']);
+    expect(ids()).toEqual(['fast', 'steady']);
     expect(target.querySelectorAll('thead th')).toHaveLength(12);
     expect(target.querySelector('thead')?.textContent).toContain('預估收益');
     const select = target.querySelector<HTMLSelectElement>('[data-strategy-hours]')!;
     expect(select).not.toBeNull();
     expect(select.value).toBe('24');
-    expect(target.querySelector('[data-strategy-row="fast"]')?.textContent).toContain('限做1H');
+    expect(target.querySelector('[data-strategy-row="fast"]')?.textContent).not.toContain('限做');
     const paint = vi.spyOn(target.querySelector('.strategy-results-container')!, 'replaceChildren');
     select.value = '0.5'; select.dispatchEvent(new Event('change'));
     expect(paint.mock.calls).toHaveLength(1);
@@ -163,9 +163,9 @@ describe('strategy recommendation view', () => {
     select.value = 'custom'; select.dispatchEvent(new Event('change'));
     const custom = target.querySelector<HTMLInputElement>('[data-strategy-custom-hours]')!;
     custom.value = '2'; custom.dispatchEvent(new Event('change'));
-    expect(target.querySelector('[data-strategy-row="fast"] .strategy-profit-main')?.textContent).toBe('3M');
+    expect(target.querySelector('[data-strategy-row="fast"] .strategy-profit-main')?.textContent).toBe('6M');
     custom.value = '-2'; custom.dispatchEvent(new Event('change'));
-    expect(target.querySelector('[data-strategy-row="fast"] .strategy-profit-main')?.textContent).toBe('3M');
+    expect(target.querySelector('[data-strategy-row="fast"] .strategy-profit-main')?.textContent).toBe('6M');
     await view.render();
     expect(target.querySelector<HTMLInputElement>('[data-strategy-custom-hours]')?.value).toBe('2');
     view.destroy();
@@ -258,7 +258,7 @@ describe('strategy recommendation view', () => {
     view.destroy();
   });
 
-  it('ranks limited batches honestly and keeps unavailable candidates opt-in', async () => {
+  it('ranks every calculable positive candidate by current profit without capacity gating', async () => {
     const target = document.createElement('section');
     const snapshots = history({
       '/items/long_input': 1_000,
@@ -314,14 +314,13 @@ describe('strategy recommendation view', () => {
     expect(target.querySelector('[data-strategy-mode]')).toBeNull();
     expect(target.querySelector('[data-strategy-hours]')).not.toBeNull();
     
-    // New approved default: estimated batch profit; unknown quotes do not occupy recommendation slots.
+    // Current Profit is authoritative; market history only annotates risk.
     const renderedRowIds = [...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow);
-    expect(renderedRowIds).toEqual(['long', 'limited', 'reject']);
-    const unranked = target.querySelector<HTMLInputElement>('[data-strategy-unranked]')!;
-    unranked.checked = true; unranked.dispatchEvent(new Event('change'));
-    expect(target.querySelector('[data-strategy-row="insufficient"] .strategy-profit-main')?.textContent).toBe('—');
+    expect(renderedRowIds).toEqual(['insufficient', 'reject', 'limited', 'long']);
+    expect(target.querySelector('[data-strategy-unranked]')).toBeNull();
+    expect(target.querySelector('[data-strategy-row="insufficient"] .strategy-profit-main')?.textContent).toBe('96K');
     expect(target.querySelector('[data-strategy-row="insufficient"] .strategy-classification')?.textContent).toBe('市場無報價');
-    expect(target.querySelector('[data-strategy-row="reject"] .strategy-profit-main')?.textContent).toBe('7.2K');
+    expect(target.querySelector('[data-strategy-row="reject"] .strategy-profit-main')?.textContent).toBe('72K');
     expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('低');
     expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('雙向壓力');
     expect(target.querySelector('[data-strategy-row="long"] [data-strategy-priority]')).not.toBeNull();
@@ -344,7 +343,7 @@ describe('strategy recommendation view', () => {
     view.destroy();
   });
 
-  it('fills sparse actionable results with clearly pending positive candidates', async () => {
+  it('keeps sparse-history candidates in current-profit ranking', async () => {
     const target = document.createElement('section');
     const snapshots = history({
       '/items/pending_input': 1_000,
@@ -388,16 +387,16 @@ describe('strategy recommendation view', () => {
 
     await view.render();
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map(row => row.dataset.strategyRow))
-      .toEqual(['safe', 'pending']);
-    expect(target.querySelector('[data-strategy-row="pending"] .strategy-profit-main')?.textContent).toBe('—');
-    expect(target.querySelector('[data-strategy-row="pending"] .strategy-profit-sub')?.textContent).toBe('容量待確認');
-    expect(target.querySelector('[data-strategy-row="pending"] .strategy-capital')?.textContent).toBe('—');
-    expect(target.querySelector('[data-strategy-row="pending"] [data-strategy-priority]')?.textContent).toBe('待確認');
-    expect(target.querySelector('[data-strategy-row="unavailable"]')).toBeNull();
+      .toEqual(['unavailable', 'pending', 'safe']);
+    expect(target.querySelector('[data-strategy-row="pending"] .strategy-profit-main')?.textContent).toBe('96K');
+    expect(target.querySelector('[data-strategy-row="pending"] .strategy-profit-sub')).toBeNull();
+    expect(target.querySelector('[data-strategy-row="pending"] .strategy-capital')?.textContent).not.toBe('—');
+    expect(target.querySelector('[data-strategy-row="pending"] [data-strategy-priority]')?.textContent).not.toBe('待確認');
+    expect(target.querySelector('[data-strategy-row="unavailable"]')).not.toBeNull();
     view.destroy();
   });
 
-  it('keeps stale positive candidates visible without presenting executable profit', async () => {
+  it('keeps stale history from suppressing current profit', async () => {
     const target = document.createElement('section');
     const snapshots = history({ '/items/input': 1_000, '/items/output': 1_000 });
     const candidate = {
@@ -416,9 +415,10 @@ describe('strategy recommendation view', () => {
 
     await view.render();
     expect(target.querySelector('[data-strategy-row="stale"]')).not.toBeNull();
-    expect(target.querySelector('[data-strategy-row="stale"] .strategy-profit-main')?.textContent).toBe('—');
-    expect(target.querySelector('[data-strategy-row="stale"] .strategy-profit-sub')?.textContent).toBe('行情過期');
-    expect(target.querySelector('[data-strategy-row="stale"] [data-strategy-priority]')?.textContent).toBe('待確認');
+    expect(target.querySelector('[data-strategy-row="stale"] .strategy-profit-main')?.textContent).toBe('96K');
+    expect(target.querySelector('[data-strategy-row="stale"] .strategy-profit-sub')).toBeNull();
+    expect(target.querySelector('[data-strategy-row="stale"] .strategy-classification')?.textContent).toBe('行情過期');
+    expect(target.querySelector('[data-strategy-row="stale"] [data-strategy-priority]')?.textContent).toBe('🔥 最高');
     view.destroy();
   });
 
@@ -499,7 +499,7 @@ describe('strategy recommendation view', () => {
     view.destroy();
   });
 
-  it('keeps insufficient strategies searchable without recommending them by default', async () => {
+  it('keeps insufficient strategies visible and searchable without hiding current profit', async () => {
     const target = document.createElement('section');
     const snapshots = history({
       '/items/goblin_fire_staff': 1_000,
@@ -544,14 +544,14 @@ describe('strategy recommendation view', () => {
 
     // 預設無搜尋：所有正收益項目均依當前日利顯示，資料不足只作標記。
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
-      'cloth',
+      'cloth', 'goblin_staff',
     ]);
 
     // 輸入草稿不應立即重繪；只有按查詢按鈕才套用搜尋。
     searchInput.value = '哥布林';
     searchInput.dispatchEvent(new Event('input'));
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
-      'cloth',
+      'cloth', 'goblin_staff',
     ]);
     const searchSubmit = target.querySelector<HTMLButtonElement>('[data-strategy-search-submit]');
     expect(searchSubmit).not.toBeNull();
@@ -569,7 +569,7 @@ describe('strategy recommendation view', () => {
     ]);
     searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
-      'cloth',
+      'cloth', 'goblin_staff',
     ]);
 
     view.destroy();
@@ -674,7 +674,7 @@ describe('strategy recommendation view', () => {
     view.destroy();
   });
 
-  it('does not rank an illiquid theoretical leader above a higher estimated return', async () => {
+  it('keeps an illiquid current-profit leader visible while showing its risk separately', async () => {
     const target = document.createElement('section');
     const snapshots = history({
       '/items/long_input': 1_000,
@@ -713,14 +713,15 @@ describe('strategy recommendation view', () => {
     });
 
     await view.render();
-    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual(['long', 'limited']);
-    expect(target.querySelector('[data-strategy-row="limited"] .strategy-profit-main')?.textContent).toBe('120');
+    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual(['limited', 'long']);
+    expect(target.querySelector('[data-strategy-row="limited"] .strategy-profit-main')?.textContent).toBe('120K');
     const sortButtons = target.querySelectorAll<HTMLButtonElement>('.strategy-sort-group button');
     expect(sortButtons).toHaveLength(0);
     const rowsAfter = [...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow);
-    expect(rowsAfter).toEqual(['long', 'limited']);
-    expect(target.querySelector('[data-strategy-row="limited"] .strategy-profit-main')?.textContent).toBe('120');
+    expect(rowsAfter).toEqual(['limited', 'long']);
+    expect(target.querySelector('[data-strategy-row="limited"] .strategy-profit-main')?.textContent).toBe('120K');
 
     view.destroy();
   });
 });
+
