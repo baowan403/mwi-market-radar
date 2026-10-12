@@ -144,13 +144,13 @@ describe('strategy recommendation view', () => {
     expect(upgrades.hidden).toBe(false);expect(ranking.hidden).toBe(true);
     (target.querySelector('[data-strategy-tab="steady"]') as HTMLButtonElement).click();
     expect(upgrades.hidden).toBe(true);expect(ranking.hidden).toBe(false);
-    expect(ids()).toEqual(['fast', 'steady']);
+    expect(ids()).toEqual(['steady', 'fast']);
     expect(target.querySelectorAll('thead th')).toHaveLength(12);
     expect(target.querySelector('thead')?.textContent).toContain('預估收益');
     const select = target.querySelector<HTMLSelectElement>('[data-strategy-hours]')!;
     expect(select).not.toBeNull();
     expect(select.value).toBe('24');
-    expect(target.querySelector('[data-strategy-row="fast"]')?.textContent).not.toContain('限做');
+    expect(target.querySelector('[data-strategy-row="fast"]')?.textContent).toContain('限做1H');
     const paint = vi.spyOn(target.querySelector('.strategy-results-container')!, 'replaceChildren');
     select.value = '0.5'; select.dispatchEvent(new Event('change'));
     expect(paint.mock.calls).toHaveLength(1);
@@ -163,9 +163,9 @@ describe('strategy recommendation view', () => {
     select.value = 'custom'; select.dispatchEvent(new Event('change'));
     const custom = target.querySelector<HTMLInputElement>('[data-strategy-custom-hours]')!;
     custom.value = '2'; custom.dispatchEvent(new Event('change'));
-    expect(target.querySelector('[data-strategy-row="fast"] .strategy-profit-main')?.textContent).toBe('6M');
+    expect(target.querySelector('[data-strategy-row="fast"] .strategy-profit-main')?.textContent).toBe('3M');
     custom.value = '-2'; custom.dispatchEvent(new Event('change'));
-    expect(target.querySelector('[data-strategy-row="fast"] .strategy-profit-main')?.textContent).toBe('6M');
+    expect(target.querySelector('[data-strategy-row="fast"] .strategy-profit-main')?.textContent).toBe('3M');
     await view.render();
     expect(target.querySelector<HTMLInputElement>('[data-strategy-custom-hours]')?.value).toBe('2');
     view.destroy();
@@ -258,7 +258,7 @@ describe('strategy recommendation view', () => {
     view.destroy();
   });
 
-  it('ranks every calculable positive candidate by current profit without capacity gating', async () => {
+  it('ranks limited batches honestly and keeps unavailable candidates opt-in', async () => {
     const target = document.createElement('section');
     const snapshots = history({
       '/items/long_input': 1_000,
@@ -314,13 +314,14 @@ describe('strategy recommendation view', () => {
     expect(target.querySelector('[data-strategy-mode]')).toBeNull();
     expect(target.querySelector('[data-strategy-hours]')).not.toBeNull();
     
-    // Current Profit is authoritative; market history only annotates risk.
+    // New approved default: estimated batch profit; unknown quotes do not occupy recommendation slots.
     const renderedRowIds = [...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((row) => row.dataset.strategyRow);
-    expect(renderedRowIds).toEqual(['insufficient', 'reject', 'limited', 'long']);
-    expect(target.querySelector('[data-strategy-unranked]')).toBeNull();
-    expect(target.querySelector('[data-strategy-row="insufficient"] .strategy-profit-main')?.textContent).toBe('96K');
+    expect(renderedRowIds).toEqual(['long', 'limited', 'reject']);
+    const unranked = target.querySelector<HTMLInputElement>('[data-strategy-unranked]')!;
+    unranked.checked = true; unranked.dispatchEvent(new Event('change'));
+    expect(target.querySelector('[data-strategy-row="insufficient"] .strategy-profit-main')?.textContent).toBe('—');
     expect(target.querySelector('[data-strategy-row="insufficient"] .strategy-classification')?.textContent).toBe('市場無報價');
-    expect(target.querySelector('[data-strategy-row="reject"] .strategy-profit-main')?.textContent).toBe('72K');
+    expect(target.querySelector('[data-strategy-row="reject"] .strategy-profit-main')?.textContent).toBe('7.2K');
     expect(target.querySelector('[data-strategy-row="long"]')?.textContent).toContain('低');
     expect(target.querySelector('[data-strategy-row="limited"]')?.textContent).toContain('雙向壓力');
     expect(target.querySelector('[data-strategy-row="long"] [data-strategy-priority]')).not.toBeNull();
@@ -340,85 +341,6 @@ describe('strategy recommendation view', () => {
     expect(detail.textContent).toContain('瓶頸');
     expect(detail.textContent).toContain('掛機排程與原料採購規劃');
 
-    view.destroy();
-  });
-
-  it('keeps sparse-history candidates in current-profit ranking', async () => {
-    const target = document.createElement('section');
-    const snapshots = history({
-      '/items/pending_input': 1_000,
-      '/items/pending_output': 1_000,
-    }, 3);
-    const safeStep: StrategyStepResult = {
-      id: 'safe', action: 'alchemy', actionHrid: '/actions/alchemy/safe', outputHrid: '/items/coin',
-      valid: true, actionsPerHour: 1, costPerHour: 0, incomePerHour: 1_000,
-      profitPerHour: 1_000, experiencePerHour: 1, inputs: [],
-      outputs: [{ itemHrid: '/items/coin', enhancementLevel: 0, unitsPerHour: 1_000, unitPrice: 1, market: false }],
-    };
-    const result: StrategyCandidateResult = { diagnostics: [], candidates: [
-      {
-        id: 'safe', kind: 'coinify', title: 'safe', path: ['/items/coin'],
-        profitPerHour: 1_000, profitPerDay: 24_000, costPerHour: 0, incomePerHour: 1_000,
-        workingCapital24h: 0, steps: [safeStep], verificationStatus: 'unverified',
-      },
-      {
-        id: 'pending', kind: 'manufacture', title: 'pending',
-        path: ['/items/pending_input', '/items/pending_output'],
-        profitPerHour: 4_000, profitPerDay: 96_000, costPerHour: 1_000, incomePerHour: 5_000,
-        workingCapital24h: 24_000,
-        steps: [marketStep('pending', '/items/pending_input', '/items/pending_output', 1)],
-        verificationStatus: 'unverified',
-      },
-      {
-        id: 'unavailable', kind: 'manufacture', title: 'unavailable',
-        path: ['/items/missing_input', '/items/missing_output'],
-        profitPerHour: 8_000, profitPerDay: 192_000, costPerHour: 1_000, incomePerHour: 9_000,
-        workingCapital24h: 24_000,
-        steps: [marketStep('unavailable', '/items/missing_input', '/items/missing_output', 1)],
-        verificationStatus: 'unverified',
-      },
-    ] };
-    const view = createStrategyView({
-      target, getProfile: () => profile, getSnapshots: () => snapshots,
-      loadGameData: async () => ({ shopItemDetailMap: {}, openableLootDropMap: {}, itemsByHrid: new Map() }) as never,
-      calculate: () => result, pinStore: createMemoryStrategyPinStore(), itemName: h => h,
-      onImportProfile: vi.fn(), now: () => snapshots.at(-1)!.timestamp,
-    });
-
-    await view.render();
-    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map(row => row.dataset.strategyRow))
-      .toEqual(['unavailable', 'pending', 'safe']);
-    expect(target.querySelector('[data-strategy-row="pending"] .strategy-profit-main')?.textContent).toBe('96K');
-    expect(target.querySelector('[data-strategy-row="pending"] .strategy-profit-sub')).toBeNull();
-    expect(target.querySelector('[data-strategy-row="pending"] .strategy-capital')?.textContent).not.toBe('—');
-    expect(target.querySelector('[data-strategy-row="pending"] [data-strategy-priority]')?.textContent).not.toBe('待確認');
-    expect(target.querySelector('[data-strategy-row="unavailable"]')).not.toBeNull();
-    view.destroy();
-  });
-
-  it('keeps stale history from suppressing current profit', async () => {
-    const target = document.createElement('section');
-    const snapshots = history({ '/items/input': 1_000, '/items/output': 1_000 });
-    const candidate = {
-      id: 'stale', kind: 'manufacture' as const, title: 'stale', path: ['/items/input', '/items/output'],
-      profitPerHour: 4_000, profitPerDay: 96_000, costPerHour: 1_000, incomePerHour: 5_000,
-      workingCapital24h: 24_000, steps: [marketStep('stale', '/items/input', '/items/output', 1)],
-      verificationStatus: 'unverified' as const,
-    };
-    const view = createStrategyView({
-      target, getProfile: () => profile, getSnapshots: () => snapshots,
-      loadGameData: async () => ({ shopItemDetailMap: {}, openableLootDropMap: {}, itemsByHrid: new Map() }) as never,
-      calculate: () => ({ diagnostics: [], candidates: [candidate] }),
-      pinStore: createMemoryStrategyPinStore(), itemName: h => h, onImportProfile: vi.fn(),
-      now: () => snapshots.at(-1)!.timestamp + 181 * 60_000,
-    });
-
-    await view.render();
-    expect(target.querySelector('[data-strategy-row="stale"]')).not.toBeNull();
-    expect(target.querySelector('[data-strategy-row="stale"] .strategy-profit-main')?.textContent).toBe('96K');
-    expect(target.querySelector('[data-strategy-row="stale"] .strategy-profit-sub')).toBeNull();
-    expect(target.querySelector('[data-strategy-row="stale"] .strategy-classification')?.textContent).toBe('行情過期');
-    expect(target.querySelector('[data-strategy-row="stale"] [data-strategy-priority]')?.textContent).toBe('🔥 最高');
     view.destroy();
   });
 
@@ -499,7 +421,7 @@ describe('strategy recommendation view', () => {
     view.destroy();
   });
 
-  it('keeps insufficient strategies visible and searchable without hiding current profit', async () => {
+  it('keeps insufficient strategies searchable without recommending them by default', async () => {
     const target = document.createElement('section');
     const snapshots = history({
       '/items/goblin_fire_staff': 1_000,
@@ -544,14 +466,14 @@ describe('strategy recommendation view', () => {
 
     // 預設無搜尋：所有正收益項目均依當前日利顯示，資料不足只作標記。
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
-      'cloth', 'goblin_staff',
+      'cloth',
     ]);
 
     // 輸入草稿不應立即重繪；只有按查詢按鈕才套用搜尋。
     searchInput.value = '哥布林';
     searchInput.dispatchEvent(new Event('input'));
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
-      'cloth', 'goblin_staff',
+      'cloth',
     ]);
     const searchSubmit = target.querySelector<HTMLButtonElement>('[data-strategy-search-submit]');
     expect(searchSubmit).not.toBeNull();
@@ -569,7 +491,7 @@ describe('strategy recommendation view', () => {
     ]);
     searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual([
-      'cloth', 'goblin_staff',
+      'cloth',
     ]);
 
     view.destroy();
@@ -674,7 +596,7 @@ describe('strategy recommendation view', () => {
     view.destroy();
   });
 
-  it('keeps an illiquid current-profit leader visible while showing its risk separately', async () => {
+  it('does not rank an illiquid theoretical leader above a higher estimated return', async () => {
     const target = document.createElement('section');
     const snapshots = history({
       '/items/long_input': 1_000,
@@ -713,13 +635,13 @@ describe('strategy recommendation view', () => {
     });
 
     await view.render();
-    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual(['limited', 'long']);
-    expect(target.querySelector('[data-strategy-row="limited"] .strategy-profit-main')?.textContent).toBe('120K');
+    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow)).toEqual(['long', 'limited']);
+    expect(target.querySelector('[data-strategy-row="limited"] .strategy-profit-main')?.textContent).toBe('120');
     const sortButtons = target.querySelectorAll<HTMLButtonElement>('.strategy-sort-group button');
     expect(sortButtons).toHaveLength(0);
     const rowsAfter = [...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map((r) => r.dataset.strategyRow);
-    expect(rowsAfter).toEqual(['limited', 'long']);
-    expect(target.querySelector('[data-strategy-row="limited"] .strategy-profit-main')?.textContent).toBe('120K');
+    expect(rowsAfter).toEqual(['long', 'limited']);
+    expect(target.querySelector('[data-strategy-row="limited"] .strategy-profit-main')?.textContent).toBe('120');
 
     view.destroy();
   });
