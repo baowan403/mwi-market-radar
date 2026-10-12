@@ -8,7 +8,7 @@ import { buildStrategyMarginSeries, repriceFixedCandidate, type StrategyMarginPo
 import { generateSparklineSvg } from './sparkline';
 import { createStrategyPriceBook } from './price-book';
 import { createMarketCapacityLookup, createMarketCapacityHistory } from './liquidity';
-import { estimateStrategySession, compareSessionRanking, type StrategySession } from './session';
+import { estimateStrategySession, type StrategySession } from './session';
 import { createUpgradePanel } from './upgrade-view';
 import { runCandidateScan } from './candidate-runner';
 import { formatSemanticPath } from './semantic-path';
@@ -236,6 +236,7 @@ function strategyRow(
   pinned: Set<string>,
   options: StrategyViewOptions,
   data: NormalizedStrategyGameData,
+  bestCurrentProfit: number,
 ): HTMLTableRowElement {
   const { candidate, liquidity, decision } = assessed;
   const { signal } = assessedSignal;
@@ -273,24 +274,10 @@ function strategyRow(
 
   const profitCell = element('td', 'strategy-profit');
   const mainProfit = element('div', 'strategy-profit-main');
-  mainProfit.textContent = metric(decision.rankValue);
-  mainProfit.title = `選擇${decision.plannedHours}H；按建議製作${quantity(decision.executionHours)}H估算。成本與稅已計入，不保證成交。`;
+  const currentProfit = candidate.profitPerHour * decision.plannedHours;
+  mainProfit.textContent = metric(currentProfit);
+  mainProfit.title = `依目前買一／賣一與角色配置，連續製作${decision.plannedHours}H的理論收益；成本與稅已計入。容量與歷史只作風險提示。`;
   profitCell.append(mainProfit);
-  if (decision.actionable && !decision.durationCovered) {
-    const subProfit = element('div', 'strategy-profit-sub');
-    subProfit.textContent = `限做${quantity(decision.executionHours)}H`;
-    subProfit.title = '依24H市場容量限量生產；剩餘時間不計收益，不代表做滿所選時間也能售完。';
-    profitCell.append(subProfit);
-  } else if (!decision.actionable) {
-    const subProfit = element('div', 'strategy-profit-sub');
-    subProfit.textContent = decision.freshness === 'stale'
-      ? '行情過期'
-      : ['insufficient-primary-data', 'insufficient-input-data'].includes(decision.risk.riskCode)
-        ? '容量待確認'
-        : '待確認';
-    subProfit.title = '報價、容量或時效不足；理論收益保留在詳情，不冒充可執行推薦。';
-    profitCell.append(subProfit);
-  }
   row.append(profitCell);
 
   const trend1dCell = element('td', 'strategy-trend-cell');
@@ -336,7 +323,7 @@ function strategyRow(
     shareCell.classList.add('share-safe');
     shareCell.title = '主要產物不需要經市場出售，因此沒有成品滯銷占比';
   } else if (liquidity.primaryOutputMode === 'derived') {
-    shareCell.textContent = '衍生清算';
+    shareCell.textContent = '多產物';
     shareCell.title = '主要產物以展開後的衍生清算流估值，沒有可直接比較的單一成品成交量';
   } else if (outputShare !== null) {
     const coverage = liquidity.outputVolumeCoverageHours ?? 0;
@@ -365,8 +352,8 @@ function strategyRow(
   row.append(shareCell);
 
   const capital = element('td', 'strategy-capital');
-  capital.textContent = decision.actionable ? money(decision.funding.cashRequired) : '—';
-  capital.title = `建議製作${quantity(decision.executionHours)}H的採購與動作金幣；詳情列出明細。`;
+  capital.textContent = money(decision.funding.cashRequired);
+  capital.title = `製作${quantity(decision.plannedHours)}H的採購與動作金幣；容量限制不會改寫此數字。`;
   row.append(capital);
 
   const classificationCell = element('td', 'strategy-classification-cell');
@@ -394,15 +381,14 @@ function strategyRow(
 
   const priorityCell = element('td', 'strategy-priority-cell');
   const priorityBadge = element('span', 'strategy-priority-badge');
-  if (decision.actionable) {
-    priorityBadge.dataset.strategyPriority = signal.priority;
-    priorityBadge.textContent = MOMENTUM_LABELS[signal.priority];
-    priorityBadge.title = `${SIGNAL_LABELS[signal.action]}｜${signal.reasons.join('；')}`;
-  } else {
-    priorityBadge.dataset.strategyPriority = 'pending';
-    priorityBadge.textContent = '待確認';
-    priorityBadge.title = '容量或行情時效不足，不列為可執行推薦。';
-  }
+  const profitRatio = bestCurrentProfit > 0 ? currentProfit / bestCurrentProfit : 0;
+  const currentPriority: StrategyPriority = profitRatio >= 0.95 ? 'top'
+    : profitRatio >= 0.8 ? 'high'
+      : profitRatio >= 0.5 ? 'medium'
+        : 'low';
+  priorityBadge.dataset.strategyPriority = currentPriority;
+  priorityBadge.textContent = MOMENTUM_LABELS[currentPriority];
+  priorityBadge.title = `目前收益約為榜首的 ${(profitRatio * 100).toFixed(1)}%；市場風險：${decision.risk.riskLabel}`;
   priorityCell.append(priorityBadge);
   row.append(priorityCell);
 
@@ -443,7 +429,7 @@ function detailRow(
   const inputShareDetail = `最大原料需求占比 ${sharePct(decision.inputSharePct)}`;
   const details = [
     `所選時長 ${decision.plannedHours}H；建議製作 ${quantity(decision.executionHours)}H`,
-    `預估收益 ${metric(decision.rankValue)}`,
+    `預估收益 ${metric(candidate.profitPerHour * decision.plannedHours)}`,
     `理論日利 ${money(candidate.profitPerDay)}；所選時段理論收益 ${money(candidate.profitPerHour * decision.plannedHours)}`,
     '售出參考：完成後24H；採歷史成交量5%上限，非訂單簿保證；剩餘時間未計收益',
     outputShareDetail,
@@ -752,11 +738,7 @@ function renderResults(
   customHours.dataset.strategyCustomHours = 'true';
   customHours.value = String(filterState.plannedHours ?? 24); customHours.hidden = !filterState.customDuration;
   durationGroup.append(durationLabel, durationSelect, customHours);
-  const unrankedLabel = element('label', 'strategy-unranked-control');
-  const unrankedInput = element('input'); unrankedInput.type = 'checkbox';
-  unrankedInput.dataset.strategyUnranked = 'true'; unrankedInput.checked = filterState.showUnranked ?? false;
-  unrankedLabel.append(unrankedInput, '顯示待確認候選');
-  toolbar.append(modeGroup, durationGroup, skillGroup, searchGroup, unrankedLabel);
+  toolbar.append(modeGroup, durationGroup, skillGroup, searchGroup);
   options.target.append(toolbar);
 
   const resultsContainer = element('div', 'strategy-results-container');
@@ -777,7 +759,7 @@ function renderResults(
   }
   const dailyAssessed: AssessedStrategy[] = baseAssessed.map(({candidate,liquidity})=>({candidate,liquidity,
     decision:estimateStrategySession({candidate,liquidity,profile,plannedHours:24,latestSnapshotAgeMs})}));
-  const dailyProfit24h = Math.max(0,...dailyAssessed.map(item=>item.decision.rankValue??0));
+  const dailyProfit24h = Math.max(0,...dailyAssessed.map(item=>item.candidate.profitPerDay));
   const upgradePanel=createUpgradePanel({profile,data,snapshots,dailyProfit24h:dailyProfit24h>0?dailyProfit24h:null,itemName:options.itemName,now:options.now,signal:renderSignal});
   options.target.insertBefore(upgradePanel.element,resultsContainer);
   let bestEstimatedProfit = 0;
@@ -824,30 +806,6 @@ function renderResults(
     return displayed;
   }
 
-  function effectiveProfit(item: AssessedStrategy): number {
-    return item.decision.rankValue
-      ?? (isFallbackPending(item) ? item.candidate.profitPerHour * item.decision.plannedHours : Number.NEGATIVE_INFINITY);
-  }
-
-  function isFallbackPending(item: Pick<AssessedStrategy, 'decision'>): boolean {
-    if (item.decision.actionable) return false;
-    if (['no-bid', 'no-ask', 'market-unavailable', 'price-anomaly'].includes(item.decision.risk.riskCode)) {
-      return false;
-    }
-    return item.decision.freshness === 'stale'
-      || ['insufficient-primary-data', 'insufficient-input-data'].includes(item.decision.risk.riskCode);
-  }
-
-  function priorityWeight(priority: StrategyPriority): number {
-    switch (priority) {
-      case 'top': return 4;
-      case 'high': return 3;
-      case 'medium': return 2;
-      case 'low': return 1;
-      default: return 0;
-    }
-  }
-
   function riskRank(classification: LiquidityClassification): number {
     switch (classification) {
       case 'long-run': return 1;   // 低風險
@@ -864,7 +822,7 @@ function renderResults(
     upgradePanel.element.hidden=!isUpgrade;
     resultsContainer.hidden=isUpgrade;
     durationGroup.hidden=isUpgrade;
-    skillGroup.hidden=isUpgrade;searchGroup.hidden=isUpgrade;unrankedLabel.hidden=isUpgrade;
+    skillGroup.hidden=isUpgrade;searchGroup.hidden=isUpgrade;
     for(const [button,active] of [[upgradeBtn,isUpgrade],[steadyBtn,!isUpgrade]] as const){
       button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
     }
@@ -897,45 +855,30 @@ function renderResults(
       }),
     }));
     }
-    bestEstimatedProfit = Math.max(0, ...assessed.map(item => item.decision.rankValue ?? 0));
+    bestEstimatedProfit = Math.max(0, ...assessed.map(item => item.candidate.profitPerHour * hours));
 
-    let matched = assessed.filter(({ candidate, decision }) => {
+    let matched = assessed.filter(({ candidate }) => {
       if (!matchesSkill(candidate, filterState.selectedSkill)) return false;
       if (isSearchActive) {
         return matchesSearchQuery(candidate, filterState.searchQuery, options.itemName);
       }
-      return decision.actionable || isFallbackPending({ decision })
-        || filterState.showUnranked === true;
+      return true;
     });
 
-    // Only compute trends for the top50 and its boundary profit bucket, never the entire tail.
-    matched.sort((a, b) => Number(b.decision.actionable) - Number(a.decision.actionable)
-      || (effectiveProfit(b) - effectiveProfit(a))
-      || a.candidate.id.localeCompare(b.candidate.id));
-    const boundary = matched[49];
-    const bucketSize = 100000 * (filterState.plannedHours ?? 24) / 24;
-    const groupOnly = (item: AssessedStrategy) => ({ profit: item.decision.rankValue, priority: 0, risk: 0, cash: 0, id: '' });
-    if (boundary) matched = matched.filter((item, index) => index < 50 || (boundary.decision.rankValue !== null
-      && compareSessionRanking(groupOnly(item), groupOnly(boundary), bucketSize) === 0));
+    // Current Profit decides the table order. History and capacity never hide or reprice a row.
     matched.sort((a, b) => {
-      const actionableOrder = Number(b.decision.actionable) - Number(a.decision.actionable);
-      if (actionableOrder !== 0) return actionableOrder;
-      if (!a.decision.actionable && !b.decision.actionable) {
-        return (effectiveProfit(b) - effectiveProfit(a)) || a.candidate.id.localeCompare(b.candidate.id);
-      }
-      return compareSessionRanking(
-        { profit: a.decision.rankValue, priority: priorityWeight(getAssessedSignal(a).signal.priority),
-          risk: riskRank(a.decision.risk.classification), cash: a.decision.funding.cashRequired, id: a.candidate.id },
-        { profit: b.decision.rankValue, priority: priorityWeight(getAssessedSignal(b).signal.priority),
-          risk: riskRank(b.decision.risk.classification), cash: b.decision.funding.cashRequired, id: b.candidate.id },
-        bucketSize,
-      );
+      const profitDelta = (b.candidate.profitPerHour - a.candidate.profitPerHour) * hours;
+      if (profitDelta !== 0) return profitDelta;
+      const riskDelta = riskRank(a.decision.risk.classification) - riskRank(b.decision.risk.classification);
+      if (riskDelta !== 0) return riskDelta;
+      const cashDelta = a.decision.funding.cashRequired - b.decision.funding.cashRequired;
+      return cashDelta || a.candidate.id.localeCompare(b.candidate.id);
     });
 
     // 筆數限制：取前 50 筆最高折算日利
     const chosen = matched.slice(0, 50);
 
-    if (!isSearchActive && chosen[0]?.decision.actionable) {
+    if (!isSearchActive && chosen[0]) {
       const summary = element('section', 'strategy-decision-summary');
       summary.dataset.strategyDecisionSummary = 'true';
       const best = chosen[0]!;
@@ -945,15 +888,14 @@ function renderResults(
       label.textContent = '預估收益首選';
       const value = element('span', 'strategy-decision-summary-title');
       const bestPathName = formatSemanticPath(best.candidate, data, options.itemName);
-      value.textContent = `${bestPathName}・${filterState.plannedHours ?? 24}H 預估收益 ${metric(best.decision.rankValue)}`;
+      value.textContent = `${bestPathName}・${filterState.plannedHours ?? 24}H 預估收益 ${metric(best.candidate.profitPerHour * hours)}`;
       leftContainer.append(label, value);
 
       const note = element('span', 'strategy-decision-summary-note');
-      note.textContent = best.decision.durationCovered ? '按目前價格與歷史容量估算，非保證成交。'
-        : `限做${quantity(best.decision.executionHours)}H；剩餘時間未計收益。`;
+      note.textContent = '依目前價格與角色配置計算；容量風險請看右側欄位。';
 
       const radarBadge = element('span', 'strategy-radar-badge');
-      radarBadge.textContent = '趨勢與市場風險已納入優先級';
+      radarBadge.textContent = '趨勢與市場風險只作參考，不改寫收益';
 
       summary.append(leftContainer, note, radarBadge);
       nextResults.append(summary);
@@ -975,7 +917,7 @@ function renderResults(
         const skillName = STRATEGY_SKILL_OPTIONS.find((s) => s.value === filterState.selectedSkill)?.label ?? '';
         empty.textContent = `在「${skillName}」技能下沒有符合條件的策略。`;
       } else {
-        empty.textContent = '目前沒有可排序的策略；可勾選「顯示待確認候選」查看原因。';
+        empty.textContent = '目前沒有可計算且理論收益為正的策略。';
       }
       nextResults.append(empty);
       resultsContainer.replaceChildren(nextResults);
@@ -1017,7 +959,7 @@ function renderResults(
     const body = element('tbody');
     for (const assessedCandidate of chosen) {
       const assessedSignal = getAssessedSignal(assessedCandidate);
-      const mainRow = strategyRow(assessedCandidate, assessedSignal, pinned, options, data);
+      const mainRow = strategyRow(assessedCandidate, assessedSignal, pinned, options, data, bestEstimatedProfit);
       const detail = element('tr', 'strategy-detail-row');
       detail.dataset.strategyDetailFor = assessedCandidate.candidate.id;
       detail.hidden = true;
@@ -1073,11 +1015,6 @@ function renderResults(
     filterState.plannedHours = customHours.valueAsNumber;
     updateResults();
   });
-  unrankedInput.addEventListener('change', () => {
-    filterState.showUnranked = unrankedInput.checked;
-    updateResults();
-  });
-
   updateResults();
 }
 
@@ -1158,3 +1095,4 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
     },
   };
 }
+
