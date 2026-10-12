@@ -564,7 +564,7 @@ function buildScheduleCard(assessed: AssessedStrategy, options: StrategyViewOpti
     summaryItem.style.marginTop = '4px';
     summaryItem.style.paddingTop = '4px';
     summaryItem.style.borderTop = '1px dashed var(--color-line)';
-    summaryItem.textContent = `建議製作 ${quantity(currentHours)}H｜預估收益 ${metric(assessed.decision.rankValue)}｜所需資金 ${money(assessed.decision.funding.cashRequired)}（含動作金幣）`;
+    summaryItem.textContent = `建議製作 ${quantity(currentHours)}H｜預估收益 ${metric(assessed.candidate.profitPerHour * currentHours)}｜所需資金 ${money(assessed.decision.funding.cashRequired)}（含動作金幣）`;
     procurementList.append(summaryItem);
   };
 
@@ -799,7 +799,9 @@ function renderResults(
     const displayed = { ...assessedSignal, signal: strategyTrendSignal(assessedSignal.series, {
       backtest: assessedSignal.backtest.summary,
       classification: item.decision.risk.classification,
-      currentProfitRatio: bestEstimatedProfit > 0 ? (item.decision.rankValue ?? 0) / bestEstimatedProfit : 0,
+      currentProfitRatio: bestEstimatedProfit > 0
+        ? (item.candidate.profitPerHour * item.decision.plannedHours) / bestEstimatedProfit
+        : 0,
       latestSnapshotAgeMs,
     }) };
     displaySignals.set(item.candidate.id, displayed);
