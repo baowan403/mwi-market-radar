@@ -45,6 +45,19 @@ function candidate(inputUnits: number, outputUnits: number): StrategyCandidate {
 }
 
 describe('simple 24h market assessment', () => {
+  it('assesses liquid recipes from one current snapshot while retaining procurement limits', () => {
+    const history = snapshots({ '/items/input': 6000, '/items/output': 10000 }, 1);
+    const normal = evaluateRealizableStrategy(candidate(100, 100), history);
+    expect(normal.riskCode).toBe('healthy');
+    expect(normal.safeHoursPerDay).toBe(24);
+    expect(normal.outputShare24hPct).toBe(1);
+    const demanding = evaluateRealizableStrategy(candidate(3000, 100), history);
+    expect(demanding.riskCode).toBe('procurement-critical');
+    expect(demanding.safeHoursPerDay).toBeCloseTo(2.4);
+    const book = evaluateRealizableStrategy(candidate(100, 100), snapshots({ '/items/input': 2, '/items/output': 10000 }, 1));
+    expect(book.riskCode).toBe('insufficient-input-data');
+    expect(book.classification).toBe('insufficient');
+  });
   it('does not hide an unsellable branch behind a final coin output',()=>{
     const c=candidate(1,10);c.steps[1]!.outputHrid='/items/coin';c.primaryOutputHrids=['/items/output','/items/coin'];
     const history=snapshots({'/items/input':100,'/items/output':100});history.at(-1)!.quotes['/items/output::0']!.b=null;
@@ -207,3 +220,4 @@ describe('simple 24h market assessment', () => {
     expect(result.riskLabel).toBe('價格異常');
   });
 });
+

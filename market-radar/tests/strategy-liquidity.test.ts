@@ -15,6 +15,22 @@ function history(hours: number, volume: (index: number) => number | null = () =>
 }
 
 describe('daily traded-volume market capacity', () => {
+  it('uses current 1h volume above 5000 when history is sparse, without claiming 24h coverage', () => {
+    const result = marketCapacity(KEY, history(1, () => 6000));
+    expect(result.volume24h).toBe(144000);
+    expect(result.observedVolume24h).toBe(6000);
+    expect(result.coverageHours24h).toBe(1);
+    expect(result.volume24hSufficient).toBe(false);
+    expect(result.safeUnitsPerDay).toBe(7200);
+  });
+
+  it('does not extrapolate low-volume books, missing volume, or an old high-volume hour', () => {
+    for (const volume of [0, 2, 5000, null]) {
+      expect(marketCapacity(KEY, history(1, () => volume)).volume24h).toBeNull();
+    }
+    const sparse = history(2, index => index === 0 ? 20000 : 2);
+    expect(marketCapacity(KEY, sparse).volume24h).toBeNull();
+  });
   it('uses a low-confidence capacity budget once four covered hours can be normalized', () => {
     const result = marketCapacity(KEY, history(8));
     expect(result.volume24h).toBe(2400);
@@ -73,3 +89,4 @@ describe('daily traded-volume market capacity', () => {
     expect(result.bidAvailable).toBe(false);
   });
 });
+

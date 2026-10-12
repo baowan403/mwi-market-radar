@@ -339,7 +339,7 @@ function strategyRow(
     shareCell.textContent = `${coverage < 24 ? '≈' : ''}${sharePct(outputShare)}`;
     if (coverage < 24) {
       const coverageNote = element('small');
-      coverageNote.textContent = ` ${coverage}/24H${coverage < 12 ? '・低信心' : ''}`;
+      coverageNote.textContent = coverage < 4 ? ' 1H推估' : ` ${coverage}/24H${coverage < 12 ? '・低信心' : ''}`;
       shareCell.append(coverageNote);
     }
     if (outputShare <= 3) shareCell.classList.add('share-safe');
@@ -349,7 +349,9 @@ function strategyRow(
     const outputName = liquidity.primaryOutputHrid
       ? options.itemName(liquidity.primaryOutputHrid)
       : '主要成品';
-    shareCell.title = `${outputName}：做滿${decision.plannedHours}H的產量 ÷ 24H成交量 ${metric(liquidity.outputVolume24h)} = ${sharePct(outputShare)}（覆蓋 ${liquidity.outputVolumeCoverageHours ?? 0} 小時）`;
+    shareCell.title = coverage < 4
+      ? `${outputName}：最新1H成交量超過5,000；按該小時成交速度推估24H容量，非實際24H成交總量。做滿${decision.plannedHours}H占比 ${sharePct(outputShare)}，仍有5%容量限制。`
+      : `${outputName}：做滿${decision.plannedHours}H的產量 ÷ 24H成交量 ${metric(liquidity.outputVolume24h)} = ${sharePct(outputShare)}（覆蓋 ${coverage} 小時）`;
   } else if (liquidity.riskCode === 'no-bid' || liquidity.riskCode === 'market-unavailable') {
     shareCell.textContent = '無買單';
     shareCell.classList.add('share-critical');

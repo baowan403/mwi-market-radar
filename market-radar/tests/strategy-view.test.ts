@@ -71,6 +71,30 @@ const calculated: StrategyCandidateResult = {
 };
 
 describe('strategy recommendation view', () => {
+  it('shows liquid candidates with only current 1h volume and keeps low-volume feedstock out', async () => {
+    const target = document.createElement('section');
+    const snapshots = history({ '/items/input': 10000, '/items/output': 10000, '/items/book': 2 }, 1);
+    const candidates = Array.from({ length: 12 }, (_, index) => ({
+      id: `liquid-${index}`, kind: 'manufacture' as const, title: `liquid-${index}`,
+      path: ['/items/input', '/items/output'], profitPerHour: 1000 + index,
+      profitPerDay: (1000 + index) * 24, costPerHour: 1000, incomePerHour: 2000 + index,
+      workingCapital24h: 24000, steps: [marketStep(`liquid-${index}`, '/items/input', '/items/output', 10)],
+      verificationStatus: 'unverified' as const,
+    }));
+    const book = { ...candidates[0]!, id: 'book', profitPerHour: 100000, profitPerDay: 2400000,
+      steps: [marketStep('book', '/items/book', '/items/output', 10)] };
+    const view = createStrategyView({ target, getProfile: () => profile, getSnapshots: () => snapshots,
+      loadGameData: async () => ({ shopItemDetailMap: {}, openableLootDropMap: {}, itemsByHrid: new Map() }) as never,
+      calculate: () => ({ candidates: [...candidates, book], diagnostics: [] }),
+      pinStore: createMemoryStrategyPinStore(), itemName: h => h, onImportProfile: vi.fn(),
+      now: () => snapshots.at(-1)!.timestamp });
+    await view.render();
+    expect(target.querySelectorAll('[data-strategy-row]')).toHaveLength(12);
+    expect(target.querySelector('[data-strategy-row="book"]')).toBeNull();
+    expect(target.querySelector('.strategy-market-share')?.textContent).toContain('1H推估');
+    expect(target.querySelector('.strategy-profit-main')?.textContent).not.toBe('—');
+    view.destroy();
+  });
   it('reuses an unchanged candidate scan and invalidates it when the market snapshot changes',async()=>{
     const target=document.createElement('section');
     let currentSnapshot={...snapshot};

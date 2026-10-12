@@ -5,6 +5,7 @@ const DAY_MS = 24 * HOUR_MS;
 const SAFE_SHARE = 0.05;
 const MIN_DAILY_COVERAGE_HOURS = 12;
 const MIN_ROLLING_24H_ESTIMATE_HOURS = 4;
+const MIN_CURRENT_HOURLY_VOLUME = 5_000;
 const MIN_ROLLING_24H_COVERAGE_HOURS = 12;
 export type MarketCapacityLookup = (key: MarketKey) => MarketCapacity;
 
@@ -149,11 +150,18 @@ function rollingVolume24h(
   }
 
   const sufficient = coverageHours >= MIN_ROLLING_24H_COVERAGE_HOURS;
+  // MK can filter directly on the current quote's hourly volume. A liquid
+  // current hour can seed an explicitly labelled estimate when history is missing.
+  // Never reuse an older high-volume hour or count it as 24 observed hours.
+  const latestQuote = snapshots.find(snapshot => snapshot.timestamp === latestTimestamp)?.quotes[key];
+  const currentVolume = latestQuote?.v;
+  const currentHourEstimate = typeof currentVolume === 'number' && Number.isFinite(currentVolume)
+    && currentVolume > MIN_CURRENT_HOURLY_VOLUME ? currentVolume * 24 : null;
   return {
     observedVolume24h: coverageHours > 0 ? observedVolume : null,
     volume24h: coverageHours >= MIN_ROLLING_24H_ESTIMATE_HOURS
       ? observedVolume * 24 / coverageHours
-      : null,
+      : currentHourEstimate,
     coverageHours24h: coverageHours,
     sufficient,
   };
@@ -255,3 +263,4 @@ export function marketCapacity(key: MarketKey, snapshots: readonly Snapshot[]): 
     bidAvailable: typeof quote?.b === 'number' && Number.isFinite(quote.b) && quote.b >= 0,
   };
 }
+
