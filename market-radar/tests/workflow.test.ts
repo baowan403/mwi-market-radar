@@ -23,6 +23,14 @@ describe('market radar Pages workflow', () => {
       workflow.indexOf('Copy validated market data into the site'),
     );
   });
+  it('treats upstream collection failure as a warning when last-known-good data is valid', () => {
+    const collectStep = workflow.match(
+      /- name: Collect the official snapshot[\s\S]*?(?=\n      - name:)/,
+    )?.[0] ?? '';
+    expect(collectStep).toContain('if ! npm run cloud:update');
+    expect(collectStep).toContain('::warning::Official market collection failed; using last-known-good history.');
+    expect(collectStep).not.toContain('exit 1');
+  });
   it('repairs gaps after official collection without blocking it when upstream fails', () => {
     const step = workflow.match(/- name: Repair missing market hours[\s\S]*?(?=\n      - name:)/)?.[0] ?? '';
     expect(step).toContain("if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'");

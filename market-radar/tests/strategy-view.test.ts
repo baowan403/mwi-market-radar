@@ -397,6 +397,31 @@ describe('strategy recommendation view', () => {
     view.destroy();
   });
 
+  it('keeps stale positive candidates visible without presenting executable profit', async () => {
+    const target = document.createElement('section');
+    const snapshots = history({ '/items/input': 1_000, '/items/output': 1_000 });
+    const candidate = {
+      id: 'stale', kind: 'manufacture' as const, title: 'stale', path: ['/items/input', '/items/output'],
+      profitPerHour: 4_000, profitPerDay: 96_000, costPerHour: 1_000, incomePerHour: 5_000,
+      workingCapital24h: 24_000, steps: [marketStep('stale', '/items/input', '/items/output', 1)],
+      verificationStatus: 'unverified' as const,
+    };
+    const view = createStrategyView({
+      target, getProfile: () => profile, getSnapshots: () => snapshots,
+      loadGameData: async () => ({ shopItemDetailMap: {}, openableLootDropMap: {}, itemsByHrid: new Map() }) as never,
+      calculate: () => ({ diagnostics: [], candidates: [candidate] }),
+      pinStore: createMemoryStrategyPinStore(), itemName: h => h, onImportProfile: vi.fn(),
+      now: () => snapshots.at(-1)!.timestamp + 181 * 60_000,
+    });
+
+    await view.render();
+    expect(target.querySelector('[data-strategy-row="stale"]')).not.toBeNull();
+    expect(target.querySelector('[data-strategy-row="stale"] .strategy-profit-main')?.textContent).toBe('—');
+    expect(target.querySelector('[data-strategy-row="stale"] .strategy-profit-sub')?.textContent).toBe('行情過期');
+    expect(target.querySelector('[data-strategy-row="stale"] [data-strategy-priority]')?.textContent).toBe('待確認');
+    view.destroy();
+  });
+
   it('filters strategies by skill dropdown and matches multi-step strategies correctly', async () => {
     const target = document.createElement('section');
     const snapshots = history({

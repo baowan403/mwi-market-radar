@@ -108,8 +108,9 @@ jobs:
         env:
           CANDIDATE_DATA: ${{ steps.candidate-data.outputs.path }}
         run: |
-          set -euo pipefail
-          npm run cloud:update -- --data-dir "$CANDIDATE_DATA" --source-url https://www.milkywayidle.com/game_data/marketplace.json --min-quotes 1000
+          if ! npm run cloud:update -- --data-dir "$CANDIDATE_DATA" --source-url https://www.milkywayidle.com/game_data/marketplace.json --min-quotes 1000; then
+            echo "::warning::Official market collection failed; using last-known-good history."
+          fi
 
       - name: Backfill the authorized seven-day public history
         if: github.event_name == 'workflow_dispatch' && inputs.backfill_stockmarket_7d == true
