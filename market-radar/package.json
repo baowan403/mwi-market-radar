@@ -14,6 +14,7 @@
     "reference:milkonomy": "tsx scripts/import-milkonomy-reference.ts",
     "cloud:update": "tsx scripts/update-cloud-history.ts",
     "cloud:validate": "tsx scripts/update-cloud-history.ts --validate-only",
+    "cloud:repair": "tsx scripts/update-cloud-history.ts --repair-derived",
     "cloud:backfill-stockmarket": "tsx scripts/backfill-stockmarket-history.ts"
   },
   "dependencies": {

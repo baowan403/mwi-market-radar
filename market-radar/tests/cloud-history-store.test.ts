@@ -816,6 +816,7 @@ describe('cloud history CLI', () => {
       fixture: null,
       minQuotes: DEFAULT_MIN_QUOTES,
       validateOnly: false,
+      repairDerived: false,
     });
     expect(parseArgs([
       '--data-dir', 'tmp/data',
@@ -829,6 +830,12 @@ describe('cloud history CLI', () => {
       fixture: 'fixture.json',
       minQuotes: 1,
       validateOnly: true,
+      repairDerived: false,
+    });
+    expect(parseArgs(['--data-dir', 'tmp/data', '--repair-derived'])).toMatchObject({
+      dataDir: 'tmp/data',
+      validateOnly: false,
+      repairDerived: true,
     });
   });
 
@@ -893,5 +900,30 @@ describe('cloud history CLI', () => {
 
     await expect(run(['--data-dir', dataDir, '--validate-only'])).resolves.toBe(1);
     expect(JSON.stringify(consoleError.mock.calls)).not.toContain('private corrupt daily payload');
+  });
+
+  it('rebuilds corrupt derived daily history from valid immutable snapshots', async () => {
+    const firstDay = Date.parse('2026-09-01T00:06:00.000Z');
+    await updateCloudHistory({ dataDir, snapshot: snapshot(firstDay), generatedAt: GENERATED_AT });
+    await updateCloudHistory({ dataDir, snapshot: snapshot(firstDay + 12 * HOUR), generatedAt: GENERATED_AT });
+    await updateCloudHistory({ dataDir, snapshot: snapshot(firstDay + DAY), generatedAt: GENERATED_AT });
+    await writeFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'private corrupt daily payload', 'utf8');
+
+    await expect(run(['--data-dir', dataDir, '--repair-derived'])).resolves.toBe(0);
+    const repaired = await decodeDailyHistoryPack(
+      await readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8'),
+    );
+    expect(repaired.summaries.map((summary) => summary.date)).toEqual(['2026-09-01']);
+  });
+
+  it('does not hide immutable snapshot corruption behind derived-history repair', async () => {
+    const fixture = await fixtureFile(dataDir);
+    await run(['--data-dir', dataDir, '--fixture', fixture, '--min-quotes', '1']);
+    await writeFile(join(dataDir, 'snapshots', `${LATEST}.txt`), 'private corrupt snapshot payload', 'utf8');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(run(['--data-dir', dataDir, '--repair-derived'])).resolves.toBe(1);
+    expect(JSON.stringify(consoleError.mock.calls)).toContain('snapshot');
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('private corrupt snapshot payload');
   });
 });

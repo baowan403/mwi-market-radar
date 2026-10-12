@@ -82,30 +82,50 @@ jobs:
             exit 1
           fi
 
+      - name: Validate last-known-good market data
+        if: steps.data-worktree.outputs.data_branch_created == 'false'
+        working-directory: market-radar
+        env:
+          DATA_WT: ${{ steps.data-worktree.outputs.path }}
+        run: npm run cloud:validate -- --data-dir "$DATA_WT/data"
+
+      - name: Prepare candidate market data
+        id: candidate-data
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          RUNNER_TEMP: ${{ runner.temp }}
+          DATA_WT: ${{ steps.data-worktree.outputs.path }}
+          CANDIDATE_DATA: ${{ runner.temp }}/market-candidate-${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE_DATA"
+          cp -R "$DATA_WT/data/." "$CANDIDATE_DATA/"
+          echo "path=$CANDIDATE_DATA" >> "$GITHUB_OUTPUT"
+
       - name: Collect the official snapshot on scheduled or manual runs
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         working-directory: market-radar
         env:
-          DATA_WT: ${{ steps.data-worktree.outputs.path }}
+          CANDIDATE_DATA: ${{ steps.candidate-data.outputs.path }}
         run: |
           set -euo pipefail
-          npm run cloud:update -- --data-dir "$DATA_WT/data" --source-url https://www.milkywayidle.com/game_data/marketplace.json --min-quotes 1000
+          npm run cloud:update -- --data-dir "$CANDIDATE_DATA" --source-url https://www.milkywayidle.com/game_data/marketplace.json --min-quotes 1000
 
       - name: Backfill the authorized seven-day public history
         if: github.event_name == 'workflow_dispatch' && inputs.backfill_stockmarket_7d == true
         working-directory: market-radar
         env:
-          DATA_WT: ${{ steps.data-worktree.outputs.path }}
-        run: npm run cloud:backfill-stockmarket -- --data-dir "$DATA_WT/data"
+          CANDIDATE_DATA: ${{ steps.candidate-data.outputs.path }}
+        run: npm run cloud:backfill-stockmarket -- --data-dir "$CANDIDATE_DATA"
 
       - name: Repair missing market hours (at most once per six hours)
         id: repair-history
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         working-directory: market-radar
         env:
-          DATA_WT: ${{ steps.data-worktree.outputs.path }}
+          CANDIDATE_DATA: ${{ steps.candidate-data.outputs.path }}
         run: |
-          if ! npm run cloud:backfill-stockmarket -- --data-dir "$DATA_WT/data" --repair-gaps; then
+          if ! npm run cloud:backfill-stockmarket -- --data-dir "$CANDIDATE_DATA" --repair-gaps; then
             echo "::warning::History repair unavailable; preserving official market collection."
           fi
 
@@ -114,9 +134,11 @@ jobs:
         if: ${{ always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && steps.repair-history.outcome != 'skipped' }}
         env:
           DATA_WT: ${{ steps.data-worktree.outputs.path }}
+          CANDIDATE_DATA: ${{ steps.candidate-data.outputs.path }}
         run: |
           set -euo pipefail
-          if [ -f "$DATA_WT/data/stockmarket-repair-attempt.json" ]; then
+          if [ -f "$CANDIDATE_DATA/stockmarket-repair-attempt.json" ]; then
+            cp "$CANDIDATE_DATA/stockmarket-repair-attempt.json" "$DATA_WT/data/stockmarket-repair-attempt.json"
             git -C "$DATA_WT" add -- data/stockmarket-repair-attempt.json
             if ! git -C "$DATA_WT" diff --cached --quiet; then
               git -C "$DATA_WT" config user.name 'github-actions[bot]'
@@ -125,6 +147,33 @@ jobs:
               git -C "$DATA_WT" push origin HEAD:market-data
             fi
             echo "rollback_sha=$(git -C "$DATA_WT" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Repair candidate derived history
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        working-directory: market-radar
+        env:
+          CANDIDATE_DATA: ${{ steps.candidate-data.outputs.path }}
+        run: |
+          if ! npm run cloud:repair -- --data-dir "$CANDIDATE_DATA"; then
+            echo "::warning::Derived history repair failed; candidate validation will decide fallback."
+          fi
+
+      - name: Validate and publish candidate market data
+        id: candidate
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        working-directory: market-radar
+        env:
+          DATA_WT: ${{ steps.data-worktree.outputs.path }}
+          CANDIDATE_DATA: ${{ steps.candidate-data.outputs.path }}
+        run: |
+          set -euo pipefail
+          if npm run cloud:validate -- --data-dir "$CANDIDATE_DATA"; then
+            rsync -a --delete "$CANDIDATE_DATA/" "$DATA_WT/data/"
+            echo "candidate_valid=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Candidate market data rejected; using last-known-good history."
+            echo "candidate_valid=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Validate market-data history

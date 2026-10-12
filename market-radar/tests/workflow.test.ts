@@ -6,6 +6,23 @@ const workflowPath = fileURLToPath(new URL('../../.github/workflows/market-radar
 const workflow = readFileSync(workflowPath, 'utf8');
 
 describe('market radar Pages workflow', () => {
+  it('validates updates in a candidate tree and falls back to last-known-good data', () => {
+    expect(workflow).toContain('CANDIDATE_DATA');
+    expect(workflow).toContain('Prepare candidate market data');
+    expect(workflow).toContain('Validate last-known-good market data');
+    expect(workflow).toContain('Repair candidate derived history');
+    expect(workflow).toContain('cloud:repair');
+    expect(workflow).toContain('Validate and publish candidate market data');
+    expect(workflow).toContain('candidate_valid=false');
+    expect(workflow).toContain('::warning::Candidate market data rejected; using last-known-good history.');
+    expect(workflow).toContain('rsync -a --delete');
+    expect(workflow.indexOf('Validate last-known-good market data')).toBeLessThan(
+      workflow.indexOf('Collect the official snapshot'),
+    );
+    expect(workflow.indexOf('Validate and publish candidate market data')).toBeLessThan(
+      workflow.indexOf('Copy validated market data into the site'),
+    );
+  });
   it('repairs gaps after official collection without blocking it when upstream fails', () => {
     const step = workflow.match(/- name: Repair missing market hours[\s\S]*?(?=\n      - name:)/)?.[0] ?? '';
     expect(step).toContain("if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'");
@@ -106,9 +123,9 @@ describe('market radar Pages workflow', () => {
       "if: github.event_name == 'workflow_dispatch' && inputs.backfill_stockmarket_7d == true",
     );
     expect(backfillStep).toContain('working-directory: market-radar');
-    expect(backfillStep).toContain('DATA_WT: ${{ steps.data-worktree.outputs.path }}');
+    expect(backfillStep).toContain('CANDIDATE_DATA: ${{ steps.candidate-data.outputs.path }}');
     expect(backfillStep).toContain(
-      'npm run cloud:backfill-stockmarket -- --data-dir "$DATA_WT/data"',
+      'npm run cloud:backfill-stockmarket -- --data-dir "$CANDIDATE_DATA"',
     );
     expect(backfillStep).not.toContain("github.event_name == 'schedule'");
     expect(backfillStep).not.toContain("github.event_name == 'push'");
@@ -142,11 +159,11 @@ describe('market radar Pages workflow', () => {
   it('publishes data only after validation, build, and Pages artifact upload', () => {
     const positions = [
       workflow.indexOf('npm run cloud:update'),
-      workflow.indexOf('npm run cloud:validate'),
+      workflow.indexOf('Validate and publish candidate market data'),
       workflow.indexOf('npm test -- --run'),
       workflow.indexOf('npm run build'),
       workflow.indexOf('actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b'),
-      workflow.indexOf('git push origin HEAD:market-data'),
+      workflow.lastIndexOf('git -C "$DATA_WT" push origin HEAD:market-data'),
       workflow.indexOf('actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e'),
     ];
 

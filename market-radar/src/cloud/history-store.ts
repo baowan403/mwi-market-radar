@@ -450,6 +450,50 @@ async function prepareCompletedDailyHistory(
   return current.text === encoded ? null : encoded;
 }
 
+/** Rebuild derived daily history exclusively from retained immutable snapshots. */
+export async function rebuildDailyHistoryFromSnapshots(options: {
+  dataDir: string;
+  fileSystem?: Partial<CloudFileSystem>;
+  fs?: Partial<CloudFileSystem>;
+}): Promise<DailyHistoryPack> {
+  const fileSystem = mergedFileSystem(options);
+  const manifest = await readCurrentManifest(options.dataDir, new Date().toISOString(), fileSystem);
+  const latestDate = manifest.latestTimestamp === null
+    ? null
+    : new Date(manifest.latestTimestamp).toISOString().slice(0, 10);
+  const byDate = new Map<string, Snapshot[]>();
+
+  for (const entry of manifest.snapshots) {
+    const date = new Date(entry.timestamp).toISOString().slice(0, 10);
+    if (latestDate !== null && (date >= latestDate || isRetentionClippedDate(date, manifest.latestTimestamp))) {
+      continue;
+    }
+    let text: string;
+    let decoded: Snapshot[];
+    try {
+      text = await fileSystem.readFile(join(options.dataDir, entry.file), 'utf8');
+      decoded = await decodeDayChunk(text);
+    } catch {
+      throw storageError();
+    }
+    if (
+      Buffer.byteLength(text, 'utf8') !== entry.bytes
+      || decoded.length !== 1
+      || decoded[0]?.timestamp !== entry.timestamp
+    ) throw mismatchError();
+    const values = byDate.get(date) ?? [];
+    values.push(decoded[0]);
+    byDate.set(date, values);
+  }
+
+  const summaries = [...byDate.values()]
+    .sort((left, right) => left[0]!.timestamp - right[0]!.timestamp)
+    .map(aggregateDailySummary);
+  const pack = createDailyHistoryPack(summaries, manifest.generatedAt);
+  await publishDailyHistory(options.dataDir, pack, fileSystem);
+  return pack;
+}
+
 async function pruneSnapshotFiles(
   dataDir: string,
   manifest: CloudManifest,

@@ -6,7 +6,11 @@ import { decodeDayChunk } from '../src/core/storage-codec';
 import { parseOfficialSnapshot } from '../src/core/market-schema';
 import { parseManifest } from '../src/cloud/manifest';
 import { decodeDailyHistoryPack } from '../src/cloud/daily-history';
-import { CLOUD_DAILY_HISTORY_FILE, updateCloudHistory } from '../src/cloud/history-store';
+import {
+  CLOUD_DAILY_HISTORY_FILE,
+  rebuildDailyHistoryFromSnapshots,
+  updateCloudHistory,
+} from '../src/cloud/history-store';
 import type { CloudManifest } from '../src/cloud/types';
 
 export const OFFICIAL_MARKETPLACE_URL = 'https://www.milkywayidle.com/game_data/marketplace.json';
@@ -39,6 +43,7 @@ export interface CloudCliArgs {
   fixture: string | null;
   minQuotes: number;
   validateOnly: boolean;
+  repairDerived: boolean;
 }
 
 export interface CloudCliDependencies {
@@ -99,6 +104,7 @@ export function parseArgs(argv: readonly string[]): CloudCliArgs {
   let fixture: string | null = null;
   let minQuotes = DEFAULT_MIN_QUOTES;
   let validateOnly = false;
+  let repairDerived = false;
   const seen = new Set<string>();
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -137,11 +143,18 @@ export function parseArgs(argv: readonly string[]): CloudCliArgs {
       validateOnly = true;
       continue;
     }
+    if (flag === '--repair-derived') {
+      if (seen.has(flag)) throw new CloudCliError('args', 'Duplicate cloud history argument');
+      seen.add(flag);
+      repairDerived = true;
+      continue;
+    }
     throw new CloudCliError('args', 'Unknown cloud history argument');
   }
 
   if (dataDir.length === 0) throw new CloudCliError('args', 'Invalid cloud data directory');
-  return { dataDir, sourceUrl, fixture, minQuotes, validateOnly };
+  if (validateOnly && repairDerived) throw new CloudCliError('args', 'Conflicting cloud history modes');
+  return { dataDir, sourceUrl, fixture, minQuotes, validateOnly, repairDerived };
 }
 
 async function readFixture(path: string): Promise<Snapshot> {
@@ -199,47 +212,56 @@ function entryPath(dataDir: string, file: string): string {
   return join(dataDir, directory, basename);
 }
 
+function validationError(stage: string): CloudCliError {
+  return new CloudCliError('validation', `${SAFE_ERROR_MESSAGES.validation} (${stage})`);
+}
+
 async function readManifestFile(dataDir: string): Promise<CloudManifest> {
   let text: string;
   try {
     text = await readFile(join(dataDir, 'manifest.json'), 'utf8');
   } catch {
-    throw new CloudCliError('validation', SAFE_ERROR_MESSAGES.validation);
+    throw validationError('manifest-read');
   }
   try {
     return parseManifest(JSON.parse(text) as unknown);
   } catch {
-    throw new CloudCliError('validation', SAFE_ERROR_MESSAGES.validation);
+    throw validationError('manifest-schema');
   }
 }
 
-async function validateCloudHistory(dataDir: string): Promise<CloudManifest> {
+async function validateHourlyHistory(dataDir: string): Promise<CloudManifest> {
   const manifest = await readManifestFile(dataDir);
   for (const entry of manifest.snapshots) {
     let text: string;
     try {
       text = await readFile(entryPath(dataDir, entry.file), 'utf8');
     } catch {
-      throw new CloudCliError('validation', SAFE_ERROR_MESSAGES.validation);
+      throw validationError(`snapshot-read:${entry.timestamp}`);
     }
     if (Buffer.byteLength(text, 'utf8') !== entry.bytes) {
-      throw new CloudCliError('validation', SAFE_ERROR_MESSAGES.validation);
+      throw validationError(`snapshot-bytes:${entry.timestamp}`);
     }
     let snapshots: Snapshot[];
     try {
       snapshots = await decodeDayChunk(text);
     } catch {
-      throw new CloudCliError('validation', SAFE_ERROR_MESSAGES.validation);
+      throw validationError(`snapshot-codec:${entry.timestamp}`);
     }
     if (snapshots.length !== 1 || snapshots[0]?.timestamp !== entry.timestamp) {
-      throw new CloudCliError('validation', SAFE_ERROR_MESSAGES.validation);
+      throw validationError(`snapshot-timestamp:${entry.timestamp}`);
     }
   }
+  return manifest;
+}
+
+async function validateCloudHistory(dataDir: string): Promise<CloudManifest> {
+  const manifest = await validateHourlyHistory(dataDir);
   try {
     await decodeDailyHistoryPack(await readFile(join(dataDir, CLOUD_DAILY_HISTORY_FILE), 'utf8'));
   } catch (cause) {
     if (!isNodeError(cause, 'ENOENT')) {
-      throw new CloudCliError('validation', SAFE_ERROR_MESSAGES.validation);
+      throw validationError('daily-history');
     }
   }
   return manifest;
@@ -253,6 +275,13 @@ export async function run(
   try {
     const args = parseArgs(argv);
     const dataDir = resolve(args.dataDir);
+    if (args.repairDerived) {
+      await validateHourlyHistory(dataDir);
+      await rebuildDailyHistoryFromSnapshots({ dataDir });
+      await validateCloudHistory(dataDir);
+      console.log('Cloud derived history repaired');
+      return 0;
+    }
     if (args.validateOnly) {
       await validateCloudHistory(dataDir);
       console.log('Cloud history valid');
@@ -283,7 +312,7 @@ export async function run(
       : cause !== null && typeof cause === 'object' && 'code' in cause && (cause as { code?: unknown }).code === 'older_snapshot'
         ? 'storage'
         : 'storage';
-    console.error(SAFE_ERROR_MESSAGES[code]);
+    console.error(cause instanceof CloudCliError ? cause.message : SAFE_ERROR_MESSAGES[code]);
     return 1;
   }
 }

@@ -344,6 +344,59 @@ describe('strategy recommendation view', () => {
     view.destroy();
   });
 
+  it('fills sparse actionable results with clearly pending positive candidates', async () => {
+    const target = document.createElement('section');
+    const snapshots = history({
+      '/items/pending_input': 1_000,
+      '/items/pending_output': 1_000,
+    }, 3);
+    const safeStep: StrategyStepResult = {
+      id: 'safe', action: 'alchemy', actionHrid: '/actions/alchemy/safe', outputHrid: '/items/coin',
+      valid: true, actionsPerHour: 1, costPerHour: 0, incomePerHour: 1_000,
+      profitPerHour: 1_000, experiencePerHour: 1, inputs: [],
+      outputs: [{ itemHrid: '/items/coin', enhancementLevel: 0, unitsPerHour: 1_000, unitPrice: 1, market: false }],
+    };
+    const result: StrategyCandidateResult = { diagnostics: [], candidates: [
+      {
+        id: 'safe', kind: 'coinify', title: 'safe', path: ['/items/coin'],
+        profitPerHour: 1_000, profitPerDay: 24_000, costPerHour: 0, incomePerHour: 1_000,
+        workingCapital24h: 0, steps: [safeStep], verificationStatus: 'unverified',
+      },
+      {
+        id: 'pending', kind: 'manufacture', title: 'pending',
+        path: ['/items/pending_input', '/items/pending_output'],
+        profitPerHour: 4_000, profitPerDay: 96_000, costPerHour: 1_000, incomePerHour: 5_000,
+        workingCapital24h: 24_000,
+        steps: [marketStep('pending', '/items/pending_input', '/items/pending_output', 1)],
+        verificationStatus: 'unverified',
+      },
+      {
+        id: 'unavailable', kind: 'manufacture', title: 'unavailable',
+        path: ['/items/missing_input', '/items/missing_output'],
+        profitPerHour: 8_000, profitPerDay: 192_000, costPerHour: 1_000, incomePerHour: 9_000,
+        workingCapital24h: 24_000,
+        steps: [marketStep('unavailable', '/items/missing_input', '/items/missing_output', 1)],
+        verificationStatus: 'unverified',
+      },
+    ] };
+    const view = createStrategyView({
+      target, getProfile: () => profile, getSnapshots: () => snapshots,
+      loadGameData: async () => ({ shopItemDetailMap: {}, openableLootDropMap: {}, itemsByHrid: new Map() }) as never,
+      calculate: () => result, pinStore: createMemoryStrategyPinStore(), itemName: h => h,
+      onImportProfile: vi.fn(), now: () => snapshots.at(-1)!.timestamp,
+    });
+
+    await view.render();
+    expect([...target.querySelectorAll<HTMLElement>('[data-strategy-row]')].map(row => row.dataset.strategyRow))
+      .toEqual(['safe', 'pending']);
+    expect(target.querySelector('[data-strategy-row="pending"] .strategy-profit-main')?.textContent).toBe('—');
+    expect(target.querySelector('[data-strategy-row="pending"] .strategy-profit-sub')?.textContent).toBe('容量待確認');
+    expect(target.querySelector('[data-strategy-row="pending"] .strategy-capital')?.textContent).toBe('—');
+    expect(target.querySelector('[data-strategy-row="pending"] [data-strategy-priority]')?.textContent).toBe('待確認');
+    expect(target.querySelector('[data-strategy-row="unavailable"]')).toBeNull();
+    view.destroy();
+  });
+
   it('filters strategies by skill dropdown and matches multi-step strategies correctly', async () => {
     const target = document.createElement('section');
     const snapshots = history({
@@ -646,4 +699,3 @@ describe('strategy recommendation view', () => {
     view.destroy();
   });
 });
-

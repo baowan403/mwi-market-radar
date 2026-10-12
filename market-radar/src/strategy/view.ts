@@ -283,7 +283,11 @@ function strategyRow(
     profitCell.append(subProfit);
   } else if (!decision.actionable) {
     const subProfit = element('div', 'strategy-profit-sub');
-    subProfit.textContent = '待確認';
+    subProfit.textContent = decision.freshness === 'stale'
+      ? '行情過期'
+      : ['insufficient-primary-data', 'insufficient-input-data'].includes(decision.risk.riskCode)
+        ? '容量待確認'
+        : '待確認';
     subProfit.title = '報價、容量或時效不足；理論收益保留在詳情，不冒充可執行推薦。';
     profitCell.append(subProfit);
   }
@@ -390,9 +394,15 @@ function strategyRow(
 
   const priorityCell = element('td', 'strategy-priority-cell');
   const priorityBadge = element('span', 'strategy-priority-badge');
-  priorityBadge.dataset.strategyPriority = signal.priority;
-  priorityBadge.textContent = MOMENTUM_LABELS[signal.priority];
-  priorityBadge.title = `${SIGNAL_LABELS[signal.action]}｜${signal.reasons.join('；')}`;
+  if (decision.actionable) {
+    priorityBadge.dataset.strategyPriority = signal.priority;
+    priorityBadge.textContent = MOMENTUM_LABELS[signal.priority];
+    priorityBadge.title = `${SIGNAL_LABELS[signal.action]}｜${signal.reasons.join('；')}`;
+  } else {
+    priorityBadge.dataset.strategyPriority = 'pending';
+    priorityBadge.textContent = '待確認';
+    priorityBadge.title = '容量或行情時效不足，不列為可執行推薦。';
+  }
   priorityCell.append(priorityBadge);
   row.append(priorityCell);
 
@@ -815,7 +825,17 @@ function renderResults(
   }
 
   function effectiveProfit(item: AssessedStrategy): number {
-    return item.decision.rankValue ?? Number.NEGATIVE_INFINITY;
+    return item.decision.rankValue
+      ?? (isFallbackPending(item) ? item.candidate.profitPerHour * item.decision.plannedHours : Number.NEGATIVE_INFINITY);
+  }
+
+  function isFallbackPending(item: Pick<AssessedStrategy, 'decision'>): boolean {
+    if (item.decision.actionable) return false;
+    if (['no-bid', 'no-ask', 'market-unavailable', 'price-anomaly'].includes(item.decision.risk.riskCode)) {
+      return false;
+    }
+    return item.decision.freshness === 'stale'
+      || ['insufficient-primary-data', 'insufficient-input-data'].includes(item.decision.risk.riskCode);
   }
 
   function priorityWeight(priority: StrategyPriority): number {
@@ -884,23 +904,33 @@ function renderResults(
       if (isSearchActive) {
         return matchesSearchQuery(candidate, filterState.searchQuery, options.itemName);
       }
-      return decision.actionable || filterState.showUnranked === true;
+      return decision.actionable || isFallbackPending({ decision })
+        || filterState.showUnranked === true;
     });
 
     // Only compute trends for the top50 and its boundary profit bucket, never the entire tail.
-    matched.sort((a, b) => (effectiveProfit(b) - effectiveProfit(a)) || a.candidate.id.localeCompare(b.candidate.id));
+    matched.sort((a, b) => Number(b.decision.actionable) - Number(a.decision.actionable)
+      || (effectiveProfit(b) - effectiveProfit(a))
+      || a.candidate.id.localeCompare(b.candidate.id));
     const boundary = matched[49];
     const bucketSize = 100000 * (filterState.plannedHours ?? 24) / 24;
     const groupOnly = (item: AssessedStrategy) => ({ profit: item.decision.rankValue, priority: 0, risk: 0, cash: 0, id: '' });
     if (boundary) matched = matched.filter((item, index) => index < 50 || (boundary.decision.rankValue !== null
       && compareSessionRanking(groupOnly(item), groupOnly(boundary), bucketSize) === 0));
-    matched.sort((a, b) => compareSessionRanking(
-      { profit: a.decision.rankValue, priority: a.decision.actionable ? priorityWeight(getAssessedSignal(a).signal.priority) : 0,
-        risk: riskRank(a.decision.risk.classification), cash: a.decision.funding.cashRequired, id: a.candidate.id },
-      { profit: b.decision.rankValue, priority: b.decision.actionable ? priorityWeight(getAssessedSignal(b).signal.priority) : 0,
-        risk: riskRank(b.decision.risk.classification), cash: b.decision.funding.cashRequired, id: b.candidate.id },
-      bucketSize,
-    ));
+    matched.sort((a, b) => {
+      const actionableOrder = Number(b.decision.actionable) - Number(a.decision.actionable);
+      if (actionableOrder !== 0) return actionableOrder;
+      if (!a.decision.actionable && !b.decision.actionable) {
+        return (effectiveProfit(b) - effectiveProfit(a)) || a.candidate.id.localeCompare(b.candidate.id);
+      }
+      return compareSessionRanking(
+        { profit: a.decision.rankValue, priority: priorityWeight(getAssessedSignal(a).signal.priority),
+          risk: riskRank(a.decision.risk.classification), cash: a.decision.funding.cashRequired, id: a.candidate.id },
+        { profit: b.decision.rankValue, priority: priorityWeight(getAssessedSignal(b).signal.priority),
+          risk: riskRank(b.decision.risk.classification), cash: b.decision.funding.cashRequired, id: b.candidate.id },
+        bucketSize,
+      );
+    });
 
     // 筆數限制：取前 50 筆最高折算日利
     const chosen = matched.slice(0, 50);
@@ -1128,4 +1158,3 @@ export function createStrategyView(options: StrategyViewOptions): StrategyView {
     },
   };
 }
-
