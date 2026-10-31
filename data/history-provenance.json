@@ -4,10 +4,10 @@
   "sourceLabel": "牛牛股市",
   "sourceUrl": "https://www.stockmarket.xin",
   "permission": "owner-confirmed",
-  "fetchedAt": "2026-10-30T16:16:36.607Z",
-  "fromTimestamp": 1792775160000,
-  "toTimestamp": 1793376360000,
+  "fetchedAt": "2026-10-31T00:48:18.346Z",
+  "fromTimestamp": 1792803960000,
+  "toTimestamp": 1793405160000,
   "snapshotCount": 168,
-  "overlapComparisons": 4256,
+  "overlapComparisons": 4275,
   "liveSource": "mwi-official"
 }
