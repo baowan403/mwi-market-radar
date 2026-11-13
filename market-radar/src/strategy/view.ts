@@ -518,6 +518,12 @@ function buildScheduleCard(assessed: AssessedStrategy, options: StrategyViewOpti
       const actionName = ACTION_LABELS[step.action] ?? step.action;
       item.innerHTML = `<strong>步驟 ${idx + 1}：${actionName}（${options.itemName(step.outputHrid)}）</strong> ── 耗時約 ${hoursText}（佔比 ${(fraction * 100).toFixed(1)}%）`;
       scheduleList.append(item);
+      const teaItem = element('li', 'strategy-step-teas');
+      const teas = Object.keys(step.ledger?.physical.teaUnitsPerHour ?? {});
+      const fallback = step.inputs.filter((f,index) => f.itemHrid.endsWith('_tea') && !(step.action === 'alchemy' && index === 0)).map(f=>f.itemHrid);
+      const names = teas.length ? teas : fallback;
+      teaItem.textContent = `步驟 ${idx + 1} 茶飲：${names.length ? names.map(h=>options.itemName(h)).join('、') : '無茶'}`;
+      scheduleList.append(teaItem);
     });
 
     // 2. 原料採購清單
@@ -530,7 +536,7 @@ function buildScheduleCard(assessed: AssessedStrategy, options: StrategyViewOpti
       teaItem.style.marginBottom = '6px';
       teaItem.style.paddingBottom = '6px';
       teaItem.style.borderBottom = '1px dashed var(--color-line)';
-      teaItem.innerHTML = `🍵 <strong>建議飲用茶飲</strong>：${teaHrids.map((h) => options.itemName(h)).join('、')}`;
+      teaItem.textContent = '茶飲用量為各步驟合計；每一步的飲用配置見左側。';
       procurementList.append(teaItem);
     } else {
       const profile = options.getProfile();

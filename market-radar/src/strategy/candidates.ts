@@ -10,6 +10,7 @@ import { calculateWorkflow, type WorkflowResult } from './workflow';
 import { enrichProfileWithBestLoadout, isTeaManual } from './optimal-loadout';
 import { findOptimalTeasForAlchemy, createTeaBuffLookup } from './tea-optimizer';
 import { discoverCombinations } from './combinations';
+import { createTwoStepTeaOptimizer } from './workflow-teas';
 
 const MANUFACTURING_ACTIONS = new Set<SkillingAction>([
   'cheesesmithing', 'crafting', 'tailoring', 'cooking', 'brewing',
@@ -400,11 +401,13 @@ export function buildStrategyCandidates(options: {
 
   }
   if(options.includeCombinations!==false)for(const combined of discoverCombinations([...stepCache.values()].filter((s):s is StrategyStepResult=>s!==null).concat(alchemySteps),data,prices))addCandidate(combined);
+  const optimizeTwoStepTeas = createTwoStepTeaOptimizer(profile, data, prices);
   return {
-    coverageNote:options.includeCombinations===false?undefined:'組合搜尋最多3步；每個起點保留8個候選，非完整窮舉。',
-    candidates: selectParetoStrategyVariants([...candidateMap.values()]).sort((left, right) => (
+    coverageNote:options.includeCombinations===false?undefined:'組合搜尋最多3步；每個起點保留8個候選，非完整窮舉。已找到的兩步路徑按整鏈收益選茶。',
+    candidates: selectParetoStrategyVariants([...candidateMap.values()].map(optimizeTwoStepTeas)).sort((left, right) => (
       right.profitPerDay - left.profitPerDay || left.id.localeCompare(right.id)
     )),
     diagnostics,
   };
 }
+
