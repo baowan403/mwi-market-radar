@@ -1,43 +1,8 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-20T01:16:55.265Z",
-  "latestTimestamp": 1795136760000,
+  "generatedAt": "2026-11-20T08:56:04.870Z",
+  "latestTimestamp": 1795161960000,
   "snapshots": [
-    {
-      "timestamp": 1794272760000,
-      "file": "snapshots/1794272760000.txt",
-      "bytes": 39531
-    },
-    {
-      "timestamp": 1794276360000,
-      "file": "snapshots/1794276360000.txt",
-      "bytes": 39899
-    },
-    {
-      "timestamp": 1794279960000,
-      "file": "snapshots/1794279960000.txt",
-      "bytes": 39883
-    },
-    {
-      "timestamp": 1794283560000,
-      "file": "snapshots/1794283560000.txt",
-      "bytes": 39283
-    },
-    {
-      "timestamp": 1794287160000,
-      "file": "snapshots/1794287160000.txt",
-      "bytes": 39087
-    },
-    {
-      "timestamp": 1794290760000,
-      "file": "snapshots/1794290760000.txt",
-      "bytes": 39363
-    },
-    {
-      "timestamp": 1794294360000,
-      "file": "snapshots/1794294360000.txt",
-      "bytes": 39467
-    },
     {
       "timestamp": 1794297960000,
       "file": "snapshots/1794297960000.txt",
@@ -1207,6 +1172,41 @@
       "timestamp": 1795136760000,
       "file": "snapshots/1795136760000.txt",
       "bytes": 39563
+    },
+    {
+      "timestamp": 1795140360000,
+      "file": "snapshots/1795140360000.txt",
+      "bytes": 39407
+    },
+    {
+      "timestamp": 1795143960000,
+      "file": "snapshots/1795143960000.txt",
+      "bytes": 38935
+    },
+    {
+      "timestamp": 1795147560000,
+      "file": "snapshots/1795147560000.txt",
+      "bytes": 38811
+    },
+    {
+      "timestamp": 1795151160000,
+      "file": "snapshots/1795151160000.txt",
+      "bytes": 38927
+    },
+    {
+      "timestamp": 1795154760000,
+      "file": "snapshots/1795154760000.txt",
+      "bytes": 39087
+    },
+    {
+      "timestamp": 1795158360000,
+      "file": "snapshots/1795158360000.txt",
+      "bytes": 39191
+    },
+    {
+      "timestamp": 1795161960000,
+      "file": "snapshots/1795161960000.txt",
+      "bytes": 39079
     }
   ]
 }
